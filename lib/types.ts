@@ -1,0 +1,126 @@
+export type DayOfWeek = "MON" | "TUE" | "WED" | "THU" | "FRI";
+export type AnyDayOfWeek = DayOfWeek | "SAT" | "SUN";
+export type Role = "user" | "admin";
+
+export interface UserProfile {
+  id: string;
+  authUserId: string;
+  email: string;
+  name: string;
+  nickname: string;
+  department: string;
+  grade: 1 | 2 | 3 | 4;
+  role: Role;
+  createdAt: string;
+}
+
+export interface Course {
+  id: string;
+  department: string;
+  grade: number;
+  courseName: string;
+  professorName: string;
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  endTime: string;
+  buildingName: string;
+  roomName: string;
+  requiredType: "required" | "elective";
+  reviewAverage: number;
+  createdAt: string;
+}
+
+export interface ClassSchedule {
+  id: string;
+  timetableId: string;
+  courseId?: string;
+  courseName: string;
+  professorName: string;
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  endTime: string;
+  buildingName: string;
+  roomName: string;
+  color: string;
+  memo?: string;
+}
+
+export interface PersonalSchedule {
+  id: string;
+  userId: string;
+  title: string;
+  dayOfWeek: AnyDayOfWeek;
+  startTime: string;
+  endTime: string;
+  memo?: string;
+}
+
+export interface Timetable {
+  id: string;
+  userId: string;
+  semester: string;
+  title: string;
+  isSelected: boolean;
+  score: number;
+  classes: ClassSchedule[];
+  createdAt: string;
+}
+
+export interface CampusPlace {
+  id: string;
+  name: string;
+  category: "lecture" | "library" | "student" | "food" | "admin" | "facility";
+  description: string;
+  buildingName: string;
+  floor: string;
+  mapX: number;
+  mapY: number;
+  tags: string[];
+}
+
+export interface Comment {
+  id: string;
+  postId: string;
+  userId: string;
+  authorName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface BoardPost {
+  id: string;
+  userId: string;
+  authorName: string;
+  category: "freshman" | "free" | "department" | "info";
+  title: string;
+  content: string;
+  viewCount: number;
+  comments: Comment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CourseReview {
+  id: string;
+  userId: string;
+  courseName: string;
+  professorName: string;
+  semester: string;
+  rating: number;
+  assignmentLevel: "low" | "medium" | "high";
+  examLevel: "low" | "medium" | "high";
+  attendanceType: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface Notice {
+  id: string;
+  category: "academic" | "scholarship" | "registration" | "event" | "career" | "general";
+  title: string;
+  summary: string;
+  sourceUrl?: string;
+  isPinned: boolean;
+  publishedAt: string;
+  createdAt: string;
+}

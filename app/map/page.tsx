@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { campusPlaces } from "@/lib/data";
 import type { CampusPlace } from "@/lib/types";
@@ -15,6 +15,14 @@ const categoryLabels: Record<CampusPlace["category"], string> = {
 };
 
 export default function MapPage() {
+  return (
+    <Suspense fallback={<main className="page"><div className="panel">지도를 불러오는 중입니다.</div></main>}>
+      <MapContent />
+    </Suspense>
+  );
+}
+
+function MapContent() {
   const searchParams = useSearchParams();
   const building = searchParams.get("building");
   const initial = campusPlaces.find((place) => building && place.buildingName.includes(building)) ?? campusPlaces[0];

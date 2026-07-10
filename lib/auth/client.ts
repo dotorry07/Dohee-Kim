@@ -1,0 +1,61 @@
+"use client";
+
+import { demoUser } from "@/lib/data";
+import type { UserProfile } from "@/lib/types";
+
+const USER_KEY = "newbie-on:user";
+
+export function getStoredUser(): UserProfile | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(USER_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(raw) as UserProfile;
+  } catch {
+    window.localStorage.removeItem(USER_KEY);
+    return null;
+  }
+}
+
+export function signIn(email: string, password: string) {
+  if (email !== demoUser.email || password.length < 8) {
+    throw new Error("이메일 또는 비밀번호가 올바르지 않습니다.");
+  }
+
+  window.localStorage.setItem(USER_KEY, JSON.stringify(demoUser));
+  return demoUser;
+}
+
+export function signUp(input: {
+  email: string;
+  name: string;
+  department: string;
+  grade: number;
+}) {
+  const user: UserProfile = {
+    ...demoUser,
+    id: `local-${Date.now()}`,
+    authUserId: `auth-local-${Date.now()}`,
+    email: input.email,
+    name: input.name,
+    nickname: input.name,
+    department: input.department,
+    grade: input.grade as UserProfile["grade"],
+    createdAt: new Date().toISOString()
+  };
+
+  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+  return user;
+}
+
+export function signOut() {
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(USER_KEY);
+  }
+}

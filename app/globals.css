@@ -312,11 +312,7 @@ button {
   display: grid;
   align-items: end;
   border-bottom: 1px solid var(--line);
-  background:
-    linear-gradient(90deg, rgba(12, 55, 50, 0.9), rgba(12, 55, 50, 0.58), rgba(246, 247, 244, 0.2)),
-    url("/images/campus-map.svg");
-  background-size: cover;
-  background-position: center;
+  background: var(--primary);
 }
 
 .hero-content {

@@ -231,6 +231,18 @@ button {
   resize: vertical;
 }
 
+.select-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.42fr) minmax(150px, 0.58fr);
+  gap: 8px;
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .error {
   border: 1px solid rgba(194, 59, 59, 0.25);
   border-radius: 8px;

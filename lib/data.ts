@@ -139,7 +139,7 @@ export const timetables: Timetable[] = [
       endTime: course.endTime,
       buildingName: course.buildingName,
       roomName: course.roomName,
-      color: ["#0f766e", "#d65f2b", "#315f8d", "#7d5a2f"][index],
+      color: ["#582f82", "#7350a0", "#8b5fbf", "#442363"][index],
       memo: course.requiredType === "required" ? "필수 이수" : ""
     })),
     createdAt: "2026-03-02T09:00:00.000Z"

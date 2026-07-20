@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { notices } from "@/lib/data";
+import { useEffect, useMemo, useState } from "react";
 import type { Notice } from "@/lib/types";
 
 const categoryLabels: Record<Notice["category"], string> = {
@@ -16,14 +15,57 @@ const categoryLabels: Record<Notice["category"], string> = {
 export default function NoticesPage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<Notice["category"] | "all">("all");
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadNotices() {
+      setIsLoading(true);
+      setError("");
+
+      try {
+        const response = await fetch("/api/notices");
+
+        if (!response.ok) {
+          throw new Error("request failed");
+        }
+
+        const data = await response.json() as { notices: Notice[] };
+        if (!ignore) {
+          setNotices(data.notices);
+        }
+      } catch {
+        if (!ignore) {
+          setError("공지사항을 불러오지 못했습니다.");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadNotices();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return notices
       .filter((notice) => category === "all" || notice.category === category)
       .filter((notice) => !normalized || `${notice.title} ${notice.summary}`.toLowerCase().includes(normalized))
-      .sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
-  }, [category, query]);
+      .sort((a, b) => (
+        Number(b.isPinned) - Number(a.isPinned) ||
+        Number(Boolean(a.isExpired)) - Number(Boolean(b.isExpired)) ||
+        Date.parse(b.publishedAt) - Date.parse(a.publishedAt)
+      ));
+  }, [category, notices, query]);
 
   const pinned = filtered.filter((notice) => notice.isPinned);
   const regular = filtered.filter((notice) => !notice.isPinned);
@@ -59,6 +101,9 @@ export default function NoticesPage() {
         </div>
       </section>
 
+      {isLoading ? <section className="success" style={{ marginTop: 16 }}>학과 공지사항에서 대회 관련 공지를 불러오는 중입니다.</section> : null}
+      {error ? <section className="error" style={{ marginTop: 16 }}>{error}</section> : null}
+
       <section className="grid two" style={{ marginTop: 16 }}>
         <article className="panel">
           <div className="section-title">
@@ -87,16 +132,47 @@ function NoticeList({ notices: items, empty }: { notices: Notice[]; empty: strin
   return (
     <div className="list">
       {items.map((notice) => (
-        <article className="list-item" key={notice.id}>
-          <div className="meta">
-            <span className="badge">{categoryLabels[notice.category]}</span>
-            <span>{new Intl.DateTimeFormat("ko-KR").format(new Date(notice.publishedAt))}</span>
+        <article className={getNoticeClassName(notice)} key={notice.id}>
+          {notice.imageUrl ? (
+            <img
+              className="notice-thumb"
+              src={notice.imageUrl}
+              alt=""
+              loading="lazy"
+              onError={(event) => {
+                event.currentTarget.style.display = "none";
+              }}
+            />
+          ) : null}
+          <div className="notice-copy">
+            <div className="meta">
+              <span className="badge">{categoryLabels[notice.category]}</span>
+              <span>{new Intl.DateTimeFormat("ko-KR").format(new Date(notice.publishedAt))}</span>
+            </div>
+            <strong>{notice.title}</strong>
+            <span className="muted">{notice.summary}</span>
+            {notice.applicationDeadline ? (
+              <span className="notice-deadline">
+                신청 마감 {new Intl.DateTimeFormat("ko-KR").format(new Date(notice.applicationDeadline))}
+              </span>
+            ) : null}
+            {notice.isExpired ? (
+              <span className="closed-badge">신청기간 마감</span>
+            ) : notice.applicationUrl ? (
+              <a className="button" href={notice.applicationUrl} target="_blank" rel="noreferrer">신청 링크</a>
+            ) : null}
           </div>
-          <strong>{notice.title}</strong>
-          <span className="muted">{notice.summary}</span>
-          {notice.sourceUrl ? <a className="button" href={notice.sourceUrl} target="_blank" rel="noreferrer">원문 링크</a> : null}
         </article>
       ))}
     </div>
   );
+}
+
+function getNoticeClassName(notice: Notice) {
+  return [
+    "list-item",
+    "notice-item",
+    notice.imageUrl ? "with-image" : "",
+    notice.isExpired ? "expired" : ""
+  ].filter(Boolean).join(" ");
 }

@@ -10,7 +10,12 @@ export const dayLabels: Record<DayOfWeek, string> = {
 
 export const weekdays = Object.keys(dayLabels) as DayOfWeek[];
 
-export const timetableColors = ["#0f766e", "#d65f2b", "#315f8d", "#7d5a2f", "#8566a8", "#59734d"];
+export const timetableColors = ["#582f82", "#7350a0", "#8b5fbf", "#442363", "#6d3d98", "#9b78c4"];
+
+export function isRecordedRemoteClass(item: { lessonTypeName?: string; roomName?: string; buildingName?: string }) {
+  const lessonType = item.lessonTypeName?.replace(/\s+/g, "") ?? "";
+  return lessonType.includes("원격") && (lessonType.includes("녹화") || lessonType.includes("RecordingContent"));
+}
 
 export function toMinutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -54,7 +59,7 @@ export function generateTimetableCandidates(input: {
 }) {
   const baseCourses = input.courses
     .filter((course) => course.department === input.department && course.grade === input.grade)
-    .filter((course) => course.requiredType === "required" || input.requiredCourseIds.includes(course.id));
+    .filter((course) => course.requiredType === "required" && input.requiredCourseIds.includes(course.id));
 
   const electives = input.courses
     .filter((course) => course.department === input.department && course.grade === input.grade && course.requiredType === "elective")

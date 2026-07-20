@@ -24,7 +24,9 @@ export function AppHeader() {
     <header className="topbar">
       <div className="topbar-inner">
         <Link className="brand" href="/">
-          <span className="brand-mark">ON</span>
+          <span className="brand-mark" aria-hidden="true">
+            <img src="/images/app-logo-header.png" alt="" />
+          </span>
           <span>새내기 ON</span>
         </Link>
         <nav className="nav" aria-label="주요 메뉴">

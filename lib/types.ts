@@ -41,6 +41,7 @@ export interface ClassSchedule {
   endTime: string;
   buildingName: string;
   roomName: string;
+  lessonTypeName?: string;
   color: string;
   memo?: string;
 }
@@ -119,6 +120,10 @@ export interface Notice {
   category: "academic" | "scholarship" | "registration" | "event" | "career" | "general";
   title: string;
   summary: string;
+  imageUrl?: string;
+  applicationUrl?: string;
+  applicationDeadline?: string;
+  isExpired?: boolean;
   sourceUrl?: string;
   isPinned: boolean;
   publishedAt: string;

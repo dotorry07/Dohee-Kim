@@ -1,4 +1,4 @@
-import { departments, grades } from "@/lib/data";
+import { grades } from "@/lib/data";
 
 export interface AuthFormInput {
   email: string;
@@ -7,6 +7,7 @@ export interface AuthFormInput {
   name?: string;
   department?: string;
   grade?: string;
+  availableDepartments?: readonly string[];
 }
 
 export function isValidEmail(email: string) {
@@ -39,8 +40,12 @@ export function validateSignup(input: AuthFormInput) {
     return "닉네임 또는 이름은 필수입니다.";
   }
 
-  if (!input.department || !departments.includes(input.department)) {
+  if (!input.department?.trim()) {
     return "학과를 선택해주세요.";
+  }
+
+  if (input.availableDepartments?.length && !input.availableDepartments.includes(input.department)) {
+    return "검색 결과에서 학과를 선택해주세요.";
   }
 
   const grade = Number(input.grade);

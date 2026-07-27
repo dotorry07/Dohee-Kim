@@ -7,7 +7,7 @@ import { AuthGuard } from "@/components/AuthGuard";
 import { timetables } from "@/lib/data";
 import { dayLabels, isRecordedRemoteClass, toMinutes, weekdays } from "@/lib/timetable";
 import type { CSSProperties } from "react";
-import type { ClassSchedule, Timetable } from "@/lib/types";
+import type { ClassSchedule, PersonalSchedule, Timetable } from "@/lib/types";
 
 const previewHours = Array.from({ length: 14 }, (_, index) => 9 + index);
 const slideTravel = 220;
@@ -299,7 +299,7 @@ function TimetableWorkspace() {
                   </button>
                 </div>
               </div>
-              <TimetablePreview classes={timetable.classes} />
+              <TimetablePreview classes={timetable.classes} personalSchedules={timetable.personalSchedules} />
             </article>
           );
         })}
@@ -311,7 +311,7 @@ function TimetableWorkspace() {
             onClick={() => moveByStep(-1)}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            &lt;
+            <img alt="" className="stack-arrow-icon stack-arrow-icon-left" src="/images/arrow-step.png" />
           </button>
         ) : null}
         {activeIndex < deckItems.length - 1 ? (
@@ -322,7 +322,7 @@ function TimetableWorkspace() {
             onClick={() => moveByStep(1)}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            &gt;
+            <img alt="" className="stack-arrow-icon" src="/images/arrow-step.png" />
           </button>
         ) : null}
         {activeIndex > 0 ? (
@@ -333,7 +333,7 @@ function TimetableWorkspace() {
             onClick={() => setActiveIndex(0)}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            &lt;&lt;
+            <img alt="" className="stack-arrow-icon stack-arrow-icon-left" src="/images/arrow-edge.png" />
           </button>
         ) : null}
         {activeIndex < deckItems.length - 1 ? (
@@ -344,7 +344,7 @@ function TimetableWorkspace() {
             onClick={() => setActiveIndex(deckItems.length - 1)}
             onPointerDown={(event) => event.stopPropagation()}
           >
-            &gt;&gt;
+            <img alt="" className="stack-arrow-icon" src="/images/arrow-edge.png" />
           </button>
         ) : null}
       </section>
@@ -400,9 +400,16 @@ function TimetableWorkspace() {
   );
 }
 
-function TimetablePreview({ classes }: { classes: ClassSchedule[] }) {
+function TimetablePreview({
+  classes,
+  personalSchedules
+}: {
+  classes: ClassSchedule[];
+  personalSchedules?: PersonalSchedule[];
+}) {
   const onlineClasses = classes.filter(isRecordedRemoteClass);
   const mergedClasses = mergeAdjacentClasses(classes.filter((item) => !isRecordedRemoteClass(item)));
+  const schedules = (personalSchedules ?? []).filter((item) => weekdays.includes(item.dayOfWeek as (typeof weekdays)[number]));
 
   return (
     <div className="timetable-preview-shell">
@@ -440,6 +447,32 @@ function TimetablePreview({ classes }: { classes: ClassSchedule[] }) {
               key={item.id}
             >
               <strong>{item.courseName}</strong>
+              <span>{item.startTime}-{item.endTime}</span>
+            </div>
+          );
+        })}
+        {schedules.map((item) => {
+          const dayIndex = weekdays.indexOf(item.dayOfWeek as (typeof weekdays)[number]);
+          const start = Math.max(toMinutes(item.startTime), previewHours[0] * 60);
+          const end = Math.min(toMinutes(item.endTime), (previewHours[previewHours.length - 1] + 1) * 60);
+          const startSlot = (start - previewHours[0] * 60) / 60;
+          const durationSlots = (end - start) / 60;
+
+          if (dayIndex < 0 || end <= start) {
+            return null;
+          }
+
+          return (
+            <div
+              className="preview-class preview-personal-class"
+              style={{
+                "--day-index": dayIndex,
+                "--start-slot": startSlot,
+                "--duration-slots": durationSlots
+              } as CSSProperties}
+              key={item.id}
+            >
+              <strong>{item.title}</strong>
               <span>{item.startTime}-{item.endTime}</span>
             </div>
           );

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { notices } from "@/lib/data";
 import type { Notice } from "@/lib/types";
 
+type DepartmentNoticeCategory = "curriculum" | "graduation" | "campus" | "event";
+
 const sungshinBaseUrl = "https://www.sungshin.ac.kr";
 const sourcePageUrls = [
   `${sungshinBaseUrl}/generaledu/22036/subview.do`,
@@ -12,11 +14,25 @@ const excludedNoticeKeywords = ["수상자 발표", "수상작 발표", "결과 
 const cacheTtlMs = 30 * 60 * 1000;
 
 let competitionNoticeCache: { expiresAt: number; notices: Notice[] } | null = null;
+let departmentTargetCache: { expiresAt: number; targets: { name: string; url: string }[] } | null = null;
+const departmentNoticeCache = new Map<string, { expiresAt: number; notices: Notice[] }>();
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.toLowerCase() ?? "";
   const category = searchParams.get("category");
+  const department = searchParams.get("department");
+
+  if (department && department !== "all") {
+    const departmentNotices = await getDepartmentNotices(department);
+    const items = departmentNotices
+      .filter((notice) => !category || category === "all" || getDepartmentNoticeCategory(notice) === category)
+      .filter((notice) => !query || `${notice.title} ${notice.summary}`.toLowerCase().includes(query))
+      .sort(compareNotices);
+
+    return NextResponse.json({ notices: items });
+  }
+
   const competitionNotices = await getDepartmentCompetitionNotices();
 
   const items = [...competitionNotices, ...notices]
@@ -27,25 +43,80 @@ export async function GET(request: Request) {
   return NextResponse.json({ notices: items });
 }
 
+async function getDepartmentNotices(departmentName: string) {
+  const cached = departmentNoticeCache.get(departmentName);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.notices;
+  }
+
+  try {
+    const departments = await getDepartmentTargets();
+    const department = findDepartmentTarget(departments, departmentName);
+
+    if (!department) {
+      return [];
+    }
+
+    const scraped = await scrapeDepartmentNotices(department);
+    const deduped = dedupeNotices(scraped).slice(0, 40);
+    departmentNoticeCache.set(departmentName, { expiresAt: Date.now() + cacheTtlMs, notices: deduped });
+    return deduped;
+  } catch {
+    return cached?.notices ?? [];
+  }
+}
+
 async function getDepartmentCompetitionNotices() {
   if (competitionNoticeCache && competitionNoticeCache.expiresAt > Date.now()) {
     return competitionNoticeCache.notices;
   }
 
   try {
-    const sourceHtmls = await mapWithConcurrency(sourcePageUrls, 2, fetchText);
-    const departments = dedupeDepartmentTargets(
-      sourceHtmls.flatMap((sourceHtml) => [
-        ...extractDepartmentLinks(sourceHtml),
-        ...extractDepartmentNoticeLinks(sourceHtml)
-      ])
-    );
+    const departments = await getDepartmentTargets();
     const collected = await mapWithConcurrency(departments, 6, scrapeDepartmentCompetitionNotices);
     const deduped = dedupeNotices(collected.flat()).slice(0, 30);
     competitionNoticeCache = { expiresAt: Date.now() + cacheTtlMs, notices: deduped };
     return deduped;
   } catch {
     return competitionNoticeCache?.notices ?? [];
+  }
+}
+
+async function getDepartmentTargets() {
+  if (departmentTargetCache && departmentTargetCache.expiresAt > Date.now()) {
+    return departmentTargetCache.targets;
+  }
+
+  const sourceHtmls = await mapWithConcurrency(sourcePageUrls, 2, fetchText);
+  const targets = dedupeDepartmentTargets(
+    sourceHtmls.flatMap((sourceHtml) => [
+      ...extractDepartmentLinks(sourceHtml),
+      ...extractDepartmentNoticeLinks(sourceHtml)
+    ])
+  );
+  departmentTargetCache = { expiresAt: Date.now() + cacheTtlMs, targets };
+  return targets;
+}
+
+async function scrapeDepartmentNotices(department: { name: string; url: string }) {
+  try {
+    const homeHtml = await fetchText(department.url);
+    const noticeListUrls = await findNoticeListUrls(homeHtml, department.url);
+    const listHtmls = await mapWithConcurrency(noticeListUrls.slice(0, 3), 2, fetchText);
+    const articles = dedupeArticles(listHtmls.flatMap((html) => extractArticles(html))).slice(0, 40);
+
+    return articles.map<Notice>((article) => ({
+      id: `dept-notice-${department.name}-${article.url}`.replace(/\s+/g, "-"),
+      category: getNoticeCategoryFromDepartmentCategory(getDepartmentArticleCategory(article.title)),
+      title: article.title,
+      summary: `${department.name} 공식 사이트 공지사항에서 가져온 ${getDepartmentCategoryLabel(getDepartmentArticleCategory(article.title))} 공지입니다.`,
+      sourceUrl: article.url,
+      isPinned: false,
+      publishedAt: article.date ? `${article.date.replace(/\./g, "-")}T09:00:00.000Z` : new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -81,6 +152,16 @@ async function scrapeDepartmentCompetitionNotices(department: { name: string; ur
   } catch {
     return [];
   }
+}
+
+function findDepartmentTarget(items: { name: string; url: string }[], departmentName: string) {
+  const normalizedDepartmentName = normalizeDepartmentName(departmentName);
+
+  return items.find((item) => normalizeDepartmentName(item.name) === normalizedDepartmentName) ??
+    items.find((item) => (
+      normalizeDepartmentName(item.name).includes(normalizedDepartmentName) ||
+      normalizedDepartmentName.includes(normalizeDepartmentName(item.name))
+    ));
 }
 
 function extractDepartmentLinks(html: string) {
@@ -417,6 +498,71 @@ function dedupeNotices(items: Notice[]) {
     seen.add(key);
     return true;
   });
+}
+
+function dedupeArticles(items: DepartmentArticle[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.url || item.title;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function getDepartmentNoticeCategory(notice: Notice): DepartmentNoticeCategory {
+  return getDepartmentArticleCategory(`${notice.title} ${notice.summary}`);
+}
+
+function getDepartmentArticleCategory(text: string): DepartmentNoticeCategory {
+  const normalized = text.toLowerCase();
+
+  if (/(졸업|학위|논문|캡스톤|인증|이수인증|졸업요건|졸업시험)/.test(normalized)) {
+    return "graduation";
+  }
+
+  if (/(교육과정|교과|전공|수강|이수|교직|강의|수업|커리큘럼|교과목|교직과정)/.test(normalized)) {
+    return "curriculum";
+  }
+
+  if (/(행사|특강|세미나|설명회|대회|공모|공모전|경진|박람회|워크숍|워크샵|간담회|모집|프로그램)/.test(normalized)) {
+    return "event";
+  }
+
+  return "campus";
+}
+
+function getNoticeCategoryFromDepartmentCategory(category: DepartmentNoticeCategory): Notice["category"] {
+  if (category === "event") {
+    return "event";
+  }
+
+  if (category === "curriculum" || category === "graduation") {
+    return "academic";
+  }
+
+  return "general";
+}
+
+function getDepartmentCategoryLabel(category: DepartmentNoticeCategory) {
+  const labels: Record<DepartmentNoticeCategory, string> = {
+    curriculum: "교육과정",
+    graduation: "졸업",
+    campus: "교내공지",
+    event: "행사"
+  };
+
+  return labels[category];
+}
+
+function normalizeDepartmentName(value: string) {
+  return value
+    .replace(/ㆍ/g, "·")
+    .replace(/\s+/g, "")
+    .replace(/전공$/, "학과")
+    .trim();
 }
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {

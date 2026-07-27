@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 720" role="img" aria-label="성신여대 운정그린캠퍼스 약도">
+  <rect width="1200" height="720" fill="#e8eee8"/>
+  <path d="M0 500 C150 455 250 515 390 470 C540 420 670 450 820 390 C980 325 1080 350 1200 300 L1200 720 L0 720 Z" fill="#c8d9ce"/>
+  <path d="M120 115 C310 150 470 140 650 105 C830 70 965 85 1090 125" stroke="#ffffff" stroke-width="34" stroke-linecap="round" fill="none"/>
+  <path d="M155 585 C270 470 385 400 515 350 C680 285 825 270 1035 205" stroke="#ffffff" stroke-width="42" stroke-linecap="round" fill="none"/>
+  <path d="M665 115 C650 250 690 375 660 600" stroke="#ffffff" stroke-width="30" stroke-linecap="round" fill="none"/>
+  <rect x="285" y="250" width="205" height="150" rx="10" fill="#0f766e"/>
+  <rect x="555" y="180" width="220" height="165" rx="10" fill="#315f8d"/>
+  <rect x="790" y="355" width="175" height="150" rx="10" fill="#7d5a2f"/>
+  <rect x="465" y="475" width="205" height="120" rx="10" fill="#d65f2b"/>
+  <rect x="195" y="425" width="160" height="120" rx="10" fill="#8566a8"/>
+  <circle cx="150" cy="585" r="44" fill="#f6c65b"/>
+  <text x="388" y="335" fill="#fff" font-family="Arial, sans-serif" font-size="31" font-weight="700" text-anchor="middle">A동</text>
+  <text x="665" y="275" fill="#fff" font-family="Arial, sans-serif" font-size="31" font-weight="700" text-anchor="middle">B동</text>
+  <text x="878" y="440" fill="#fff" font-family="Arial, sans-serif" font-size="27" font-weight="700" text-anchor="middle">도서관</text>
+  <text x="568" y="545" fill="#fff" font-family="Arial, sans-serif" font-size="27" font-weight="700" text-anchor="middle">학생회관</text>
+  <text x="275" y="495" fill="#fff" font-family="Arial, sans-serif" font-size="27" font-weight="700" text-anchor="middle">강의동</text>
+  <text x="150" y="595" fill="#18201d" font-family="Arial, sans-serif" font-size="24" font-weight="700" text-anchor="middle">정문</text>
+</svg>

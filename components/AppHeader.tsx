@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getStoredUser, signOut } from "@/lib/auth/client";
 
 const links = [
+  ["새내기 필독", "/must-read"],
   ["대시보드", "/dashboard"],
   ["시간표", "/timetable"],
   ["지도", "/map"],
@@ -14,6 +16,7 @@ const links = [
 ] as const;
 
 export function AppHeader() {
+  const pathname = usePathname();
   const [userName, setUserName] = useState<string>("");
 
   useEffect(() => {
@@ -30,9 +33,15 @@ export function AppHeader() {
           <span>새내기 ON</span>
         </Link>
         <nav className="nav" aria-label="주요 메뉴">
-          {links.map(([label, href]) => (
-            <Link key={href} href={href}>{label}</Link>
-          ))}
+          {links.map(([label, href]) => {
+            const isActive = pathname === href || pathname.startsWith(`${href}/`);
+
+            return (
+              <Link className={isActive ? "active" : undefined} key={href} href={href} aria-current={isActive ? "page" : undefined}>
+                {label}
+              </Link>
+            );
+          })}
           {userName ? (
             <button
               type="button"

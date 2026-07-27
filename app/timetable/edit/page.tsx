@@ -73,6 +73,18 @@ interface PendingPersonalSchedule {
   endTime: string;
 }
 
+interface RequiredCourseTimeOption {
+  id: string;
+  courseName: string;
+  courseCode: string;
+  scheduleText: string;
+  campusName: string;
+  lessonTypeName: string;
+  roomLabel: string;
+  count: number;
+  course: SungshinCourse;
+}
+
 interface TimetableEditDraft {
   title: string;
   semester: string;
@@ -91,6 +103,7 @@ const semesterOptions = [
 ] as const;
 const supportedSemesterOrder = ["1", "summer", "2", "winter"] as const;
 const localSemesterRangeLabel = "2023년 1학기 - 2026년 여름 계절학기";
+const requiredCommonCourses = ["비판적 사고와 토론", "창조적 사고와 글쓰기", "전공별 진로 탐색"];
 
 export default function TimetableEditPage() {
   return (
@@ -163,6 +176,54 @@ function splitRoomText(course: SungshinCourse) {
 
 function getCourseRoomLabel(course: SungshinCourse) {
   return course.roomText.trim() || (isRecordedRemoteClass(course) ? "원격강의" : "강의실 미정");
+}
+
+function getRequiredClassId(courseName: string) {
+  return `required-common-${courseName}`;
+}
+
+function getRequiredOptionId(course: SungshinCourse) {
+  return `${course.courseName}-${course.courseCode}-${course.scheduleText}-${course.campusName}`;
+}
+
+function getRequiredCourseOptions(courses: SungshinCourse[]) {
+  const grouped = new Map<string, RequiredCourseTimeOption>();
+
+  courses
+    .filter((course) => requiredCommonCourses.includes(course.courseName))
+    .forEach((course) => {
+      const key = getRequiredOptionId(course);
+      const previous = grouped.get(key);
+
+      if (previous) {
+        grouped.set(key, {
+          ...previous,
+          count: previous.count + 1,
+          roomLabel: previous.roomLabel === getCourseRoomLabel(course) ? previous.roomLabel : "분반별 강의실 상이"
+        });
+        return;
+      }
+
+      grouped.set(key, {
+        id: key,
+        courseName: course.courseName,
+        courseCode: course.courseCode,
+        scheduleText: course.scheduleText,
+        campusName: course.campusName,
+        lessonTypeName: course.lessonTypeName,
+        roomLabel: getCourseRoomLabel(course),
+        count: 1,
+        course
+      });
+    });
+
+  return [...grouped.values()].sort((left, right) => {
+    if (left.courseName !== right.courseName) {
+      return requiredCommonCourses.indexOf(left.courseName) - requiredCommonCourses.indexOf(right.courseName);
+    }
+
+    return left.scheduleText.localeCompare(right.scheduleText, "ko");
+  });
 }
 
 function toSungshinSemesterCode(semester: string) {
@@ -256,13 +317,18 @@ function TimetableEditWorkspace({
   const [sungshinCourseCount, setSungshinCourseCount] = useState(0);
   const [hasNoExactCourseMatch, setHasNoExactCourseMatch] = useState(false);
   const [isCourseLoading, setIsCourseLoading] = useState(false);
+  const [requiredCourseOptions, setRequiredCourseOptions] = useState<RequiredCourseTimeOption[]>([]);
+  const [isRequiredCourseLoading, setIsRequiredCourseLoading] = useState(false);
   const [isSungshinDropdownOpen, setIsSungshinDropdownOpen] = useState(false);
   const [isDraftReady, setIsDraftReady] = useState(false);
   const [pendingSemester, setPendingSemester] = useState<string | null>(null);
   const sungshinSearchRef = useRef<HTMLDivElement | null>(null);
-  const requiredCourses = useMemo(
-    () => courses.filter((course) => course.department === department && course.grade === grade && course.requiredType === "required"),
-    [department, grade]
+  const requiredCourseOptionsByName = useMemo(
+    () => requiredCommonCourses.map((courseName) => ({
+      courseName,
+      options: requiredCourseOptions.filter((option) => option.courseName === courseName)
+    })),
+    [requiredCourseOptions]
   );
 
   useEffect(() => {
@@ -295,9 +361,11 @@ function TimetableEditWorkspace({
         nextTitle = existing.title;
         nextSemester = normalizeSupportedSemester(existing.semester);
         nextClasses = existing.classes;
+        nextPersonalSchedules = existing.personalSchedules ?? seedPersonalSchedules;
         nextSelectedRequiredCourseIds = existing.classes
-          .map((item) => item.courseId)
-          .filter((courseId): courseId is string => requiredCourses.some((course) => course.id === courseId));
+          .filter((item) => item.id.startsWith("required-common-"))
+          .map((item) => item.courseName)
+          .filter((courseName, index, names) => requiredCommonCourses.includes(courseName) && names.indexOf(courseName) === index);
       }
     }
 
@@ -324,7 +392,7 @@ function TimetableEditWorkspace({
     setSelectedRequiredCourseIds(nextSelectedRequiredCourseIds);
     setCourseQuery(nextCourseQuery);
     setIsDraftReady(true);
-  }, [draftStorageKey, editingId, initialTitle, requiredCourses]);
+  }, [draftStorageKey, editingId, initialTitle]);
 
   useEffect(() => {
     if (!isDraftReady) {
@@ -358,6 +426,42 @@ function TimetableEditWorkspace({
     return () => document.removeEventListener("pointerdown", closeDropdowns);
   }, []);
 
+  useEffect(() => {
+    if (!isDraftReady) {
+      return;
+    }
+
+    async function loadRequiredCourses() {
+      setIsRequiredCourseLoading(true);
+
+      try {
+        const responses = await Promise.all(requiredCommonCourses.map(async (courseName) => {
+          const params = new URLSearchParams({
+            q: courseName,
+            yy: selectedSemester.year,
+            semCd: toSungshinSemesterCode(semester),
+            term: semester
+          });
+          const response = await fetch(`/api/sungshin-courses?${params.toString()}`);
+
+          if (!response.ok) {
+            throw new Error("request failed");
+          }
+
+          return response.json() as Promise<SungshinCourseResponse>;
+        }));
+
+        setRequiredCourseOptions(getRequiredCourseOptions(responses.flatMap((response) => response.courses)));
+      } catch {
+        setRequiredCourseOptions([]);
+      } finally {
+        setIsRequiredCourseLoading(false);
+      }
+    }
+
+    void loadRequiredCourses();
+  }, [isDraftReady, selectedSemester.year, semester]);
+
   function completeTimetable() {
     const trimmedTitle = title.trim();
 
@@ -379,6 +483,7 @@ function TimetableEditWorkspace({
       isSelected: false,
       score: classes.length ? 0 : 0,
       classes,
+      personalSchedules,
       createdAt: new Date().toISOString()
     };
 
@@ -434,6 +539,99 @@ function TimetableEditWorkspace({
     setSelectedRequiredCourseIds((current) => [...current, course.id]);
     setClasses((current) => [...current, newClass]);
     setError("");
+  }
+
+  function toRequiredClassSchedules(option: RequiredCourseTimeOption, colorOffset: number): ClassSchedule[] {
+    const roomCourse: SungshinCourse = {
+      ...option.course,
+      professorName: "",
+      roomText: option.roomLabel === "분반별 강의실 상이" ? "" : option.roomLabel
+    };
+    const roomParts = option.roomLabel === "분반별 강의실 상이"
+      ? { buildingName: "분반별 강의실 상이", roomName: "" }
+      : splitRoomText(roomCourse);
+
+    return option.scheduleText.split(",").reduce<ClassSchedule[]>((items, part, index) => {
+      const match = part.trim().match(/^([월화수목금])\/(\d+)(?:-(\d+))?$/);
+
+      if (!match) {
+        return items;
+      }
+
+      const dayOfWeek = dayNameToKey[match[1]];
+      const startPeriod = Number(match[2]);
+      const endPeriod = Number(match[3] ?? match[2]);
+      const startTime = periodTimes[startPeriod]?.start;
+      const endTime = periodTimes[endPeriod]?.end;
+
+      if (!dayOfWeek || !startTime || !endTime) {
+        return items;
+      }
+
+      items.push({
+        id: `${getRequiredClassId(option.courseName)}-${index}`,
+        timetableId: "draft",
+        courseId: option.courseCode,
+        courseName: option.courseName,
+        professorName: "",
+        dayOfWeek,
+        startTime,
+        endTime,
+        buildingName: roomParts.buildingName,
+        roomName: roomParts.roomName,
+        lessonTypeName: option.lessonTypeName,
+        color: timetableColors[(colorOffset + index) % timetableColors.length],
+        memo: "필수 이수"
+      });
+
+      return items;
+    }, []);
+  }
+
+  function setRequiredCommonCourse(courseName: string, optionId: string) {
+    const classId = getRequiredClassId(courseName);
+
+    if (!optionId) {
+      setSelectedRequiredCourseIds((current) => current.filter((id) => id !== courseName));
+      setClasses((current) => current.filter((item) => !item.id.startsWith(classId)));
+      setError("");
+      return;
+    }
+
+    const option = requiredCourseOptions.find((item) => item.id === optionId);
+
+    if (!option) {
+      return;
+    }
+
+    const existingOtherClasses = classes.filter((item) => !item.id.startsWith(classId));
+    const newClasses = toRequiredClassSchedules(option, existingOtherClasses.length);
+
+    if (!newClasses.length) {
+      setError("선택한 필수 이수 강의의 시간표 정보를 해석하지 못했습니다.");
+      return;
+    }
+
+    if (newClasses.some((newClass) => !isRecordedRemoteClass(newClass) && existingOtherClasses.some((item) => !isRecordedRemoteClass(item) && overlaps(item, newClass)))) {
+      setError("선택한 필수 이수 강의 시간이 기존 강의 시간과 겹칩니다.");
+      return;
+    }
+
+    setSelectedRequiredCourseIds((current) => current.includes(courseName) ? current : [...current, courseName]);
+    setClasses([...existingOtherClasses, ...newClasses]);
+    setError("");
+  }
+
+  function getSelectedRequiredOptionId(courseName: string) {
+    const selectedClass = classes.find((item) => item.id.startsWith(getRequiredClassId(courseName)));
+    const selectedOption = selectedClass
+      ? requiredCourseOptions.find((option) => {
+          const parsed = toRequiredClassSchedules(option, 0);
+          return parsed.some((item) => item.dayOfWeek === selectedClass.dayOfWeek && item.startTime === selectedClass.startTime && item.endTime === selectedClass.endTime);
+        })
+      : null;
+
+    return selectedOption?.id ?? "";
   }
 
   function generateCandidates() {
@@ -522,6 +720,9 @@ function TimetableEditWorkspace({
     }
 
     setSemester(pendingSemester);
+    setClasses((current) => current.filter((item) => !requiredCommonCourses.some((courseName) => item.id.startsWith(getRequiredClassId(courseName)))));
+    setSelectedRequiredCourseIds([]);
+    setRequiredCourseOptions([]);
     setCourseQuery("");
     setSungshinCourses([]);
     setSungshinCourseCount(0);
@@ -586,29 +787,52 @@ function TimetableEditWorkspace({
             <h2>필수 이수 강의</h2>
             <span className="badge">{selectedRequiredCourseIds.length}개 선택</span>
           </div>
-          <p className="section-note">{department} {grade}학년 기준으로 표시되는 필수 강의입니다.</p>
-          {requiredCourses.length ? (
-            <div className="checkbox-list">
-              {requiredCourses.map((course) => (
-                <label className="checkbox-card" key={course.id}>
-                  <input
-                    type="checkbox"
-                    checked={selectedRequiredCourseIds.includes(course.id)}
-                    onChange={() => toggleRequiredCourse(course)}
-                  />
-                  <span>
-                    <strong>{course.courseName}</strong>
-                    <small>{course.professorName} · {dayLabels[course.dayOfWeek]} {course.startTime}-{course.endTime} · {course.buildingName} {course.roomName}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
-          ) : (
+          <p className="section-note">성신여대 수강신청 데이터에서 필수 공통교양 시간을 가져옵니다. 같은 시간대에 교수님이 여러 명이면 하나의 시간 항목으로 표시합니다.</p>
+          {isRequiredCourseLoading ? (
             <div className="list">
               <div className="list-item">
-                <strong>{department} {grade}학년 필수 이수 강의가 없습니다.</strong>
-                <span className="muted">사용자 학과와 학년에 맞는 필수 이수 강의가 있으면 여기에 표시됩니다.</span>
+                <strong>필수 이수 강의 시간을 불러오는 중입니다.</strong>
               </div>
+            </div>
+          ) : (
+            <div className="checkbox-list">
+              {requiredCourseOptionsByName.map(({ courseName, options }) => {
+                const selectedOptionId = getSelectedRequiredOptionId(courseName);
+                const isSelected = selectedRequiredCourseIds.includes(courseName);
+
+                return (
+                  <label className="checkbox-card" key={courseName}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      disabled={!options.length}
+                      onChange={(event) => setRequiredCommonCourse(courseName, event.target.checked ? options[0]?.id ?? "" : "")}
+                    />
+                    <span>
+                      <strong>{courseName}</strong>
+                      <select
+                        aria-label={`${courseName} 수업 시간`}
+                        disabled={!isSelected || !options.length}
+                        value={selectedOptionId}
+                        onChange={(event) => setRequiredCommonCourse(courseName, event.target.value)}
+                      >
+                        {!options.length ? (
+                          <option value="">선택 학기 데이터 없음</option>
+                        ) : (
+                          <>
+                            <option value="">시간 선택</option>
+                            {options.map((option) => (
+                              <option value={option.id} key={option.id}>
+                                {option.scheduleText} · {option.campusName} · {option.roomLabel} · {option.count}개 분반
+                              </option>
+                            ))}
+                          </>
+                        )}
+                      </select>
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           )}
         </article>

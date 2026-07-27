@@ -64,6 +64,7 @@ export interface Timetable {
   isSelected: boolean;
   score: number;
   classes: ClassSchedule[];
+  personalSchedules?: PersonalSchedule[];
   createdAt: string;
 }
 
@@ -96,6 +97,8 @@ export interface BoardPost {
   title: string;
   content: string;
   viewCount: number;
+  recommendCount: number;
+  recommendedUserIds: string[];
   comments: Comment[];
   createdAt: string;
   updatedAt: string;

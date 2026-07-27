@@ -30,6 +30,8 @@ export async function POST(request: Request) {
       title: body.title,
       content: body.content,
       viewCount: 0,
+      recommendCount: 0,
+      recommendedUserIds: [],
       comments: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

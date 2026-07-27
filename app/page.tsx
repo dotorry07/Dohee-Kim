@@ -8,7 +8,7 @@ export default function HomePage() {
         <div className="hero-content">
           <h1>새내기 ON</h1>
           <p>
-            시간표 추천, 캠퍼스 위치 확인, 주요 공지, 게시판과 강의평을 한곳에서 확인하는 성신여대 신입생 생활 도우미입니다.
+            성신여대 신입생들의 생활을 돕는 새내기온입니다.
           </p>
           <div className="chip-row">
             <Link className="button" href="/auth/signup">회원가입</Link>

@@ -41,6 +41,7 @@ export interface ClassSchedule {
   endTime: string;
   buildingName: string;
   roomName: string;
+  lessonTypeName?: string;
   color: string;
   memo?: string;
 }
@@ -63,6 +64,7 @@ export interface Timetable {
   isSelected: boolean;
   score: number;
   classes: ClassSchedule[];
+  personalSchedules?: PersonalSchedule[];
   createdAt: string;
 }
 
@@ -95,6 +97,8 @@ export interface BoardPost {
   title: string;
   content: string;
   viewCount: number;
+  recommendCount: number;
+  recommendedUserIds: string[];
   comments: Comment[];
   createdAt: string;
   updatedAt: string;
@@ -119,6 +123,10 @@ export interface Notice {
   category: "academic" | "scholarship" | "registration" | "event" | "career" | "general";
   title: string;
   summary: string;
+  imageUrl?: string;
+  applicationUrl?: string;
+  applicationDeadline?: string;
+  isExpired?: boolean;
   sourceUrl?: string;
   isPinned: boolean;
   publishedAt: string;

@@ -139,9 +139,10 @@ export const timetables: Timetable[] = [
       endTime: course.endTime,
       buildingName: course.buildingName,
       roomName: course.roomName,
-      color: ["#0f766e", "#d65f2b", "#315f8d", "#7d5a2f"][index],
+      color: ["#582f82", "#7350a0", "#8b5fbf", "#442363"][index],
       memo: course.requiredType === "required" ? "필수 이수" : ""
     })),
+    personalSchedules,
     createdAt: "2026-03-02T09:00:00.000Z"
   }
 ];
@@ -208,12 +209,12 @@ export const notices: Notice[] = [
   {
     id: "notice-1",
     category: "registration",
-    title: "2026학년도 1학기 수강신청 안내",
-    summary: "신입생 수강신청 일정과 장바구니 이용 시간을 확인하세요.",
-    sourceUrl: "https://www.sungshin.ac.kr",
+    title: "2026학년도 2학기 수강신청 안내",
+    summary: "강의시간표 조회, 관심강좌신청, 수강신청, 정정, 철회 일정을 확인하세요.",
+    sourceUrl: "https://www.sungshin.ac.kr/bbs/main_kor/3181/157409/artclView.do",
     isPinned: true,
-    publishedAt: "2026-02-12T09:00:00.000Z",
-    createdAt: "2026-02-12T09:00:00.000Z"
+    publishedAt: "2026-07-08T09:00:00.000Z",
+    createdAt: "2026-07-08T09:00:00.000Z"
   },
   {
     id: "notice-2",
@@ -256,6 +257,8 @@ export const posts: BoardPost[] = [
     title: "수정관 304호는 어느 입구가 빠른가요?",
     content: "첫 수업이 수정관 304호인데 지하철역에서 어떻게 가는 게 빠른지 궁금합니다.",
     viewCount: 42,
+    recommendCount: 5,
+    recommendedUserIds: ["user-2", "user-3", "user-4", "user-5", "user-6"],
     comments: [
       {
         id: "comment-1",
@@ -277,6 +280,8 @@ export const posts: BoardPost[] = [
     title: "프로그래밍기초 실습 전 준비하면 좋은 것",
     content: "노트북 개발환경과 GitHub 계정을 미리 준비하면 첫 실습이 편합니다.",
     viewCount: 77,
+    recommendCount: 12,
+    recommendedUserIds: ["user-1", "user-3", "user-4", "user-5", "user-6", "user-7", "user-8", "user-9", "user-10", "user-11", "user-12", "user-13"],
     comments: [],
     createdAt: "2026-03-04T14:00:00.000Z",
     updatedAt: "2026-03-04T14:00:00.000Z"
@@ -289,6 +294,8 @@ export const posts: BoardPost[] = [
     title: "공강 때 공부하기 좋은 곳 추천해주세요",
     content: "도서관 말고 조용한 공간이 있으면 알려주세요.",
     viewCount: 31,
+    recommendCount: 3,
+    recommendedUserIds: ["user-1", "user-2", "user-4"],
     comments: [],
     createdAt: "2026-03-05T16:10:00.000Z",
     updatedAt: "2026-03-05T16:10:00.000Z"

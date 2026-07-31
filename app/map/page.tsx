@@ -16,7 +16,9 @@ const categoryLabels: Record<CampusPlace["category"], string> = {
 
 type CampusKey = "donam" | "unjeong";
 type PlaceFilterKey = "all" | "student" | "nanhyang" | "sujeong" | "sungshin" | "food" | "library" | "admin" | "facility";
-type DetailOption = { parentName: string; items: string[] };
+type DetailItem = { label: string; caption?: string };
+type DetailOption = { parentName: string; items: DetailItem[] };
+type DetailSection = { title: string; lines: string[] };
 
 const placeFilters: Array<{ key: PlaceFilterKey; label: string }> = [
   { key: "all", label: "전체" },
@@ -41,19 +43,256 @@ function matchesPlaceFilter(place: CampusPlace, filter: PlaceFilterKey) {
 
 function getDetailOptions(filter: PlaceFilterKey): DetailOption | null {
   if (filter === "student") {
-    return { parentName: "학생회관", items: ["1층", "2층", "3층", "4층", "5층"] };
+    return { parentName: "학생회관", items: ["1층", "2층", "3층", "4층", "5층"].map((label) => ({ label })) };
   }
   if (filter === "nanhyang") {
-    return { parentName: "난향관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층"] };
+    return { parentName: "난향관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층"].map((label) => ({ label })) };
   }
   if (filter === "sujeong") {
-    return { parentName: "수정관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층", "9층", "10층"] };
+    return { parentName: "수정관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층", "9층", "10층"].map((label) => ({ label })) };
   }
   if (filter === "sungshin") {
-    return { parentName: "성신관", items: ["A관", "B관", "C관"] };
+    return { parentName: "성신관", items: ["A관", "B관", "C관"].map((label) => ({ label })) };
+  }
+  if (filter === "library") {
+    return {
+      parentName: "도서관",
+      items: [
+        ...["1층", "2층", "3층", "4층", "5층", "6층", "7층"].map((label) => ({ label })),
+        { label: "성신관 2층", caption: "도서관" },
+        { label: "성신관 7층", caption: "도서관" },
+        { label: "수정관 B동 5층", caption: "도서관" }
+      ]
+    };
   }
   return null;
 }
+
+const detailSections: Record<string, DetailSection[]> = {
+  "학생회관-1층": [
+    {
+      title: "층별시설",
+      lines: [
+        "장애학생지원센터, 사물함실, 소극장, 동아리실"
+      ]
+    }
+  ],
+  "학생회관-2층": [
+    {
+      title: "층별시설",
+      lines: [
+        "총학생회실, 단과대학생회실, 세미나실, 동아리실, 학생복지위원회, 셀프카페테리아"
+      ]
+    }
+  ],
+  "학생회관-3층": [
+    {
+      title: "층별시설",
+      lines: [
+        "기도실, 동아리실, 세미나실, 셀프카페테리아"
+      ]
+    }
+  ],
+  "학생회관-4층": [
+    {
+      title: "층별시설",
+      lines: [
+        "통합동아리실(준,신규동아리), 성신학보사, 셀프카페테리아(파우더룸)"
+      ]
+    }
+  ],
+  "학생회관-5층": [
+    {
+      title: "층별시설",
+      lines: [
+        "성신체인지봉사단, FORUS, 성신교육방송국, 성신미러사"
+      ]
+    }
+  ],
+  "도서관-1층": [
+    {
+      title: "대출 반납실",
+      lines: [
+        "평 일: 09:00∼19:00",
+        "(방학중: 17:00까지)",
+        "- 학부재학생: 14일간 7권 대출 가능",
+        "- 도서연체시 연체일수 만큼 대출 중지"
+      ]
+    },
+    {
+      title: "특성화학습관",
+      lines: [
+        "연중무휴",
+        "06:00∼23:30",
+        "- 스터디 및 휴식 공간",
+        "- 프린트"
+      ]
+    },
+    {
+      title: "센트럴플라자",
+      lines: [
+        "연중무휴 24시간",
+        "(23:30 ~ 익일 05:00까지는 출입통제)",
+        "- 노트북 이용가능",
+        "- 80석"
+      ]
+    }
+  ],
+  "도서관-2층": [
+    {
+      title: "멀티미디어스튜디오",
+      lines: [
+        "토,일,공휴일 휴실",
+        "06:00∼23:30",
+        "- 42석(좌석배정기 이용)"
+      ]
+    },
+    {
+      title: "전자정보실",
+      lines: [
+        "토,일,공휴일 휴실",
+        "06:00∼23:30",
+        "- 비도서 및 전자자료 관내대출"
+      ]
+    },
+    {
+      title: "크리에이티브스튜디오",
+      lines: [
+        "평 일: 09:00∼19:00",
+        "(방학중: 17:00까지)",
+        "- 촬영및 편집 가능"
+      ]
+    },
+    {
+      title: "서양서/문학 자료실",
+      lines: [
+        "평 일: 09:00∼19:00",
+        "(방학중: 17:00까지)",
+        "- 전 주제분야 서양서"
+      ]
+    }
+  ],
+  "도서관-3층": [
+    {
+      title: "집중/개인 열람실",
+      lines: [
+        "연중무휴 24시간",
+        "(23:30 ~ 익일 05:00까지는 출입통제)",
+        "- 집중열람 70석(좌석배정기 이용)",
+        "- 개인열람 5석(좌석배정기 이용)"
+      ]
+    },
+    {
+      title: "인문과학자료실",
+      lines: [
+        "평 일: 09:00∼19:00",
+        "(방학중: 17:00까지)",
+        "- Human Science"
+      ]
+    }
+  ],
+  "도서관-4층": [
+    {
+      title: "그룹스터디룸",
+      lines: [
+        "연중무휴",
+        "06:00∼23:30",
+        "- 6인 8실(디베이팅스퀘어) : 예약 후 이용",
+        "- 12인 1실(프리젠테이션스퀘어) : 예약 후 이용"
+      ]
+    },
+    {
+      title: "사회과학자료 제1실",
+      lines: [
+        "평 일: 09:00∼19:00",
+        "(방학중: 17:00까지)",
+        "- Social Science 1"
+      ]
+    }
+  ],
+  "도서관-5층": [
+    {
+      title: "그룹스터디룸",
+      lines: [
+        "연중무휴",
+        "06:00∼23:30",
+        "- 6인 4실(디베이팅스퀘어) : 예약 후 이용",
+        "- 8인 4실(콜라보레이션라운지) : 오픈형, 예약 후 이용"
+      ]
+    },
+    {
+      title: "사회과학자료 제2실",
+      lines: [
+        "평 일: 09:00∼19:00",
+        "(방학중: 17:00까지)",
+        "- Social Science 2"
+      ]
+    }
+  ],
+  "도서관-6층": [
+    {
+      title: "그룹스터디룸",
+      lines: [
+        "연중무휴",
+        "06:00∼23:30",
+        "- 6인 4실(디베이팅스퀘어) : 예약 후 이용",
+        "- 6인 4실(이노베이션라운지) : 오픈형, 예약 후 이용"
+      ]
+    },
+    {
+      title: "자연과학자료실",
+      lines: [
+        "평 일: 09:00∼19:00",
+        "(방학중: 17:00까지)",
+        "- Natural &Technology"
+      ]
+    }
+  ],
+  "도서관-7층": [
+    {
+      title: "크리스탈라운지",
+      lines: [
+        "연중무휴",
+        "06:00∼23:30",
+        "- 60석"
+      ]
+    },
+    {
+      title: "역사예술자료실",
+      lines: [
+        "평 일: 09:00∼19:00",
+        "(방학중: 17:00까지)",
+        "- History & Arts"
+      ]
+    }
+  ],
+  "도서관-성신관 2층": [
+    {
+      title: "성신관열람실",
+      lines: [
+        "06:00∼23:30",
+        "- 85석"
+      ]
+    }
+  ],
+  "도서관-성신관 7층": [
+    {
+      title: "대학원열람실",
+      lines: [
+        "06:00∼23:30",
+        "- 48석(대학원 석·박사 및 강사 전용열람실)"
+      ]
+    }
+  ],
+  "도서관-수정관 B동 5층": [
+    {
+      title: "수정관열람실",
+      lines: [
+        "06:00∼23:30"
+      ]
+    }
+  ]
+};
 
 export default function MapPage() {
   return (
@@ -86,6 +325,9 @@ function MapContent() {
     });
   }, [placeFilter, query]);
   const resultCount = detailOptions ? detailOptions.items.length : filteredPlaces.length;
+  const selectedDetailSections = detailOptions && selectedDetailItem
+    ? detailSections[`${detailOptions.parentName}-${selectedDetailItem}`] ?? []
+    : [];
 
   return (
     <main className="page">
@@ -164,14 +406,14 @@ function MapContent() {
               {detailOptions ? (
                 detailOptions.items.map((item) => (
                   <button
-                    className={selectedDetailItem === item ? "list-item active" : "list-item"}
+                    className={selectedDetailItem === item.label ? "list-item active" : "list-item"}
                     type="button"
-                    key={`${detailOptions.parentName}-${item}`}
-                    onClick={() => setSelectedDetailItem(item)}
+                    key={`${detailOptions.parentName}-${item.label}`}
+                    onClick={() => setSelectedDetailItem(item.label)}
                     style={{ textAlign: "left" }}
                   >
-                    <strong>{item}</strong>
-                    <span className="muted">{detailOptions.parentName} · {item}</span>
+                    <strong>{item.label}</strong>
+                    <span className="muted">{item.caption ?? detailOptions.parentName} · {item.label}</span>
                   </button>
                 ))
               ) : (
@@ -197,16 +439,39 @@ function MapContent() {
       </section>
 
       <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
-        <div className="section-title">
-          <h2>{selected.name}</h2>
-          <span className="badge">{categoryLabels[selected.category]}</span>
-        </div>
-        <p>{selected.description}</p>
-        <div className="meta">
-          <span>{selected.buildingName}</span>
-          <span>{selected.floor}</span>
-          {selected.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
-        </div>
+        {detailOptions && selectedDetailItem ? (
+          <>
+            <div className="section-title">
+              <h2>{selectedDetailItem}</h2>
+              <span className="badge">{detailOptions.parentName}</span>
+            </div>
+            {selectedDetailSections.length > 0 ? (
+              <div className="map-detail-content">
+                {selectedDetailSections.map((section) => (
+                  <div className="map-detail-section" key={section.title}>
+                    <strong>{section.title}</strong>
+                    {section.lines.map((line) => <span key={line}>{line}</span>)}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="muted">세부사항은 추후 작성 예정입니다.</p>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="section-title">
+              <h2>{selected.name}</h2>
+              <span className="badge">{categoryLabels[selected.category]}</span>
+            </div>
+            <p>{selected.description}</p>
+            <div className="meta">
+              <span>{selected.buildingName}</span>
+              <span>{selected.floor}</span>
+              {selected.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
+            </div>
+          </>
+        )}
       </section>
     </main>
   );

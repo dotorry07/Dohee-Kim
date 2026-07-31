@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
-import { courseReviews, courses, notices, posts, timetables } from "@/lib/data";
+import { courses, notices, posts, timetables } from "@/lib/data";
 import { dayLabels, getTodayClasses } from "@/lib/timetable";
 
 function toMinutes(time: string) {
@@ -11,30 +10,30 @@ function toMinutes(time: string) {
   return hour * 60 + minute;
 }
 
-function getTodayProgress(classes: ReturnType<typeof getTodayClasses>, now = new Date()) {
-  if (classes.length === 0) {
-    return 0;
+function getMinutesUntil(time: string, now = new Date()) {
+  return toMinutes(time) - (now.getHours() * 60 + now.getMinutes());
+}
+
+function formatRelativePostTime(createdAt: string, now = new Date()) {
+  const diffMinutes = Math.max(1, Math.floor((now.getTime() - Date.parse(createdAt)) / 60000));
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}분 전`;
   }
 
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const completed = classes.filter((item) => toMinutes(item.endTime) <= nowMinutes).length;
-  const active = classes.find((item) => toMinutes(item.startTime) <= nowMinutes && nowMinutes < toMinutes(item.endTime));
-
-  if (!active) {
-    return Math.round((completed / classes.length) * 100);
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}시간 전`;
   }
 
-  const elapsed = nowMinutes - toMinutes(active.startTime);
-  const duration = toMinutes(active.endTime) - toMinutes(active.startTime);
-
-  return Math.min(100, Math.round(((completed + elapsed / duration) / classes.length) * 100));
+  return `${Math.floor(diffHours / 24)}일 전`;
 }
 
 const categoryLabels = {
-  freshman: "새내기",
-  free: "자유",
+  freshman: "새내기 Q&A",
+  free: "자유게시판",
   department: "학과",
-  info: "정보"
+  info: "정보 공유"
 } as const;
 
 const noticeLabels = {
@@ -46,286 +45,237 @@ const noticeLabels = {
   general: "일반"
 } as const;
 
-const accentStyles = [
-  "from-[#582f82] to-[#8b5fbf]",
-  "from-[#0f766e] to-[#2dd4bf]",
-  "from-[#a3472b] to-[#e8a85c]",
-  "from-[#365f91] to-[#82a7d8]",
-  "from-[#6f3a70] to-[#d8bd5f]",
-  "from-[#3f6f46] to-[#a7c957]"
-];
+const courseTags = ["전공", "교양", "전공"] as const;
+const courseNotes = ["실습이 체계적이고 교수님이 친절해요!", "과제 부담이 적고 글쓰기 능력 향상에 좋아요.", "전공의 기초가 되는 강의! 이해하기 쉽게 설명해요."];
+
+function DashboardIcon({ name }: { name: "calendar" | "megaphone" | "star" | "chat" | "bolt" | "map" | "book" | "chevron" }) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    strokeWidth: 2.3
+  };
+
+  return (
+    <svg aria-hidden="true" className="dashboard-icon" viewBox="0 0 24 24">
+      {name === "calendar" ? (
+        <>
+          <rect height="16" rx="2.5" width="18" x="3" y="5" {...common} />
+          <path d="M8 3v4M16 3v4M3 10h18" {...common} />
+          <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" {...common} />
+        </>
+      ) : null}
+      {name === "megaphone" ? (
+        <>
+          <path d="M4 13h3l9 5V6l-9 5H4v2Z" {...common} />
+          <path d="M7 13v5M19 9.5a4 4 0 0 1 0 5" {...common} />
+        </>
+      ) : null}
+      {name === "star" ? (
+        <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" {...common} />
+      ) : null}
+      {name === "chat" ? (
+        <path d="M21 11.5a8.4 8.4 0 0 1-8.7 8.2 9.6 9.6 0 0 1-3.2-.5L4 21l1.7-4.1A7.8 7.8 0 0 1 3 11.5a8.4 8.4 0 0 1 9-8.2 8.4 8.4 0 0 1 9 8.2Z" {...common} />
+      ) : null}
+      {name === "bolt" ? (
+        <path d="m13 2-8 12h6l-1 8 8-12h-6l1-8Z" fill="currentColor" />
+      ) : null}
+      {name === "map" ? (
+        <>
+          <path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z" {...common} />
+          <path d="M9 3v15M15 6v15" {...common} />
+        </>
+      ) : null}
+      {name === "book" ? (
+        <>
+          <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21V5.5Z" {...common} />
+          <path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H20" {...common} />
+        </>
+      ) : null}
+      {name === "chevron" ? <path d="m9 5 7 7-7 7" {...common} /> : null}
+    </svg>
+  );
+}
 
 export default function DashboardPage() {
-  const [carouselIndex, setCarouselIndex] = useState(0);
-
   return (
     <AuthGuard>
       {(user) => {
         const now = new Date();
         const selected = timetables.find((item) => item.userId === user.id && item.isSelected);
         const todayClasses = selected ? getTodayClasses(selected.classes) : [];
-        const todayProgress = getTodayProgress(todayClasses, now);
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
-        const nextClass = todayClasses.find((item) => toMinutes(item.endTime) > nowMinutes);
-        const completedClasses = todayClasses.filter((item) => toMinutes(item.endTime) <= nowMinutes).length;
-        const recommendedCourses = [...courses].sort((a, b) => b.reviewAverage - a.reviewAverage).slice(0, 6);
-        const pinnedNotices = notices.filter((notice) => notice.isPinned).slice(0, 3);
-        const averageRating = courseReviews.length
-          ? courseReviews.reduce((sum, review) => sum + review.rating, 0) / courseReviews.length
-          : 0;
+        const nextClass = todayClasses.find((item) => toMinutes(item.endTime) > now.getHours() * 60 + now.getMinutes());
+        const minutesUntilNext = nextClass ? getMinutesUntil(nextClass.startTime, now) : null;
         const today = new Intl.DateTimeFormat("ko-KR", {
-          dateStyle: "full"
+          month: "long",
+          day: "numeric",
+          weekday: "short"
         }).format(now);
-
-        const carouselCourse = recommendedCourses[carouselIndex] ?? recommendedCourses[0];
-
-        const showPreviousCourse = () => {
-          setCarouselIndex((current) => (current === 0 ? recommendedCourses.length - 1 : current - 1));
-        };
-
-        const showNextCourse = () => {
-          setCarouselIndex((current) => (current === recommendedCourses.length - 1 ? 0 : current + 1));
-        };
+        const pinnedNotices = notices.filter((notice) => notice.isPinned).slice(0, 2);
+        const recommendedCourses = [...courses].sort((a, b) => b.reviewAverage - a.reviewAverage).slice(0, 3);
+        const recentPosts = [...posts].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5);
 
         return (
-          <main className="min-h-[calc(100vh-65px)] bg-[linear-gradient(180deg,#fffdf8_0%,#faf9f6_42%,#f3f6fb_100%)]">
-            <section className="mx-auto max-w-7xl px-6 py-14 sm:px-8 lg:px-10 lg:py-20">
-              <div className="mb-12 grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
+          <main className="dashboard-page">
+            <section className="dashboard-shell">
+              <div className="dashboard-hero">
                 <div>
-                  <p className="text-sm font-black uppercase tracking-normal text-[#0f766e]">Student Dashboard</p>
-                  <h1 className="mt-4 max-w-3xl text-4xl font-black leading-tight tracking-normal text-ink sm:text-5xl">
-                    {user.nickname}님, 오늘의 수업과 캠퍼스 소식을 정리했어요.
-                  </h1>
-                  <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-[#706477]">
-                    {today} · {user.department} {user.grade}학년
-                  </p>
+                  <h1>안녕하세요, {user.nickname}님! <span aria-hidden="true">👋</span></h1>
+                  <p>오늘도 즐거운 하루 되세요. 필요한 정보를 한눈에 확인해보세요.</p>
                 </div>
-                <div className="rounded-lg border border-[#e7dfeb] bg-white px-6 py-5 shadow-dashboard">
-                  <p className="text-sm font-black text-[#706477]">대표 시간표</p>
-                  <strong className="mt-2 block text-xl font-black text-ink">{selected?.title ?? "선택된 시간표 없음"}</strong>
-                  <span className="mt-2 block text-sm font-bold text-[#8a7d91]">
-                    {selected ? `${selected.semester} · 추천 점수 ${selected.score.toFixed(2)}` : "시간표를 생성해 주세요."}
-                  </span>
-                </div>
+                <aside className="dashboard-date-card" aria-label="오늘 요약">
+                  <DashboardIcon name="calendar" />
+                  <div>
+                    <span>오늘은</span>
+                    <strong>{today}</strong>
+                    <p>
+                      오늘 수업 {todayClasses.length}개
+                      {minutesUntilNext !== null && minutesUntilNext > 0 ? <> · 다음 수업까지 <b>{minutesUntilNext}분</b></> : null}
+                    </p>
+                  </div>
+                </aside>
               </div>
 
-              <section className="grid gap-7 xl:grid-cols-12">
-                <article className="rounded-lg border border-[#e7dfeb] bg-white p-7 shadow-dashboard xl:col-span-8">
-                  <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
+              <section className="dashboard-grid">
+                <article className="dashboard-card">
+                  <div className="dashboard-card-title">
                     <div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className="rounded-full bg-[#e9f7f4] px-3 py-1 text-xs font-black text-[#0f766e]">오늘의 수업</span>
-                        <span className="text-sm font-bold text-[#8a7d91]">
-                          {completedClasses}/{todayClasses.length} 완료
-                        </span>
-                      </div>
-                      <h2 className="mt-5 text-3xl font-black tracking-normal text-ink">수업 진행률 {todayProgress}%</h2>
-                      <div className="mt-6 h-4 overflow-hidden rounded-full bg-[#edf1f4]">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-[#0f766e] via-[#8b5fbf] to-[#d8bd5f] transition-all duration-500"
-                          style={{ width: `${todayProgress}%` }}
-                        />
-                      </div>
-                      <p className="mt-5 text-base font-semibold leading-7 text-[#706477]">
-                        {nextClass ? `${nextClass.courseName} · ${nextClass.startTime} 시작 · ${nextClass.buildingName} ${nextClass.roomName}` : "오늘 남은 수업이 없습니다."}
-                      </p>
+                      <DashboardIcon name="calendar" />
+                      <h2>오늘 수업</h2>
                     </div>
-                    <div className="rounded-lg bg-[#23182d] p-6 text-white">
-                      <p className="text-sm font-black text-[#d8bd5f]">NEXT</p>
-                      <strong className="mt-3 block text-2xl font-black">{nextClass?.courseName ?? "자유 시간"}</strong>
-                      <span className="mt-3 block text-sm font-semibold leading-6 text-white/70">
-                        {nextClass ? `${dayLabels[nextClass.dayOfWeek]} ${nextClass.startTime}-${nextClass.endTime}` : "게시판과 공지를 확인하기 좋은 시간입니다."}
-                      </span>
-                      <Link className="mt-6 inline-flex rounded-lg bg-white px-4 py-3 text-sm font-black text-ink" href="/timetable">
-                        시간표 보기
-                      </Link>
-                    </div>
+                    <Link href="/timetable">전체 시간표</Link>
                   </div>
+                  {todayClasses.length > 0 ? (
+                    <div className="dashboard-class-stack">
+                      <div className="dashboard-current-class">
+                        <div className="dashboard-class-time">
+                          <strong>1교시</strong>
+                          <span>{todayClasses[0].startTime}</span>
+                          <em>~</em>
+                          <span>{todayClasses[0].endTime}</span>
+                        </div>
+                        <div className="dashboard-class-detail">
+                          <h3>{todayClasses[0].courseName}</h3>
+                          <p>{todayClasses[0].buildingName} {todayClasses[0].roomName}</p>
+                          <span>{todayClasses[0].professorName} 교수</span>
+                        </div>
+                      </div>
+                      {todayClasses[1] ? (
+                        <Link className="dashboard-next-class" href="/timetable">
+                          <span>다음 수업</span>
+                          <strong>{todayClasses[1].courseName}</strong>
+                          <p>{todayClasses[1].startTime} - {todayClasses[1].endTime} · {todayClasses[1].buildingName} {todayClasses[1].roomName}</p>
+                          <DashboardIcon name="chevron" />
+                        </Link>
+                      ) : (
+                        <Link className="dashboard-next-class" href="/timetable">
+                          <span>다음 수업</span>
+                          <strong>{nextClass?.courseName ?? "오늘 남은 수업이 없습니다"}</strong>
+                          <p>{nextClass ? `${nextClass.startTime} - ${nextClass.endTime} · ${nextClass.buildingName} ${nextClass.roomName}` : "시간표에서 이번 주 일정을 확인해보세요."}</p>
+                          <DashboardIcon name="chevron" />
+                        </Link>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="dashboard-empty">
+                      <strong>오늘 수업이 없습니다.</strong>
+                      <span>대표 시간표를 선택하면 오늘 일정이 표시됩니다.</span>
+                    </div>
+                  )}
                 </article>
 
-                <article className="rounded-lg border border-[#e7dfeb] bg-white p-7 shadow-dashboard xl:col-span-4">
-                  <div className="flex items-start justify-between gap-4">
+                <article className="dashboard-card">
+                  <div className="dashboard-card-title">
                     <div>
-                      <p className="text-sm font-black text-[#365f91]">오늘 수업</p>
-                      <h2 className="mt-1 text-2xl font-black text-ink">강의 일정</h2>
+                      <DashboardIcon name="megaphone" />
+                      <h2>중요 공지</h2>
                     </div>
-                    <Link href="/timetable" className="rounded-lg bg-[#eef3f8] px-3 py-2 text-sm font-black text-[#365f91]">
-                      전체
-                    </Link>
+                    <Link href="/notices">전체 보기</Link>
                   </div>
-                  <div className="mt-6 grid gap-4">
-                    {todayClasses.length > 0 ? (
-                      todayClasses.map((item) => (
-                        <div className="grid grid-cols-[76px_minmax(0,1fr)] gap-4" key={item.id}>
-                          <div className="rounded-lg bg-[#f4f0f7] px-3 py-3 text-center">
-                            <strong className="block text-sm font-black text-plum">{item.startTime}</strong>
-                            <span className="mt-1 block text-xs font-bold text-[#8a7d91]">{item.endTime}</span>
-                          </div>
-                          <div className="min-w-0 border-b border-[#eee7f2] pb-4">
-                            <strong className="block truncate text-base font-black text-ink">{item.courseName}</strong>
-                            <span className="mt-1 block text-sm font-semibold text-[#706477]">
-                              {item.buildingName} {item.roomName} · {item.professorName}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-[#cfc3d8] bg-[#fcfbfd] p-5">
-                        <strong className="block text-base font-black text-ink">시간표가 필요해요</strong>
-                        <span className="mt-2 block text-sm font-semibold leading-6 text-[#706477]">대표 시간표를 선택하면 오늘 일정이 표시됩니다.</span>
-                      </div>
-                    )}
-                  </div>
-                </article>
-
-                <article className="rounded-lg border border-[#e7dfeb] bg-white p-7 shadow-dashboard xl:col-span-6">
-                  <div className="mb-6 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-black text-[#a3472b]">추천 강의</p>
-                      <h2 className="mt-1 text-2xl font-black text-ink">강의평 기반 추천</h2>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        className="grid h-10 w-10 place-items-center rounded-lg border border-[#e7dfeb] bg-white text-lg font-black text-ink shadow-sm"
-                        onClick={showPreviousCourse}
-                        aria-label="이전 추천 강의"
-                      >
-                        ‹
-                      </button>
-                      <button
-                        type="button"
-                        className="grid h-10 w-10 place-items-center rounded-lg border border-[#e7dfeb] bg-white text-lg font-black text-ink shadow-sm"
-                        onClick={showNextCourse}
-                        aria-label="다음 추천 강의"
-                      >
-                        ›
-                      </button>
-                    </div>
-                  </div>
-                  {carouselCourse ? (
-                    <div className="overflow-hidden rounded-lg border border-[#f0e8ed] bg-[#fffaf7]">
-                      <div className={`bg-gradient-to-r ${accentStyles[carouselIndex]} p-6 text-white`}>
-                        <div className="flex items-center justify-between gap-4">
-                          <span className="rounded-full bg-white/18 px-3 py-1 text-xs font-black ring-1 ring-white/25">TOP {carouselIndex + 1}</span>
-                          <span className="text-3xl font-black">{carouselCourse.reviewAverage.toFixed(1)}</span>
-                        </div>
-                        <h3 className="mt-8 text-3xl font-black tracking-normal">{carouselCourse.courseName}</h3>
-                        <p className="mt-3 text-sm font-semibold text-white/80">{carouselCourse.professorName} · {carouselCourse.department}</p>
-                      </div>
-                      <div className="grid gap-3 p-6 sm:grid-cols-3">
-                        <div>
-                          <span className="text-xs font-black text-[#8a7d91]">요일</span>
-                          <strong className="mt-1 block text-base font-black text-ink">{dayLabels[carouselCourse.dayOfWeek]}</strong>
-                        </div>
-                        <div>
-                          <span className="text-xs font-black text-[#8a7d91]">시간</span>
-                          <strong className="mt-1 block text-base font-black text-ink">{carouselCourse.startTime}</strong>
-                        </div>
-                        <div>
-                          <span className="text-xs font-black text-[#8a7d91]">강의실</span>
-                          <strong className="mt-1 block text-base font-black text-ink">{carouselCourse.buildingName}</strong>
-                        </div>
-                      </div>
-                      <div className="flex justify-center gap-2 px-6 pb-6">
-                        {recommendedCourses.map((course, index) => (
-                          <button
-                            type="button"
-                            className={`h-2.5 rounded-full transition-all ${index === carouselIndex ? "w-8 bg-plum" : "w-2.5 bg-[#d8cfdf]"}`}
-                            key={course.id}
-                            onClick={() => setCarouselIndex(index)}
-                            aria-label={`${index + 1}번째 추천 강의 보기`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </article>
-
-                <article className="rounded-lg border border-[#e7dfeb] bg-white p-7 shadow-dashboard xl:col-span-6">
-                  <div className="mb-6 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-black text-plum">최근 게시글</p>
-                      <h2 className="mt-1 text-2xl font-black text-ink">커뮤니티</h2>
-                    </div>
-                    <Link href="/board" className="rounded-lg bg-[#f1edf5] px-3 py-2 text-sm font-black text-plum">
-                      게시판
-                    </Link>
-                  </div>
-                  <div className="divide-y divide-[#eee7f2]">
-                    {posts.slice(0, 5).map((post) => (
-                      <Link href={`/board/${post.id}`} className="grid gap-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[1fr_auto] sm:items-center" key={post.id}>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="rounded-full bg-[#f6f0f8] px-2.5 py-1 text-xs font-black text-plum">{categoryLabels[post.category]}</span>
-                            <span className="text-xs font-bold text-[#8a7d91]">{post.authorName}</span>
-                          </div>
-                          <strong className="mt-2 block truncate text-base font-black text-ink">{post.title}</strong>
-                        </div>
-                        <span className="text-sm font-bold text-[#8a7d91]">댓글 {post.comments.length} · 조회 {post.viewCount}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </article>
-
-                <article className="rounded-lg border border-[#e7dfeb] bg-white p-7 shadow-dashboard xl:col-span-4">
-                  <div className="mb-6 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-black text-[#3f6f46]">중요 공지</p>
-                      <h2 className="mt-1 text-2xl font-black text-ink">학교 알림</h2>
-                    </div>
-                    <Link href="/notices" className="rounded-lg bg-[#eef7ef] px-3 py-2 text-sm font-black text-[#3f6f46]">
-                      공지
-                    </Link>
-                  </div>
-                  <div className="grid gap-4">
+                  <div className="dashboard-notice-list">
                     {pinnedNotices.map((notice) => (
-                      <Link className="block border-b border-[#eee7f2] pb-4 last:border-b-0 last:pb-0" href="/notices" key={notice.id}>
-                        <span className="rounded-full bg-[#eef7ef] px-2.5 py-1 text-xs font-black text-[#3f6f46]">{noticeLabels[notice.category]}</span>
-                        <strong className="mt-3 block line-clamp-1 text-base font-black text-ink">{notice.title}</strong>
-                        <span className="mt-1 block line-clamp-2 text-sm font-semibold leading-6 text-[#706477]">{notice.summary}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </article>
-
-                <article className="rounded-lg border border-[#e7dfeb] bg-white p-7 shadow-dashboard xl:col-span-4">
-                  <div className="mb-6 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-black text-[#6f3a70]">강의평</p>
-                      <h2 className="mt-1 text-2xl font-black text-ink">평점 요약</h2>
-                    </div>
-                    <span className="rounded-lg bg-[#fff5df] px-3 py-2 text-sm font-black text-[#8a5b00]">평균 {averageRating.toFixed(1)}</span>
-                  </div>
-                  <div className="grid gap-4">
-                    {courseReviews.slice(0, 3).map((review) => (
-                      <Link className="block border-b border-[#eee7f2] pb-4 last:border-b-0 last:pb-0" href="/reviews" key={review.id}>
-                        <div className="flex items-center justify-between gap-3">
-                          <strong className="truncate text-base font-black text-ink">{review.courseName}</strong>
-                          <span className="shrink-0 text-sm font-black text-[#8a5b00]">{review.rating.toFixed(1)}</span>
+                      <Link className="dashboard-notice-item" href="/notices" key={notice.id}>
+                        <span>{noticeLabels[notice.category]}</span>
+                        <div>
+                          <strong>{notice.title}</strong>
+                          <p>{notice.summary}</p>
+                          <time>{new Intl.DateTimeFormat("ko-KR").format(new Date(notice.publishedAt))}</time>
                         </div>
-                        <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-[#706477]">{review.content}</p>
                       </Link>
                     ))}
                   </div>
                 </article>
 
-                <article className="rounded-lg border border-[#e7dfeb] bg-[#23182d] p-7 text-white shadow-dashboard xl:col-span-4">
-                  <p className="text-sm font-black text-[#d8bd5f]">바로가기</p>
-                  <h2 className="mt-1 text-2xl font-black">새내기 필수 메뉴</h2>
-                  <div className="mt-6 grid grid-cols-2 gap-3">
-                    <Link className="rounded-lg bg-white/10 px-4 py-4 text-center text-sm font-black ring-1 ring-white/15" href="/map">
-                      캠퍼스 지도
-                    </Link>
-                    <Link className="rounded-lg bg-white/10 px-4 py-4 text-center text-sm font-black ring-1 ring-white/15" href="/must-read">
-                      필독 정보
-                    </Link>
-                    <Link className="rounded-lg bg-white/10 px-4 py-4 text-center text-sm font-black ring-1 ring-white/15" href="/notices">
-                      공지 확인
-                    </Link>
-                    <Link className="rounded-lg bg-white/10 px-4 py-4 text-center text-sm font-black ring-1 ring-white/15" href="/reviews">
-                      강의평 검색
-                    </Link>
+                <article className="dashboard-card">
+                  <div className="dashboard-card-title">
+                    <div>
+                      <DashboardIcon name="star" />
+                      <h2>추천 강의</h2>
+                    </div>
+                    <Link href="/reviews">전체 보기</Link>
+                  </div>
+                  <div className="dashboard-course-list">
+                    {recommendedCourses.map((course, index) => (
+                      <Link className="dashboard-course-card" href="/reviews" key={course.id}>
+                        <span className={index === 1 ? "dashboard-course-chip green" : "dashboard-course-chip"}>{courseTags[index]}</span>
+                        <strong>{course.courseName}</strong>
+                        <p className="dashboard-rating"><span aria-hidden="true">★</span> {course.reviewAverage.toFixed(1)}</p>
+                        <p>{courseNotes[index]}</p>
+                        <small>{course.requiredType === "required" ? "전공 필수" : "교양 만족도 높음"}</small>
+                        <div className="dashboard-avatars" aria-label="추천 학생 수">
+                          <i />
+                          <i />
+                          <i />
+                          <i />
+                          <b>+{[32, 18, 27][index]}</b>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="dashboard-course-pager" aria-hidden="true">
+                    <button type="button"><DashboardIcon name="chevron" /></button>
+                    <span className="active" />
+                    <span />
+                    <span />
+                    <span />
+                    <button type="button"><DashboardIcon name="chevron" /></button>
+                  </div>
+                </article>
+
+                <article className="dashboard-card">
+                  <div className="dashboard-card-title">
+                    <div>
+                      <DashboardIcon name="chat" />
+                      <h2>최근 게시글</h2>
+                    </div>
+                    <Link href="/board">전체 보기</Link>
+                  </div>
+                  <div className="dashboard-post-list">
+                    {recentPosts.map((post) => (
+                      <Link className="dashboard-post-item" href={`/board/${post.id}`} key={post.id}>
+                        <span className={`dashboard-post-chip ${post.category}`}>{categoryLabels[post.category]}</span>
+                        <div>
+                          <strong>{post.title}</strong>
+                          <p>댓글 {post.comments.length} · 조회 {post.viewCount} · {formatRelativePostTime(post.createdAt, now)}</p>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </article>
+
+                <article className="dashboard-card dashboard-quick-card">
+                  <div className="dashboard-quick-title">
+                    <DashboardIcon name="bolt" />
+                    <h2>바로가기</h2>
+                    <p>자주 사용하는 기능을 빠르게 이용해보세요.</p>
+                  </div>
+                  <div className="dashboard-quick-list">
+                    <Link href="/timetable"><DashboardIcon name="calendar" /><span>시간표</span></Link>
+                    <Link href="/map"><DashboardIcon name="map" /><span>캠퍼스 지도</span></Link>
+                    <Link href="/reviews"><DashboardIcon name="star" /><span>강의평</span></Link>
+                    <Link href="/board"><DashboardIcon name="chat" /><span>게시판</span></Link>
+                    <Link href="/must-read"><DashboardIcon name="book" /><span>새내기 필독</span></Link>
                   </div>
                 </article>
               </section>

@@ -77,6 +77,7 @@ interface RequiredCourseTimeOption {
   id: string;
   courseName: string;
   courseCode: string;
+  professorName: string;
   scheduleText: string;
   campusName: string;
   lessonTypeName: string;
@@ -103,7 +104,35 @@ const semesterOptions = [
 ] as const;
 const supportedSemesterOrder = ["1", "summer", "2", "winter"] as const;
 const localSemesterRangeLabel = "2023년 1학기 - 2026년 여름 계절학기";
-const requiredCommonCourses = ["비판적 사고와 토론", "창조적 사고와 글쓰기", "전공별 진로 탐색"];
+const professorMergedRequiredCourses = ["비판적 사고와 토론", "창의적 사고와 글쓰기"];
+const commonRequiredCourses = [...professorMergedRequiredCourses, "전공별 진로 탐색"];
+const defaultRequiredCourses = ["파이썬프로그래밍", "기초통계학", "미적분과 벡터해석 기초"];
+const requiredCourseAliases: Record<string, string[]> = {
+  기초통계학: ["기초통계학", "기초통계실습", "기초통계"],
+  "일반화학 Ⅰ": ["일반화학 Ⅰ", "일반화학 I", "일반화학 1"],
+  "일반화학 Ⅱ": ["일반화학 Ⅱ", "일반화학 II", "일반화학 2"],
+  "일반생물학 Ⅰ": ["일반생물학 Ⅰ", "일반생물학 I", "일반생물학 1"],
+  "일반생물학 Ⅱ": ["일반생물학 Ⅱ", "일반생물학 II", "일반생물학 2"],
+  "일반물리학 Ⅰ": ["일반물리학 Ⅰ", "일반물리학 I", "일반물리학 1"]
+};
+const departmentRequiredCourses: Record<string, string[]> = {
+  수리통계데이터사이언스학부: defaultRequiredCourses,
+  서비스디자인공학과: defaultRequiredCourses,
+  융합보안공학과: defaultRequiredCourses,
+  컴퓨터공학과: defaultRequiredCourses,
+  AI융합학부: defaultRequiredCourses,
+  "화학·에너지융합학부": ["미적분과 벡터해석 기초", "일반화학 Ⅰ", "일반화학 Ⅱ"],
+  화학과: ["미적분과 벡터해석 기초", "일반화학 Ⅰ", "일반화학 Ⅱ"],
+  바이오헬스융합학부: ["일반화학 Ⅰ", "일반생물학 Ⅰ"],
+  청정신소재공학과: ["일반화학 Ⅰ", "일반화학 Ⅱ", "일반물리학 Ⅰ"],
+  "청정융합에너지공학과": ["일반화학 Ⅰ", "일반화학 Ⅱ", "일반물리학 Ⅰ"],
+  바이오식품공학과: ["미적분과 벡터해석 기초", "일반화학 Ⅰ", "일반생물학 Ⅰ"],
+  식품영양학과: ["미적분과 벡터해석 기초", "일반화학 Ⅰ", "일반생물학 Ⅰ"],
+  식품영양학: ["미적분과 벡터해석 기초", "일반화학 Ⅰ", "일반생물학 Ⅰ"],
+  바이오생명공학과: ["일반화학 Ⅰ", "일반생물학 Ⅰ", "일반생물학 Ⅱ"],
+  바이오신약의과학부: ["일반화학 Ⅰ", "일반생물학 Ⅰ", "일반생물학 Ⅱ"],
+  글로벌의과학과: ["일반화학 Ⅰ", "일반생물학 Ⅰ", "일반생물학 Ⅱ"]
+};
 
 export default function TimetableEditPage() {
   return (
@@ -182,17 +211,33 @@ function getRequiredClassId(courseName: string) {
   return `required-common-${courseName}`;
 }
 
-function getRequiredOptionId(course: SungshinCourse) {
-  return `${course.courseName}-${course.courseCode}-${course.scheduleText}-${course.campusName}`;
+function getRequiredOptionId(course: SungshinCourse, displayCourseName = course.courseName) {
+  const professorPart = professorMergedRequiredCourses.includes(displayCourseName) ? "" : course.professorName;
+  return `${displayCourseName}-${course.courseCode}-${course.scheduleText}-${course.campusName}-${professorPart}`;
 }
 
-function getRequiredCourseOptions(courses: SungshinCourse[]) {
+function getRequiredCoursesForDepartment(department: string) {
+  return Array.from(new Set([...commonRequiredCourses, ...(departmentRequiredCourses[department] ?? [])]));
+}
+
+function getRequiredCourseSearchNames(courseName: string) {
+  return requiredCourseAliases[courseName] ?? [courseName];
+}
+
+function getRequiredCourseDisplayName(courseName: string, requiredCourses: string[]) {
+  return requiredCourses.find((requiredCourse) => getRequiredCourseSearchNames(requiredCourse).includes(courseName)) ?? courseName;
+}
+
+function getRequiredCourseOptions(courses: SungshinCourse[], requiredCourses: string[]) {
   const grouped = new Map<string, RequiredCourseTimeOption>();
+  const searchableNames = new Set(requiredCourses.flatMap(getRequiredCourseSearchNames));
 
   courses
-    .filter((course) => requiredCommonCourses.includes(course.courseName))
+    .filter((course) => searchableNames.has(course.courseName))
     .forEach((course) => {
-      const key = getRequiredOptionId(course);
+      const courseName = getRequiredCourseDisplayName(course.courseName, requiredCourses);
+      const professorName = professorMergedRequiredCourses.includes(courseName) ? "" : course.professorName;
+      const key = getRequiredOptionId(course, courseName);
       const previous = grouped.get(key);
 
       if (previous) {
@@ -206,8 +251,9 @@ function getRequiredCourseOptions(courses: SungshinCourse[]) {
 
       grouped.set(key, {
         id: key,
-        courseName: course.courseName,
+        courseName,
         courseCode: course.courseCode,
+        professorName,
         scheduleText: course.scheduleText,
         campusName: course.campusName,
         lessonTypeName: course.lessonTypeName,
@@ -219,7 +265,7 @@ function getRequiredCourseOptions(courses: SungshinCourse[]) {
 
   return [...grouped.values()].sort((left, right) => {
     if (left.courseName !== right.courseName) {
-      return requiredCommonCourses.indexOf(left.courseName) - requiredCommonCourses.indexOf(right.courseName);
+      return requiredCourses.indexOf(left.courseName) - requiredCourses.indexOf(right.courseName);
     }
 
     return left.scheduleText.localeCompare(right.scheduleText, "ko");
@@ -323,12 +369,13 @@ function TimetableEditWorkspace({
   const [isDraftReady, setIsDraftReady] = useState(false);
   const [pendingSemester, setPendingSemester] = useState<string | null>(null);
   const sungshinSearchRef = useRef<HTMLDivElement | null>(null);
+  const requiredCourses = useMemo(() => getRequiredCoursesForDepartment(department), [department]);
   const requiredCourseOptionsByName = useMemo(
-    () => requiredCommonCourses.map((courseName) => ({
+    () => requiredCourses.map((courseName) => ({
       courseName,
       options: requiredCourseOptions.filter((option) => option.courseName === courseName)
     })),
-    [requiredCourseOptions]
+    [requiredCourseOptions, requiredCourses]
   );
 
   useEffect(() => {
@@ -365,7 +412,7 @@ function TimetableEditWorkspace({
         nextSelectedRequiredCourseIds = existing.classes
           .filter((item) => item.id.startsWith("required-common-"))
           .map((item) => item.courseName)
-          .filter((courseName, index, names) => requiredCommonCourses.includes(courseName) && names.indexOf(courseName) === index);
+          .filter((courseName, index, names) => requiredCourses.includes(courseName) && names.indexOf(courseName) === index);
       }
     }
 
@@ -378,12 +425,14 @@ function TimetableEditWorkspace({
         nextSemester = normalizeSupportedSemester(parsedDraft.semester);
         nextClasses = parsedDraft.classes;
         nextPersonalSchedules = parsedDraft.personalSchedules;
-        nextSelectedRequiredCourseIds = parsedDraft.selectedRequiredCourseIds ?? [];
+        nextSelectedRequiredCourseIds = (parsedDraft.selectedRequiredCourseIds ?? []).filter((courseName) => requiredCourses.includes(courseName));
         nextCourseQuery = parsedDraft.courseQuery ?? "";
       }
     } catch {
       window.localStorage.removeItem(draftStorageKey);
     }
+
+    nextClasses = nextClasses.filter((item) => !item.id.startsWith("required-common-") || requiredCourses.includes(item.courseName));
 
     setTitle(nextTitle);
     setSemester(nextSemester);
@@ -392,7 +441,7 @@ function TimetableEditWorkspace({
     setSelectedRequiredCourseIds(nextSelectedRequiredCourseIds);
     setCourseQuery(nextCourseQuery);
     setIsDraftReady(true);
-  }, [draftStorageKey, editingId, initialTitle]);
+  }, [draftStorageKey, editingId, initialTitle, requiredCourses]);
 
   useEffect(() => {
     if (!isDraftReady) {
@@ -432,10 +481,16 @@ function TimetableEditWorkspace({
     }
 
     async function loadRequiredCourses() {
+      if (!requiredCourses.length) {
+        setRequiredCourseOptions([]);
+        setIsRequiredCourseLoading(false);
+        return;
+      }
+
       setIsRequiredCourseLoading(true);
 
       try {
-        const responses = await Promise.all(requiredCommonCourses.map(async (courseName) => {
+        const responses = await Promise.all(requiredCourses.flatMap(getRequiredCourseSearchNames).map(async (courseName) => {
           const params = new URLSearchParams({
             q: courseName,
             yy: selectedSemester.year,
@@ -451,7 +506,7 @@ function TimetableEditWorkspace({
           return response.json() as Promise<SungshinCourseResponse>;
         }));
 
-        setRequiredCourseOptions(getRequiredCourseOptions(responses.flatMap((response) => response.courses)));
+        setRequiredCourseOptions(getRequiredCourseOptions(responses.flatMap((response) => response.courses), requiredCourses));
       } catch {
         setRequiredCourseOptions([]);
       } finally {
@@ -460,7 +515,7 @@ function TimetableEditWorkspace({
     }
 
     void loadRequiredCourses();
-  }, [isDraftReady, selectedSemester.year, semester]);
+  }, [isDraftReady, selectedSemester.year, semester, requiredCourses]);
 
   function completeTimetable() {
     const trimmedTitle = title.trim();
@@ -544,7 +599,7 @@ function TimetableEditWorkspace({
   function toRequiredClassSchedules(option: RequiredCourseTimeOption, colorOffset: number): ClassSchedule[] {
     const roomCourse: SungshinCourse = {
       ...option.course,
-      professorName: "",
+      professorName: option.professorName,
       roomText: option.roomLabel === "분반별 강의실 상이" ? "" : option.roomLabel
     };
     const roomParts = option.roomLabel === "분반별 강의실 상이"
@@ -573,7 +628,7 @@ function TimetableEditWorkspace({
         timetableId: "draft",
         courseId: option.courseCode,
         courseName: option.courseName,
-        professorName: "",
+        professorName: option.professorName,
         dayOfWeek,
         startTime,
         endTime,
@@ -627,7 +682,12 @@ function TimetableEditWorkspace({
     const selectedOption = selectedClass
       ? requiredCourseOptions.find((option) => {
           const parsed = toRequiredClassSchedules(option, 0);
-          return parsed.some((item) => item.dayOfWeek === selectedClass.dayOfWeek && item.startTime === selectedClass.startTime && item.endTime === selectedClass.endTime);
+          return parsed.some((item) => (
+            item.dayOfWeek === selectedClass.dayOfWeek
+            && item.startTime === selectedClass.startTime
+            && item.endTime === selectedClass.endTime
+            && item.professorName === selectedClass.professorName
+          ));
         })
       : null;
 
@@ -720,7 +780,7 @@ function TimetableEditWorkspace({
     }
 
     setSemester(pendingSemester);
-    setClasses((current) => current.filter((item) => !requiredCommonCourses.some((courseName) => item.id.startsWith(getRequiredClassId(courseName)))));
+    setClasses((current) => current.filter((item) => !item.id.startsWith("required-common-")));
     setSelectedRequiredCourseIds([]);
     setRequiredCourseOptions([]);
     setCourseQuery("");
@@ -787,7 +847,7 @@ function TimetableEditWorkspace({
             <h2>필수 이수 강의</h2>
             <span className="badge">{selectedRequiredCourseIds.length}개 선택</span>
           </div>
-          <p className="section-note">성신여대 수강신청 데이터에서 필수 공통교양 시간을 가져옵니다. 같은 시간대에 교수님이 여러 명이면 하나의 시간 항목으로 표시합니다.</p>
+          <p className="section-note">{department} 기준 필수 이수 과목 시간을 가져옵니다. 비판적 사고와 토론, 창의적 사고와 글쓰기는 같은 시간대를 하나로 묶고 나머지는 교수님별로 표시합니다.</p>
           {isRequiredCourseLoading ? (
             <div className="list">
               <div className="list-item">
@@ -823,7 +883,7 @@ function TimetableEditWorkspace({
                             <option value="">시간 선택</option>
                             {options.map((option) => (
                               <option value={option.id} key={option.id}>
-                                {option.scheduleText} · {option.campusName} · {option.roomLabel} · {option.count}개 분반
+                                {[option.professorName, option.scheduleText, option.campusName, option.roomLabel, `${option.count}개 분반`].filter(Boolean).join(" · ")}
                               </option>
                             ))}
                           </>

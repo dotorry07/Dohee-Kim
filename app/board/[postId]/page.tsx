@@ -21,6 +21,13 @@ export default function BoardPostPage() {
   const [comment, setComment] = useState("");
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
   const [focusedCommentId, setFocusedCommentId] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editForm, setEditForm] = useState({
+    category: "freshman" as BoardPost["category"],
+    title: "",
+    content: ""
+  });
 
   useEffect(() => {
     setPosts(getBoardPosts());
@@ -31,9 +38,6 @@ export default function BoardPostPage() {
   }, []);
 
   const selectedPost = posts.find((post) => post.id === params.postId);
-  const myPostCount = user ? posts.filter((post) => post.userId === user.id).length : 0;
-  const myCommentCount = user ? posts.reduce((count, post) => count + post.comments.filter((item) => item.userId === user.id).length, 0) : 0;
-  const recommendedPostCount = user ? posts.filter((post) => post.recommendedUserIds.includes(user.id)).length : 0;
 
   useEffect(() => {
     if (!selectedPost || !focusedCommentId) {
@@ -44,10 +48,6 @@ export default function BoardPostPage() {
       document.getElementById(`comment-${focusedCommentId}`)?.scrollIntoView({ block: "center" });
     });
   }, [focusedCommentId, selectedPost]);
-
-  function getActivityHref(view: "my-posts" | "my-comments" | "recommended") {
-    return user ? `/board?view=${view}` : "/auth/login";
-  }
 
   function addComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -96,6 +96,52 @@ export default function BoardPostPage() {
     router.push("/board");
   }
 
+  function startEditing() {
+    if (!selectedPost || selectedPost.userId !== user?.id) {
+      return;
+    }
+
+    setEditForm({
+      category: selectedPost.category,
+      title: selectedPost.title,
+      content: selectedPost.content
+    });
+    setEditError("");
+    setIsEditing(true);
+  }
+
+  function cancelEditing() {
+    setEditError("");
+    setIsEditing(false);
+  }
+
+  function updateSelectedPost(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedPost || selectedPost.userId !== user?.id) {
+      return;
+    }
+
+    if (!editForm.title.trim() || !editForm.content.trim()) {
+      setEditError("제목과 내용을 입력해주세요.");
+      return;
+    }
+
+    setPosts((current) => {
+      const nextPosts = current.map((post) => post.id === selectedPost.id ? {
+        ...post,
+        category: editForm.category,
+        title: editForm.title.trim(),
+        content: editForm.content.trim(),
+        updatedAt: new Date().toISOString()
+      } : post);
+
+      saveBoardPosts(nextPosts);
+      return nextPosts;
+    });
+    setEditError("");
+    setIsEditing(false);
+  }
+
   function recommendPost() {
     const currentUser = getStoredUser();
     if (!currentUser) {
@@ -140,36 +186,65 @@ export default function BoardPostPage() {
         <Link className="ghost-button" href="/board">목록으로</Link>
       </section>
 
-      <section className="board-post-layout">
+      <section>
         <article className="panel">
-          <div className="section-title">
-            <h1 className="board-post-title">{selectedPost.title}</h1>
-            {selectedPost.userId === user?.id ? <button className="ghost-button" type="button" onClick={deleteSelectedPost}>삭제</button> : null}
-          </div>
-          <div className="meta">
-            <span className="badge">{categoryLabels[selectedPost.category]}</span>
-            <span>{selectedPost.authorName}</span>
-            <span>{new Intl.DateTimeFormat("ko-KR").format(new Date(selectedPost.createdAt))}</span>
-            <span>조회 {selectedPost.viewCount}</span>
-            <span className="recommend-meta">추천 {selectedPost.recommendCount}</span>
-          </div>
-          <p className="board-post-content">{selectedPost.content}</p>
+          {isEditing ? (
+            <form className="form board-edit-form" onSubmit={updateSelectedPost}>
+              <div className="section-title">
+                <h1 className="board-post-title">게시글 수정</h1>
+                <button className="ghost-button" type="button" onClick={cancelEditing}>취소</button>
+              </div>
+              <div className="field">
+                <label htmlFor="edit-post-category">카테고리</label>
+                <select
+                  id="edit-post-category"
+                  value={editForm.category}
+                  onChange={(event) => setEditForm((current) => ({ ...current, category: event.target.value as BoardPost["category"] }))}
+                >
+                  {Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="edit-post-title">제목</label>
+                <input
+                  id="edit-post-title"
+                  value={editForm.title}
+                  onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))}
+                />
+              </div>
+              <div className="field board-content-field">
+                <label htmlFor="edit-post-content">내용</label>
+                <textarea
+                  id="edit-post-content"
+                  value={editForm.content}
+                  onChange={(event) => setEditForm((current) => ({ ...current, content: event.target.value }))}
+                />
+              </div>
+              {editError ? <div className="error">{editError}</div> : null}
+              <button className="button board-edit-submit-button" type="submit">저장</button>
+            </form>
+          ) : (
+            <>
+              <div className="section-title">
+                <h1 className="board-post-title">{selectedPost.title}</h1>
+                {selectedPost.userId === user?.id ? (
+                  <div className="board-post-actions">
+                    <button className="ghost-button" type="button" onClick={startEditing}>수정</button>
+                    <button className="ghost-button" type="button" onClick={deleteSelectedPost}>삭제</button>
+                  </div>
+                ) : null}
+              </div>
+              <div className="meta">
+                <span className="badge">{categoryLabels[selectedPost.category]}</span>
+                <span>{selectedPost.authorName}</span>
+                <span>{new Intl.DateTimeFormat("ko-KR").format(new Date(selectedPost.createdAt))}</span>
+                <span>조회 {selectedPost.viewCount}</span>
+                <span className="recommend-meta">추천 {selectedPost.recommendCount}</span>
+              </div>
+              <p className="board-post-content">{selectedPost.content}</p>
+            </>
+          )}
         </article>
-
-        <aside className="panel board-activity-box" aria-label="내 게시판 활동">
-          <Link className="board-activity-link" href={getActivityHref("my-posts")}>
-            <span>내가 쓴 글</span>
-            <strong>{myPostCount}</strong>
-          </Link>
-          <Link className="board-activity-link" href={getActivityHref("my-comments")}>
-            <span>내가 쓴 댓글</span>
-            <strong>{myCommentCount}</strong>
-          </Link>
-          <Link className="board-activity-link" href={getActivityHref("recommended")}>
-            <span>추천한 글</span>
-            <strong>{recommendedPostCount}</strong>
-          </Link>
-        </aside>
       </section>
 
       <section className="panel" style={{ marginTop: 16 }}>

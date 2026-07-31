@@ -12,8 +12,16 @@ const sourcePageUrls = [
 const competitionKeywords = ["대회", "공모", "공모전", "경진", "경연", "해커톤", "contest", "competition"];
 const excludedNoticeKeywords = ["수상자 발표", "수상작 발표", "결과 발표", "선정 발표"];
 const cacheTtlMs = 30 * 60 * 1000;
+const officialNoticeSources: { label: string; category: Notice["category"]; url: string }[] = [
+  { label: "학사공지", category: "academic", url: `${sungshinBaseUrl}/bbs/main_kor/3181/artclList.do` },
+  { label: "일반공지", category: "general", url: `${sungshinBaseUrl}/bbs/main_kor/3182/artclList.do` },
+  { label: "취업공지", category: "career", url: `${sungshinBaseUrl}/bbs/main_kor/3183/artclList.do` },
+  { label: "장학공지", category: "scholarship", url: `${sungshinBaseUrl}/bbs/main_kor/4719/artclList.do` },
+  { label: "성신이벤트", category: "event", url: `${sungshinBaseUrl}/bbs/main_kor/5316/artclList.do` }
+];
 
 let competitionNoticeCache: { expiresAt: number; notices: Notice[] } | null = null;
+let officialNoticeCache: { expiresAt: number; notices: Notice[] } | null = null;
 let departmentTargetCache: { expiresAt: number; targets: { name: string; url: string }[] } | null = null;
 const departmentNoticeCache = new Map<string, { expiresAt: number; notices: Notice[] }>();
 
@@ -33,14 +41,53 @@ export async function GET(request: Request) {
     return NextResponse.json({ notices: items });
   }
 
-  const competitionNotices = await getDepartmentCompetitionNotices();
+  const officialNotices = await getOfficialNotices();
 
-  const items = [...competitionNotices, ...notices]
+  const items = officialNotices
     .filter((notice) => !category || category === "all" || notice.category === category)
     .filter((notice) => !query || `${notice.title} ${notice.summary}`.toLowerCase().includes(query))
     .sort(compareNotices);
 
   return NextResponse.json({ notices: items });
+}
+
+async function getOfficialNotices() {
+  if (officialNoticeCache && officialNoticeCache.expiresAt > Date.now()) {
+    return officialNoticeCache.notices;
+  }
+
+  try {
+    const collected = await mapWithConcurrency(officialNoticeSources, 3, scrapeOfficialNotices);
+    const officialNotices = dedupeNotices(collected.flat()).slice(0, 80);
+    officialNoticeCache = { expiresAt: Date.now() + cacheTtlMs, notices: officialNotices };
+    return officialNotices;
+  } catch {
+    return officialNoticeCache?.notices ?? notices;
+  }
+}
+
+async function scrapeOfficialNotices(source: { label: string; category: Notice["category"]; url: string }) {
+  try {
+    const html = await fetchText(source.url);
+    const articles = dedupeArticles(extractArticles(html)).slice(0, 24);
+
+    return articles.map<Notice>((article) => {
+      const category = getOfficialNoticeCategory(article.title, source.category);
+
+      return {
+        id: `official-notice-${source.label}-${article.url}`.replace(/\s+/g, "-"),
+        category,
+        title: article.title,
+        summary: `성신여대 공식 사이트 ${source.label}에서 가져온 ${getOfficialCategoryLabel(category)} 공지입니다.`,
+        sourceUrl: article.url,
+        isPinned: Boolean(article.isPinned) || isFreshmanHelpfulNotice(article.title),
+        publishedAt: article.date ? `${article.date.replace(/\./g, "-")}T09:00:00.000Z` : new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function getDepartmentNotices(departmentName: string) {
@@ -292,7 +339,8 @@ function extractArticles(html: string) {
     articles.push({
       title: cleanText(titleHtml).replace(/\s*새글$/, ""),
       url: toAbsoluteUrl(linkMatch[1]),
-      date: cleanText(dateMatch?.[1] ?? "")
+      date: cleanText(dateMatch?.[1] ?? ""),
+      isPinned: /_artclNotice|_artclNnotice|공지<!--|공지\s*<\/span>/.test(row)
     });
   }
 
@@ -306,6 +354,7 @@ type DepartmentArticle = {
   imageUrl?: string;
   applicationUrl?: string;
   applicationDeadline?: string;
+  isPinned?: boolean;
 };
 
 async function addArticleDetails(article: DepartmentArticle) {
@@ -544,6 +593,45 @@ function getNoticeCategoryFromDepartmentCategory(category: DepartmentNoticeCateg
   }
 
   return "general";
+}
+
+function getOfficialNoticeCategory(title: string, sourceCategory: Notice["category"]): Notice["category"] {
+  const normalized = title.toLowerCase();
+
+  if (/(수강신청|수강\s*정정|수강\s*철회|개설강좌|강의시간표|장바구니|관심강좌)/.test(normalized)) {
+    return "registration";
+  }
+
+  if (/(장학|국가근로|근로장학생|학자금|등록금\s*지원)/.test(normalized)) {
+    return "scholarship";
+  }
+
+  if (/(취업|채용|인턴|현장실습|진로|일자리)/.test(normalized)) {
+    return "career";
+  }
+
+  if (/(행사|특강|세미나|설명회|대회|공모|공모전|경진|박람회|축제|이벤트|워크숍|워크샵)/.test(normalized)) {
+    return "event";
+  }
+
+  return sourceCategory;
+}
+
+function getOfficialCategoryLabel(category: Notice["category"]) {
+  const labels: Record<Notice["category"], string> = {
+    academic: "학사",
+    scholarship: "장학",
+    registration: "수강신청",
+    event: "행사",
+    career: "취업/진로",
+    general: "일반"
+  };
+
+  return labels[category];
+}
+
+function isFreshmanHelpfulNotice(title: string) {
+  return /신입생|새내기|1학년|일학년|오리엔테이션|수강신청|수강\s*정정|수강\s*철회|장바구니|관심강좌|학생증|등록금|국가장학|장학금|학사일정|휴학|복학|전과|교양|필수|기초교양|성신포탈|통합정보|비교과|멘토링/.test(title);
 }
 
 function getDepartmentCategoryLabel(category: DepartmentNoticeCategory) {

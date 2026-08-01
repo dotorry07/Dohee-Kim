@@ -70,6 +70,7 @@ export interface Timetable {
 
 export interface CampusPlace {
   id: string;
+  campus: "donam" | "unjeong";
   name: string;
   category: "lecture" | "library" | "student" | "food" | "admin" | "facility";
   description: string;

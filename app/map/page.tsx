@@ -3,6 +3,8 @@
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { campusPlaces } from "@/lib/data";
+import { campusBuildingDetails, unjeongCampusBuildingDetails } from "@/lib/campus-place-details";
+import type { CampusBuildingDetail } from "@/lib/campus-place-details";
 import type { CampusPlace } from "@/lib/types";
 
 const categoryLabels: Record<CampusPlace["category"], string> = {
@@ -16,7 +18,6 @@ const categoryLabels: Record<CampusPlace["category"], string> = {
 
 type CampusKey = "donam" | "unjeong";
 type PlaceFilterKey = "all" | "student" | "nanhyang" | "sujeong" | "sungshin" | "food" | "library" | "admin" | "facility";
-type DetailOption = { parentName: string; items: string[] };
 
 const placeFilters: Array<{ key: PlaceFilterKey; label: string }> = [
   { key: "all", label: "전체" },
@@ -39,20 +40,11 @@ function matchesPlaceFilter(place: CampusPlace, filter: PlaceFilterKey) {
   return place.category === filter;
 }
 
-function getDetailOptions(filter: PlaceFilterKey): DetailOption | null {
-  if (filter === "student") {
-    return { parentName: "학생회관", items: ["1층", "2층", "3층", "4층", "5층"] };
-  }
+function getDetailOptions(filter: PlaceFilterKey): CampusBuildingDetail | null {
   if (filter === "nanhyang") {
-    return { parentName: "난향관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층"] };
+    return { parentName: "난향관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층"].map((label) => ({ label, facilities: [] })) };
   }
-  if (filter === "sujeong") {
-    return { parentName: "수정관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층", "9층", "10층"] };
-  }
-  if (filter === "sungshin") {
-    return { parentName: "성신관", items: ["A관", "B관", "C관"] };
-  }
-  return null;
+  return campusBuildingDetails[filter] ?? null;
 }
 
 export default function MapPage() {
@@ -66,26 +58,51 @@ export default function MapPage() {
 function MapContent() {
   const searchParams = useSearchParams();
   const building = searchParams.get("building");
-  const initial = campusPlaces.find((place) => building && place.buildingName.includes(building)) ?? campusPlaces[0];
+  const initial = campusPlaces.find((place) => place.campus === "donam" && building && place.buildingName.includes(building))
+    ?? campusPlaces.find((place) => place.campus === "donam")
+    ?? null;
   const [activeCampus, setActiveCampus] = useState<CampusKey>("donam");
-  const [selected, setSelected] = useState(initial);
+  const [selected, setSelected] = useState<CampusPlace | null>(initial);
   const [query, setQuery] = useState(building ?? "");
   const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>("all");
   const [selectedDetailItem, setSelectedDetailItem] = useState<string | null>(null);
-  const detailOptions = getDetailOptions(placeFilter);
+  const visiblePlaceFilters = activeCampus === "donam"
+    ? placeFilters
+    : placeFilters.filter((filter) => !["student", "nanhyang", "sujeong", "sungshin"].includes(filter.key));
+  const detailOptions = activeCampus === "donam"
+    ? getDetailOptions(placeFilter)
+    : unjeongCampusBuildingDetails[placeFilter] ?? null;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredDetailItems = detailOptions?.items.filter((item) => {
+    if (!normalizedQuery) return true;
+    return [
+      detailOptions.parentName,
+      item.label,
+      ...item.facilities.flatMap((facility) => [
+        facility.name,
+        ...facility.details,
+        ...(facility.menuSections?.flatMap((section) => [section.name, ...section.items]) ?? [])
+      ])
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedQuery);
+  }) ?? [];
+  const selectedDetail = detailOptions?.items.find((item) => item.label === selectedDetailItem) ?? null;
 
   const filteredPlaces = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return campusPlaces.filter((place) => {
+      const matchesCampus = place.campus === activeCampus;
       const matchesFilter = matchesPlaceFilter(place, placeFilter);
       const matchesQuery = !normalized || [place.name, place.buildingName, place.description, ...place.tags]
         .join(" ")
         .toLowerCase()
         .includes(normalized);
-      return matchesFilter && matchesQuery;
+      return matchesCampus && matchesFilter && matchesQuery;
     });
-  }, [placeFilter, query]);
-  const resultCount = detailOptions ? detailOptions.items.length : filteredPlaces.length;
+  }, [activeCampus, placeFilter, query]);
+  const resultCount = detailOptions ? filteredDetailItems.length : filteredPlaces.length;
 
   return (
     <main className="page">
@@ -114,7 +131,7 @@ function MapContent() {
             type="button"
             onClick={() => {
               setActiveCampus("unjeong");
-              setSelected(campusPlaces[0]);
+              setSelected(campusPlaces.find((place) => place.campus === "unjeong") ?? null);
               setQuery("");
               setPlaceFilter("all");
               setSelectedDetailItem(null);
@@ -125,11 +142,13 @@ function MapContent() {
         </div>
         <div className="map-image-area">
           <div className={activeCampus === "unjeong" ? "campus-map unjeong-campus-map" : "campus-map"}>
-            <span
-              className="pin"
-              data-label={selected.name}
-              style={{ left: `${selected.mapX}%`, top: `${selected.mapY}%` }}
-            />
+            {selected ? (
+              <span
+                className="pin"
+                data-label={selected.name}
+                style={{ left: `${selected.mapX}%`, top: `${selected.mapY}%` }}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -143,10 +162,13 @@ function MapContent() {
               className="search"
               placeholder="건물, 시설, 태그 검색"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setSelectedDetailItem(null);
+              }}
             />
             <div className="tabs">
-              {placeFilters.map((filter) => (
+              {visiblePlaceFilters.map((filter) => (
                 <button
                   className={placeFilter === filter.key ? "tab active" : "tab"}
                   key={filter.key}
@@ -154,6 +176,8 @@ function MapContent() {
                   onClick={() => {
                     setPlaceFilter(filter.key);
                     setSelectedDetailItem(null);
+                    const matchingPlace = campusPlaces.find((place) => place.campus === activeCampus && matchesPlaceFilter(place, filter.key));
+                    if (matchingPlace) setSelected(matchingPlace);
                   }}
                 >
                   {filter.label}
@@ -162,18 +186,18 @@ function MapContent() {
             </div>
             <div className="list">
               {detailOptions ? (
-                detailOptions.items.map((item) => (
+                filteredDetailItems.map((item) => (
                   <button
-                    className={selectedDetailItem === item ? "list-item active" : "list-item"}
+                    className={selectedDetailItem === item.label ? "list-item active" : "list-item"}
                     type="button"
-                    key={`${detailOptions.parentName}-${item}`}
-                    onClick={() => setSelectedDetailItem(item)}
+                    key={`${detailOptions.parentName}-${item.label}`}
+                    onClick={() => setSelectedDetailItem(item.label)}
                     style={{ textAlign: "left" }}
                   >
-                    <strong>{item}</strong>
-                    <span className="muted">{detailOptions.parentName} · {item}</span>
+                    <strong>{item.label}</strong>
+                    <span className="muted">{detailOptions.parentName} · {item.label}</span>
                   </button>
-                ))
+                )).concat(filteredDetailItems.length === 0 ? [<div className="list-item" key="empty-detail-result">검색 결과가 없습니다.</div>] : [])
               ) : (
                 <>
                   {filteredPlaces.map((place) => (
@@ -196,7 +220,34 @@ function MapContent() {
         </div>
       </section>
 
-      <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
+      {selectedDetail && detailOptions ? <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
+        <div className="section-title">
+          <h2>{detailOptions.parentName} {selectedDetail.label}</h2>
+          <span className="badge">시설 안내</span>
+        </div>
+        {selectedDetail.facilities.length > 0 ? selectedDetail.facilities.map((facility) => facility.menuSections ? (
+          <div className="list-item" key={facility.name} style={{ marginTop: 12 }}>
+            <strong>{facility.name}</strong>
+            {facility.details.map((detail) => <span className="muted" key={detail}>{detail}</span>)}
+            <details style={{ marginTop: 8 }}>
+              <summary><strong>메뉴 및 가격 보기</strong></summary>
+              {facility.menuSections.map((section) => (
+                <div key={section.name} style={{ marginTop: 12 }}>
+                  <strong>{section.name}</strong>
+                  <div className="meta" style={{ marginTop: 8 }}>
+                    {section.items.map((item) => <span className="chip" key={`${section.name}-${item}`}>{item}</span>)}
+                  </div>
+                </div>
+              ))}
+            </details>
+          </div>
+        ) : (
+          <div className="list-item" key={facility.name} style={{ marginTop: 12 }}>
+            <strong>{facility.name}</strong>
+            {facility.details.map((detail) => <span className="muted" key={detail}>{detail}</span>)}
+          </div>
+        )) : <p className="muted">상세 정보가 준비 중입니다.</p>}
+      </section> : selected ? <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
         <div className="section-title">
           <h2>{selected.name}</h2>
           <span className="badge">{categoryLabels[selected.category]}</span>
@@ -207,7 +258,7 @@ function MapContent() {
           <span>{selected.floor}</span>
           {selected.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
         </div>
-      </section>
+      </section> : null}
     </main>
   );
 }

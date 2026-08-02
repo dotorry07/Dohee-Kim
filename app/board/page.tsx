@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getStoredUser } from "@/lib/auth/client";
-import { getBoardPosts, saveBoardPosts } from "@/lib/board-storage";
+import { fetchBoardPosts, getBoardPosts, saveBoardPosts, subscribeToBoardPosts } from "@/lib/board-storage";
 import type { BoardPost, Comment } from "@/lib/types";
 
 const categoryLabels: Record<BoardPost["category"], string> = {
@@ -41,12 +41,15 @@ export default function BoardPage() {
 
   useEffect(() => {
     setPosts(getBoardPosts());
+    void fetchBoardPosts().then(setPosts);
     setUser(getStoredUser());
 
     const view = new URLSearchParams(window.location.search).get("view");
     if (view === "my-posts" || view === "my-comments" || view === "recommended") {
       setActivityFilter(view);
     }
+
+    return subscribeToBoardPosts(setPosts);
   }, []);
 
   const filteredPosts = useMemo(() => {
@@ -109,7 +112,7 @@ export default function BoardPage() {
     router.replace(queryString ? `/board?${queryString}` : "/board", { scroll: false });
   }
 
-  function createPost(event: FormEvent<HTMLFormElement>) {
+  async function createPost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const currentUser = getStoredUser();
     if (!currentUser) {
@@ -122,20 +125,16 @@ export default function BoardPage() {
       return;
     }
 
-    const newPost: BoardPost = {
-      id: `post-${Date.now()}`,
-      userId: currentUser.id,
-      authorName: currentUser.nickname,
-      category: form.category,
-      title: form.title.trim(),
-      content: form.content.trim(),
-      viewCount: 0,
-      recommendCount: 0,
-      recommendedUserIds: [],
-      comments: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    const response = await fetch("/api/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-user-id": currentUser.id },
+      body: JSON.stringify({ userId: currentUser.id, authorName: currentUser.nickname, ...form })
+    });
+    if (!response.ok) {
+      setError("게시글을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      return;
+    }
+    const { post: newPost } = await response.json() as { post: BoardPost };
 
     setPosts((current) => {
       const nextPosts = [newPost, ...current];

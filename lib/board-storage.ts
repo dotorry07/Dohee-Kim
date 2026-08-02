@@ -2,6 +2,7 @@ import { posts as seedPosts } from "@/lib/data";
 import type { BoardPost } from "@/lib/types";
 
 const STORAGE_KEY = "newbie-on-board-posts";
+const BOARD_POSTS_CHANGED_EVENT = "newbie-on-board-posts-changed";
 
 function normalizeBoardPosts(posts: BoardPost[]) {
   return posts.map((post) => ({
@@ -28,6 +29,52 @@ export function getBoardPosts() {
   }
 }
 
+export async function fetchBoardPosts() {
+  const cachedPosts = getBoardPosts();
+
+  try {
+    const response = await fetch("/api/posts", { cache: "no-store" });
+    if (!response.ok) throw new Error("Failed to load board posts.");
+
+    const data = await response.json() as { posts: BoardPost[] };
+    const apiIds = new Set(data.posts.map((post) => post.id));
+    const mergedPosts = normalizeBoardPosts([
+      ...data.posts,
+      ...cachedPosts.filter((post) => !apiIds.has(post.id))
+    ]);
+    saveBoardPosts(mergedPosts);
+    return mergedPosts;
+  } catch {
+    return cachedPosts;
+  }
+}
+
 export function saveBoardPosts(posts: BoardPost[]) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeBoardPosts(posts)));
+  window.queueMicrotask(() => window.dispatchEvent(new Event(BOARD_POSTS_CHANGED_EVENT)));
+}
+
+export function subscribeToBoardPosts(onChange: (posts: BoardPost[]) => void) {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const handleChange = () => onChange(getBoardPosts());
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === STORAGE_KEY) {
+      handleChange();
+    }
+  };
+
+  window.addEventListener(BOARD_POSTS_CHANGED_EVENT, handleChange);
+  window.addEventListener("storage", handleStorage);
+
+  return () => {
+    window.removeEventListener(BOARD_POSTS_CHANGED_EVENT, handleChange);
+    window.removeEventListener("storage", handleStorage);
+  };
 }

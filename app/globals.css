@@ -1667,6 +1667,26 @@ button {
   min-height: 132px;
 }
 
+.facility-detail-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.facility-detail-section h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.facility-detail-section ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 .pin {
   position: absolute;
   width: 22px;

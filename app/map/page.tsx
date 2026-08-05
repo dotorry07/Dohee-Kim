@@ -81,6 +81,7 @@ function MapContent() {
       ...item.facilities.flatMap((facility) => [
         facility.name,
         ...facility.details,
+        ...(facility.detailSections?.flatMap((section) => [section.title, ...section.items]) ?? []),
         ...(facility.menuSections?.flatMap((section) => [section.name, ...section.items]) ?? [])
       ])
     ]
@@ -229,6 +230,14 @@ function MapContent() {
           <div className="list-item" key={facility.name} style={{ marginTop: 12 }}>
             <strong>{facility.name}</strong>
             {facility.details.map((detail) => <span className="muted" key={detail}>{detail}</span>)}
+            {facility.detailSections?.map((section) => (
+              <div className="facility-detail-section" key={section.title}>
+                <h3>{section.title}</h3>
+                <ul>
+                  {section.items.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            ))}
             <details style={{ marginTop: 8 }}>
               <summary><strong>메뉴 및 가격 보기</strong></summary>
               {facility.menuSections.map((section) => (
@@ -245,6 +254,14 @@ function MapContent() {
           <div className="list-item" key={facility.name} style={{ marginTop: 12 }}>
             <strong>{facility.name}</strong>
             {facility.details.map((detail) => <span className="muted" key={detail}>{detail}</span>)}
+            {facility.detailSections?.map((section) => (
+              <div className="facility-detail-section" key={section.title}>
+                <h3>{section.title}</h3>
+                <ul>
+                  {section.items.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            ))}
           </div>
         )) : <p className="muted">상세 정보가 준비 중입니다.</p>}
       </section> : selected ? <section className="panel map-detail-panel" style={{ marginTop: 16 }}>

@@ -59,3 +59,12 @@ export function signOut() {
     window.localStorage.removeItem(USER_KEY);
   }
 }
+
+export function updateStoredNickname(nickname: string) {
+  const user = getStoredUser();
+  if (!user) return null;
+
+  const updatedUser = { ...user, nickname };
+  window.localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+  return updatedUser;
+}

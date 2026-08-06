@@ -3,6 +3,7 @@ import type { BoardPost } from "@/lib/types";
 
 const STORAGE_KEY = "newbie-on-board-posts";
 const BOARD_POSTS_CHANGED_EVENT = "newbie-on-board-posts-changed";
+let cachedPosts = normalizeBoardPosts(seedPosts);
 
 function normalizeBoardPosts(posts: BoardPost[]) {
   return posts.map((post) => ({
@@ -16,26 +17,42 @@ export function getBoardPosts() {
   if (typeof window === "undefined") {
     return normalizeBoardPosts(seedPosts);
   }
+  return cachedPosts;
+}
 
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    return normalizeBoardPosts(seedPosts);
-  }
-
+export async function loadPersistentBoardPosts() {
   try {
-    return normalizeBoardPosts(JSON.parse(stored) as BoardPost[]);
+    const response = await fetch("/api/board-state", { cache: "no-store" });
+    if (!response.ok) return cachedPosts;
+
+    const body = await response.json() as { posts: BoardPost[] };
+    const posts = normalizeBoardPosts(body.posts);
+    cachedPosts = posts;
+    return posts;
   } catch {
-    return normalizeBoardPosts(seedPosts);
+    return cachedPosts;
   }
 }
 
-export function saveBoardPosts(posts: BoardPost[]) {
+export async function saveBoardPosts(posts: BoardPost[]) {
   if (typeof window === "undefined") {
-    return;
+    return false;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeBoardPosts(posts)));
+  const normalizedPosts = normalizeBoardPosts(posts);
+  cachedPosts = normalizedPosts;
+  window.localStorage.removeItem(STORAGE_KEY);
   window.queueMicrotask(() => window.dispatchEvent(new Event(BOARD_POSTS_CHANGED_EVENT)));
+  try {
+    const response = await fetch("/api/board-state", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ posts: normalizedPosts })
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 export function subscribeToBoardPosts(onChange: (posts: BoardPost[]) => void) {

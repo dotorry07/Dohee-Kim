@@ -125,6 +125,7 @@ export default function BoardPage() {
   const [isNicknameEditing, setIsNicknameEditing] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState("");
   const [nicknameError, setNicknameError] = useState("");
+  const [draftToDelete, setDraftToDelete] = useState<BoardDraft | null>(null);
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
 
   useEffect(() => {
@@ -326,6 +327,7 @@ export default function BoardPage() {
     setCurrentDraftId("");
     setIsDraftListOpen(false);
     setIsCloseConfirmOpen(false);
+    setDraftToDelete(null);
     setError("");
   }
 
@@ -373,6 +375,21 @@ export default function BoardPage() {
     setCurrentDraftId(draft.id);
     setIsDraftListOpen(false);
     setError("");
+  }
+
+  function deleteDraft(draft: BoardDraft) {
+    setDraftToDelete(draft);
+  }
+
+  function confirmDeleteDraft() {
+    const currentUser = getStoredUser();
+    if (!currentUser || !draftToDelete) return;
+
+    const nextDrafts = getBoardDrafts().filter((draft) => draft.id !== draftToDelete.id);
+    window.localStorage.setItem(`${BOARD_DRAFTS_KEY}:${currentUser.id}`, JSON.stringify(nextDrafts));
+    setDrafts(nextDrafts);
+    if (currentDraftId === draftToDelete.id) setCurrentDraftId("");
+    setDraftToDelete(null);
   }
 
   function openComposer() {
@@ -643,7 +660,7 @@ export default function BoardPage() {
                   임시저장 {drafts.length > 0 ? `(${drafts.length})` : ""}
                 </button>
                 <span className="board-composer-action-divider" aria-hidden="true" />
-                <button className="ghost-button" type="button" onClick={closeComposer}>
+                <button className="ghost-button board-composer-close-button" type="button" onClick={closeComposer}>
                   닫기
                 </button>
               </div>
@@ -652,12 +669,21 @@ export default function BoardPage() {
               {isDraftListOpen ? (
                 <section className="board-draft-list" aria-label="임시저장한 글 목록">
                   <h3>임시저장한 글</h3>
-                  {drafts.map((draft) => (
-                    <button className="board-draft-item" type="button" key={draft.id} onClick={() => loadDraft(draft)}>
-                      <strong>{draft.title.trim() || "제목 없음"}</strong>
-                      <span>{categoryLabels[draft.category]} · {new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(draft.savedAt))}</span>
-                    </button>
-                  ))}
+                  {drafts.length > 0 ? (
+                    <div className="board-draft-scroll">
+                      {drafts.map((draft) => (
+                        <div className="board-draft-row" key={draft.id}>
+                          <button className="board-draft-item" type="button" onClick={() => loadDraft(draft)}>
+                            <strong>{draft.title.trim() || "제목 없음"}</strong>
+                            <span>{categoryLabels[draft.category]} · {new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(draft.savedAt))}</span>
+                          </button>
+                          <button className="board-draft-delete" type="button" aria-label={`${draft.title.trim() || "제목 없음"} 임시저장 삭제`} onClick={() => deleteDraft(draft)}>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 10v7m4-7v7" /></svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   {drafts.length === 0 ? <p className="muted">임시저장한 글이 없습니다.</p> : null}
                 </section>
               ) : null}
@@ -699,6 +725,21 @@ export default function BoardPage() {
                   <button className="button" type="button" onClick={saveDraftAndClose}>임시저장 후 닫기</button>
                   <button className="ghost-button" type="button" onClick={discardDraftAndClose}>저장하지 않고 닫기</button>
                   <button className="ghost-button" type="button" onClick={() => setIsCloseConfirmOpen(false)}>취소</button>
+                </div>
+              </section>
+            </div>
+          ) : null}
+          {draftToDelete ? (
+            <div className="board-close-confirm-backdrop">
+              <section className="board-close-confirm board-draft-delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="board-draft-delete-title" aria-describedby="board-draft-delete-description">
+                <div className="board-close-confirm-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 10v7m4-7v7" /></svg>
+                </div>
+                <h2 id="board-draft-delete-title">임시저장 글을 삭제할까요?</h2>
+                <p id="board-draft-delete-description"><strong>{draftToDelete.title.trim() || "제목 없음"}</strong><br />삭제한 임시저장 글은 다시 복구할 수 없습니다.</p>
+                <div className="board-close-confirm-actions">
+                  <button className="button board-draft-delete-confirm-button" type="button" onClick={confirmDeleteDraft}>삭제</button>
+                  <button className="ghost-button" type="button" onClick={() => setDraftToDelete(null)}>취소</button>
                 </div>
               </section>
             </div>

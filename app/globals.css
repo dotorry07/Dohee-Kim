@@ -1652,6 +1652,35 @@ button {
   font-weight: 800;
 }
 
+.board-close-confirm-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.board-draft-delete-confirm .board-close-confirm-icon {
+  background: rgba(166, 55, 76, 0.1);
+  color: var(--danger);
+}
+
+.board-draft-delete-confirm p strong {
+  color: var(--text);
+}
+
+.board-draft-delete-confirm-button {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.board-draft-delete-confirm-button:hover {
+  border-color: #8e2d41;
+  background: #8e2d41;
+}
+
 .board-close-confirm h2 {
   margin: 0;
   font-size: 21px;
@@ -1710,6 +1739,17 @@ button {
   background: var(--line);
 }
 
+.board-composer-close-button {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.board-composer-close-button:hover {
+  border-color: var(--primary-strong);
+  background: var(--primary-strong);
+}
+
 .board-composer-form {
   align-content: start;
   grid-auto-rows: max-content;
@@ -1744,6 +1784,58 @@ button {
   color: var(--text);
   padding: 11px 12px;
   text-align: left;
+}
+
+.board-draft-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: stretch;
+  gap: 7px;
+}
+
+.board-draft-scroll {
+  display: grid;
+  gap: 8px;
+  max-height: 232px;
+  overflow-y: auto;
+  padding-right: 5px;
+  scrollbar-color: rgba(88, 47, 130, 0.34) transparent;
+  scrollbar-width: thin;
+}
+
+.board-draft-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.board-draft-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(88, 47, 130, 0.28);
+}
+
+.board-draft-delete {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+}
+
+.board-draft-delete:hover {
+  border-color: var(--danger);
+  background: #fff6f6;
+  color: var(--danger);
+}
+
+.board-draft-delete svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .board-draft-item:hover {

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { getStoredUser } from "@/lib/auth/client";
-import { fetchBoardPosts, getBoardPosts, saveBoardPosts, subscribeToBoardPosts } from "@/lib/board-storage";
+import { getBoardPosts, saveBoardPosts, subscribeToBoardPosts } from "@/lib/board-storage";
 import type { BoardPost } from "@/lib/types";
 
 const categoryLabels: Record<BoardPost["category"], string> = {
@@ -14,6 +14,16 @@ const categoryLabels: Record<BoardPost["category"], string> = {
   info: "정보 공유"
 };
 
+type BoardPostWithImage = BoardPost & {
+  image?: {
+    dataUrl: string;
+    name: string;
+  };
+};
+
+const COMMENT_COOLDOWN_MS = 3_000;
+const LAST_COMMENT_AT_KEY = "newbie-on-board-last-comment-at";
+
 export default function BoardPostPage() {
   const params = useParams<{ postId: string }>();
   const router = useRouter();
@@ -22,12 +32,12 @@ export default function BoardPostPage() {
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
   const [focusedCommentId, setFocusedCommentId] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [error, setError] = useState("");
   const [editForm, setEditForm] = useState({ category: "freshman" as BoardPost["category"], title: "", content: "" });
   const viewCountRequested = useRef(false);
 
   useEffect(() => {
     setPosts(getBoardPosts());
-    void fetchBoardPosts().then(setPosts);
     setUser(getStoredUser());
 
     const nextFocusedCommentId = new URLSearchParams(window.location.search).get("commentId") ?? "";
@@ -37,24 +47,22 @@ export default function BoardPostPage() {
   }, []);
 
   const selectedPost = posts.find((post) => post.id === params.postId);
-  const myPostCount = user ? posts.filter((post) => post.userId === user.id).length : 0;
-  const myCommentCount = user ? posts.reduce((count, post) => count + post.comments.filter((item) => item.userId === user.id).length, 0) : 0;
-  const recommendedPostCount = user ? posts.filter((post) => post.recommendedUserIds.includes(user.id)).length : 0;
+  const attachedImage = (selectedPost as BoardPostWithImage | undefined)?.image;
 
   useEffect(() => {
-    if (!params.postId || viewCountRequested.current) return;
+    if (!params.postId || !selectedPost || viewCountRequested.current) return;
     viewCountRequested.current = true;
-    void fetch(`/api/posts/${encodeURIComponent(params.postId)}?incrementView=true`, { cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<{ post: BoardPost }> : null)
-      .then((data) => {
-        if (!data) return;
-        setPosts((current) => {
-          const nextPosts = current.map((post) => post.id === data.post.id ? data.post : post);
-          saveBoardPosts(nextPosts);
-          return nextPosts;
-        });
-      });
-  }, [params.postId]);
+    const viewedKey = `newbie-on-board-viewed:${params.postId}`;
+    if (window.sessionStorage.getItem(viewedKey)) return;
+    window.sessionStorage.setItem(viewedKey, "true");
+    setPosts((current) => {
+      const nextPosts = current.map((post) => post.id === params.postId
+        ? { ...post, viewCount: post.viewCount + 1 }
+        : post);
+      saveBoardPosts(nextPosts);
+      return nextPosts;
+    });
+  }, [params.postId, selectedPost]);
 
   useEffect(() => {
     if (!selectedPost || !focusedCommentId) {
@@ -65,10 +73,6 @@ export default function BoardPostPage() {
       document.getElementById(`comment-${focusedCommentId}`)?.scrollIntoView({ block: "center" });
     });
   }, [focusedCommentId, selectedPost]);
-
-  function getActivityHref(view: "my-posts" | "my-comments" | "recommended") {
-    return user ? `/board?view=${view}` : "/auth/login";
-  }
 
   async function addComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,19 +86,37 @@ export default function BoardPostPage() {
       return;
     }
 
-    const response = await fetch(`/api/posts/${encodeURIComponent(selectedPost.id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-user-id": currentUser.id },
-      body: JSON.stringify({ action: "comment", authorName: currentUser.nickname, content: comment })
-    });
-    if (!response.ok) return;
-    const { post: updatedPost } = await response.json() as { post: BoardPost };
+    if (comment.trim().length > 1000) {
+      setError("댓글은 1,000자 이내로 작성해 주세요.");
+      return;
+    }
+
+    const lastCommentAt = Number(window.localStorage.getItem(LAST_COMMENT_AT_KEY) ?? 0);
+    if (Date.now() - lastCommentAt < COMMENT_COOLDOWN_MS) {
+      setError("연속 댓글 작성은 3초 후에 다시 시도해 주세요.");
+      return;
+    }
+
     setPosts((current) => {
-      const nextPosts = current.map((post) => post.id === updatedPost.id ? updatedPost : post);
+      const now = new Date().toISOString();
+      const nextPosts = current.map((post) => post.id === selectedPost.id ? {
+        ...post,
+        comments: [...post.comments, {
+          id: `comment-${crypto.randomUUID()}`,
+          postId: post.id,
+          userId: currentUser.id,
+          authorName: currentUser.nickname,
+          content: comment.trim(),
+          createdAt: now
+        }],
+        updatedAt: now
+      } : post);
       saveBoardPosts(nextPosts);
       return nextPosts;
     });
+    window.localStorage.setItem(LAST_COMMENT_AT_KEY, String(Date.now()));
     setComment("");
+    setError("");
   }
 
   async function deleteSelectedPost() {
@@ -102,8 +124,8 @@ export default function BoardPostPage() {
       return;
     }
 
-    const response = await fetch(`/api/posts/${encodeURIComponent(selectedPost.id)}`, { method: "DELETE", headers: { "x-user-id": user.id } });
-    if (!response.ok) return;
+    if (!window.confirm("게시글을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.")) return;
+
     setPosts((current) => {
       const nextPosts = current.filter((post) => post.id !== selectedPost.id);
       saveBoardPosts(nextPosts);
@@ -123,15 +145,13 @@ export default function BoardPostPage() {
       return;
     }
 
-    const response = await fetch(`/api/posts/${encodeURIComponent(selectedPost.id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-user-id": currentUser.id },
-      body: JSON.stringify({ action: "recommend" })
-    });
-    if (!response.ok) return;
-    const { post: updatedPost } = await response.json() as { post: BoardPost };
     setPosts((current) => {
-      const nextPosts = current.map((post) => post.id === updatedPost.id ? updatedPost : post);
+      const nextPosts = current.map((post) => post.id === selectedPost.id ? {
+        ...post,
+        recommendedUserIds: [...post.recommendedUserIds, currentUser.id],
+        recommendCount: post.recommendedUserIds.length + 1,
+        updatedAt: new Date().toISOString()
+      } : post);
       saveBoardPosts(nextPosts);
       return nextPosts;
     });
@@ -146,34 +166,40 @@ export default function BoardPostPage() {
   async function updateSelectedPost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedPost || !user || selectedPost.userId !== user.id) return;
-    const response = await fetch(`/api/posts/${encodeURIComponent(selectedPost.id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-user-id": user.id },
-      body: JSON.stringify({ action: "update", ...editForm })
-    });
-    if (!response.ok) return;
-    const { post: updatedPost } = await response.json() as { post: BoardPost };
+    if (!editForm.title.trim() || !editForm.content.trim()) {
+      setError("제목과 내용을 입력해 주세요.");
+      return;
+    }
+    if (editForm.title.trim().length > 100 || editForm.content.trim().length > 5000) {
+      setError("제목은 100자, 내용은 5,000자 이내로 작성해 주세요.");
+      return;
+    }
     setPosts((current) => {
-      const nextPosts = current.map((post) => post.id === updatedPost.id ? updatedPost : post);
+      const nextPosts = current.map((post) => post.id === selectedPost.id ? {
+        ...post,
+        ...editForm,
+        title: editForm.title.trim(),
+        content: editForm.content.trim(),
+        updatedAt: new Date().toISOString()
+      } : post);
       saveBoardPosts(nextPosts);
       return nextPosts;
     });
     setIsEditing(false);
+    setError("");
   }
 
   async function deleteComment(commentId: string) {
     if (!selectedPost || !user) return;
     const targetComment = selectedPost.comments.find((item) => item.id === commentId);
     if (!targetComment || targetComment.userId !== user.id) return;
-    const response = await fetch(`/api/posts/${encodeURIComponent(selectedPost.id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-user-id": user.id },
-      body: JSON.stringify({ action: "delete-comment", commentId })
-    });
-    if (!response.ok) return;
-    const { post: updatedPost } = await response.json() as { post: BoardPost };
+    if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
     setPosts((current) => {
-      const nextPosts = current.map((post) => post.id === updatedPost.id ? updatedPost : post);
+      const nextPosts = current.map((post) => post.id === selectedPost.id ? {
+        ...post,
+        comments: post.comments.filter((item) => item.id !== commentId),
+        updatedAt: new Date().toISOString()
+      } : post);
       saveBoardPosts(nextPosts);
       return nextPosts;
     });
@@ -203,8 +229,12 @@ export default function BoardPostPage() {
         <article className="panel">
           <div className="section-title">
             <h1 className="board-post-title">{selectedPost.title}</h1>
-            {selectedPost.userId === user?.id ? <button className="ghost-button" type="button" onClick={startEditing}>수정</button> : null}
-            {selectedPost.userId === user?.id ? <button className="ghost-button" type="button" onClick={deleteSelectedPost}>삭제</button> : null}
+            {selectedPost.userId === user?.id ? (
+              <div className="chip-row">
+                <button className="ghost-button" type="button" onClick={startEditing}>수정</button>
+                <button className="ghost-button" type="button" onClick={deleteSelectedPost}>삭제</button>
+              </div>
+            ) : null}
           </div>
           <div className="meta">
             <span className="badge">{categoryLabels[selectedPost.category]}</span>
@@ -218,27 +248,25 @@ export default function BoardPostPage() {
               <select value={editForm.category} onChange={(event) => setEditForm((current) => ({ ...current, category: event.target.value as BoardPost["category"] }))}>
                 {Object.entries(categoryLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
               </select>
-              <input value={editForm.title} onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} />
-              <textarea value={editForm.content} onChange={(event) => setEditForm((current) => ({ ...current, content: event.target.value }))} />
+              <input maxLength={100} value={editForm.title} onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} />
+              <textarea maxLength={5000} value={editForm.content} onChange={(event) => setEditForm((current) => ({ ...current, content: event.target.value }))} />
+              {error ? <div className="error">{error}</div> : null}
               <div className="chip-row"><button className="button" type="submit">저장</button><button className="ghost-button" type="button" onClick={() => setIsEditing(false)}>취소</button></div>
             </form>
-          ) : <p className="board-post-content">{selectedPost.content}</p>}
+          ) : (
+            <>
+              <p className="board-post-content">{selectedPost.content}</p>
+              {attachedImage ? (
+                <img
+                  className="mt-5 max-h-[36rem] w-full rounded-lg object-contain"
+                  src={attachedImage.dataUrl}
+                  alt={attachedImage.name || "게시글 첨부 이미지"}
+                />
+              ) : null}
+            </>
+          )}
         </article>
 
-        <aside className="panel board-activity-box" aria-label="내 게시판 활동">
-          <Link className="board-activity-link" href={getActivityHref("my-posts")}>
-            <span>내가 쓴 글</span>
-            <strong>{myPostCount}</strong>
-          </Link>
-          <Link className="board-activity-link" href={getActivityHref("my-comments")}>
-            <span>내가 쓴 댓글</span>
-            <strong>{myCommentCount}</strong>
-          </Link>
-          <Link className="board-activity-link" href={getActivityHref("recommended")}>
-            <span>추천한 글</span>
-            <strong>{recommendedPostCount}</strong>
-          </Link>
-        </aside>
       </section>
 
       <section className="panel" style={{ marginTop: 16 }}>
@@ -258,8 +286,9 @@ export default function BoardPostPage() {
         <form className="form" onSubmit={addComment} style={{ marginTop: 12 }}>
           <div className="field">
             <label htmlFor="comment">댓글</label>
-            <input id="comment" value={comment} onChange={(event) => setComment(event.target.value)} />
+            <input id="comment" maxLength={1000} value={comment} onChange={(event) => setComment(event.target.value)} />
           </div>
+          {error ? <div className="error">{error}</div> : null}
           <button className="button" type="submit">댓글 작성</button>
         </form>
       </section>

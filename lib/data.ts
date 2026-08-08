@@ -150,6 +150,7 @@ export const timetables: Timetable[] = [
 export const campusPlaces: CampusPlace[] = [
   {
     id: "place-1",
+    campus: "donam",
     name: "수정관",
     category: "lecture",
     description: "컴퓨터공학과 전공 수업과 실습실이 많은 강의동입니다.",
@@ -161,6 +162,7 @@ export const campusPlaces: CampusPlace[] = [
   },
   {
     id: "place-2",
+    campus: "donam",
     name: "성신관",
     category: "lecture",
     description: "교양 수업과 대형 강의가 자주 열리는 중심 강의동입니다.",
@@ -172,6 +174,7 @@ export const campusPlaces: CampusPlace[] = [
   },
   {
     id: "place-3",
+    campus: "donam",
     name: "중앙도서관",
     category: "library",
     description: "열람실, 자료실, 스터디룸을 이용할 수 있습니다.",
@@ -183,6 +186,7 @@ export const campusPlaces: CampusPlace[] = [
   },
   {
     id: "place-4",
+    campus: "donam",
     name: "학생회관",
     category: "student",
     description: "동아리방, 학생지원 부서, 휴게 공간이 모여 있습니다.",
@@ -194,6 +198,7 @@ export const campusPlaces: CampusPlace[] = [
   },
   {
     id: "place-5",
+    campus: "donam",
     name: "난향관 카페",
     category: "food",
     description: "수업 사이에 간단히 식사하거나 음료를 마시기 좋은 공간입니다.",

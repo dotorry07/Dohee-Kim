@@ -66,10 +66,12 @@ export default function MapPage() {
 function MapContent() {
   const searchParams = useSearchParams();
   const building = searchParams.get("building");
-  const initial = campusPlaces.find((place) => building && place.buildingName.includes(building)) ?? campusPlaces[0];
-  const [activeCampus, setActiveCampus] = useState<CampusKey>("donam");
+  const location = searchParams.get("location");
+  const locationQuery = location?.replace(/^(수정캠|운정캠)_/, "") ?? building ?? "";
+  const initial = campusPlaces.find((place) => locationQuery && [place.name, place.buildingName, ...place.tags].some((value) => value.includes(locationQuery))) ?? campusPlaces[0];
+  const [activeCampus, setActiveCampus] = useState<CampusKey>(location?.startsWith("운정캠_") ? "unjeong" : "donam");
   const [selected, setSelected] = useState(initial);
-  const [query, setQuery] = useState(building ?? "");
+  const [query, setQuery] = useState(locationQuery);
   const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>("all");
   const [selectedDetailItem, setSelectedDetailItem] = useState<string | null>(null);
   const detailOptions = getDetailOptions(placeFilter);
@@ -102,7 +104,7 @@ function MapContent() {
             onClick={() => {
               setActiveCampus("donam");
               setSelected(initial);
-              setQuery(building ?? "");
+              setQuery(locationQuery);
               setPlaceFilter("all");
               setSelectedDetailItem(null);
             }}

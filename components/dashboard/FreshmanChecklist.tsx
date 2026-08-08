@@ -2,14 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { freshmanChecklist } from "@/data/dashboardMock";
+import { saveChecklistItem } from "@/lib/dashboard/supabase";
 import type { ChecklistItem } from "@/types/dashboard";
 import styles from "@/app/dashboard/Dashboard.module.css";
 
 function storageKey(userId: string) { return `newbie-on:dashboard-checklist:${userId}`; }
 
-export function FreshmanChecklist({ userId }: { userId: string }) {
-  const [items, setItems] = useState<ChecklistItem[]>(freshmanChecklist);
+export function FreshmanChecklist({ userId, databaseUserId, initialItems = freshmanChecklist }: { userId: string; databaseUserId: string | null; initialItems?: ChecklistItem[] }) {
+  const [items, setItems] = useState<ChecklistItem[]>(initialItems);
   const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
 
   useEffect(() => {
     try {
@@ -27,6 +32,15 @@ export function FreshmanChecklist({ userId }: { userId: string }) {
   const completed = items.filter((item) => item.completed).length;
   const percent = items.length ? Math.round((completed / items.length) * 100) : 0;
 
+  function toggleItem(itemId: string) {
+    setItems((current) => current.map((entry) => {
+      if (entry.id !== itemId) return entry;
+      const updated = { ...entry, completed: !entry.completed };
+      if (databaseUserId) void saveChecklistItem(databaseUserId, updated);
+      return updated;
+    }));
+  }
+
   return (
     <article className={`${styles.card} ${styles.checklist}`}>
       <div className={styles.cardHeading}><div><p className={styles.eyebrow}>START GUIDE</p><h2>새내기 필수 체크리스트</h2></div><strong className={styles.progressText}>{completed}/{items.length} 완료</strong></div>
@@ -35,7 +49,7 @@ export function FreshmanChecklist({ userId }: { userId: string }) {
       <div className={styles.checkList}>
         {items.map((item) => (
           <div className={`${styles.checkItem} ${item.completed ? styles.checked : ""}`} key={item.id}>
-            <input id={`check-${item.id}`} type="checkbox" checked={item.completed} onChange={() => setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, completed: !entry.completed } : entry))} />
+            <input id={`check-${item.id}`} type="checkbox" checked={item.completed} onChange={() => toggleItem(item.id)} />
             <label htmlFor={`check-${item.id}`}>{item.label}</label>
           </div>
         ))}

@@ -18,9 +18,33 @@
 .disabledCta{padding:10px 14px;border:0;border-radius:12px;background:linear-gradient(135deg,#8b6bff 0%,#6f49f6 100%);color:#fff;font-size:12px;font-weight:800;opacity:.82;cursor:not-allowed;transition:transform .2s}.disabledCta:focus-visible{outline:3px solid #cfc0ff;outline-offset:3px}
 .event>strong{padding:5px 9px;border-radius:999px;background:#fff1e6;color:#e66a22}
 .progressTrack span{background:linear-gradient(90deg,#ffc857 0%,#ff9f43 100%)}
-.bottomGrid{display:grid;grid-template-columns:minmax(250px,1fr) minmax(0,2.6fr);align-items:start;gap:22px;margin-top:22px}.bottomGrid .checklist{margin-top:0}
+.bottomGrid{display:grid;grid-template-columns:minmax(250px,1fr) minmax(0,2.6fr);align-items:stretch;gap:22px;margin-top:22px}.bottomGrid>.card,.bottomGrid .checklist{height:100%}.bottomGrid .checklist{display:flex;margin-top:0;padding-block:30px;flex-direction:column;justify-content:space-between}
 .mealTitle{display:flex!important;align-items:center;justify-content:space-between}.mealStatus{padding:5px 8px;border-radius:999px;background:#fff5cf;color:#765500;font-size:11px;font-weight:800}.meal>div>strong{padding:3px 7px;border-radius:7px;background:#fff5cf;color:#765500}
 @media(max-width:1199px){.bottomGrid{grid-template-columns:minmax(230px,1fr) minmax(0,1.8fr)}.scheduleItem{grid-template-columns:70px auto minmax(0,1fr)}.scheduleState{grid-column:3}}
 @media(max-width:900px){.bottomGrid{grid-template-columns:1fr}.bottomGrid .checklist{grid-row:1}.checkList{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:767px){.scheduleItem{grid-template-columns:68px 1fr;align-items:start}.scheduleBadge{justify-self:start}.scheduleContent{grid-column:1/-1;padding-left:80px}.scheduleState{grid-column:2}.bottomGrid .checklist{grid-row:1}.checkList{grid-template-columns:1fr}.actionArea{align-items:flex-start;flex-direction:column}}
 @media(prefers-reduced-motion:reduce){.disabledCta{transition:none}}
+
+/* Interactive dashboard states */
+.summary,.card{transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+.summary:hover,.card:hover{transform:translateY(-3px);border-color:#ded4f8;box-shadow:0 12px 28px rgba(61,43,103,.1)}
+.more{display:inline-flex;padding:5px 8px;border-radius:8px;transition:color .18s,background .18s,transform .18s}
+.more:hover{transform:translateX(2px);background:#f2edff;color:#4f2bc4}
+.scheduleItem{transition:transform .18s,border-color .18s,box-shadow .18s}
+.scheduleItem:hover{transform:translateX(3px);border-color:#d8ccf8;box-shadow:0 6px 15px rgba(61,43,103,.07)}
+.event{transition:transform .2s,background .2s}
+.event:hover{transform:translateX(3px);background:#f1ebff}
+.checkItem{transition:transform .18s,border-color .18s,background .18s}
+.checkItem:hover{transform:translateY(-2px);border-color:#cfc0ff;background:#fbf9ff}
+.actionButton{display:inline-flex;padding:10px 14px;align-items:center;justify-content:center;border-radius:12px;background:linear-gradient(135deg,#8b6bff 0%,#6f49f6 100%);color:#fff;font-size:12px;font-weight:800;box-shadow:0 5px 12px rgba(111,73,246,.2);transition:transform .2s,box-shadow .2s,filter .2s}
+.actionButton:hover{transform:translateY(-2px);filter:brightness(1.06);box-shadow:0 8px 18px rgba(111,73,246,.3)}
+.profileButton{display:flex;width:100%;margin-top:12px;padding:10px;align-items:center;justify-content:center;border-radius:11px;background:#f1edff;color:#6345db;font-size:13px;font-weight:800;transition:transform .2s,background .2s,box-shadow .2s}
+.profileButton:hover{transform:translateY(-2px);background:#e8e0ff;box-shadow:0 7px 14px rgba(99,69,219,.14)}
+.actionButton:focus-visible,.profileButton:focus-visible{outline:3px solid #cfc0ff;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.summary,.card,.more,.scheduleItem,.event,.checkItem,.actionButton,.profileButton{transition:none}.summary:hover,.card:hover,.more:hover,.scheduleItem:hover,.event:hover,.checkItem:hover,.actionButton:hover,.profileButton:hover{transform:none}}
+.mealCampusTabs{display:flex!important;width:max-content;margin:16px 0 4px!important;padding:3px;border:1px solid #ded4f8;border-radius:10px;background:#f7f4ff;gap:3px}
+.mealCampusTab,.activeMealCampusTab{padding:6px 10px;border:0;border-radius:7px;background:transparent;color:#746c83;font-size:11px;font-weight:800;cursor:pointer;transition:color .18s,background .18s,box-shadow .18s}
+.mealCampusTab:hover{color:#6345db;background:#eee8ff}
+.activeMealCampusTab{background:#fff;color:#6345db;box-shadow:0 2px 7px rgba(61,43,103,.13)}
+.mealCampusTab:focus-visible,.activeMealCampusTab:focus-visible{outline:3px solid #cfc0ff;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.mealCampusTab,.activeMealCampusTab{transition:none}}

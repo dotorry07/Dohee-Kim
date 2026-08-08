@@ -2,7 +2,7 @@ import type { AcademicEvent, ChecklistItem, MealMenu, TodayScheduleItem } from "
 
 // TODO: 학사일정 API가 준비되면 이 mock을 서버 응답으로 교체합니다.
 export const academicEvents: AcademicEvent[] = [
-  { id: "registration", title: "수강신청", startDate: "2026-08-03", displayDate: "2026. 8. 3. (월) 09:00" },
+  { id: "registration", title: "수강신청", startDate: "2026-08-19", displayDate: "2026. 8. 19. (수) 10:00" },
   { id: "semester", title: "2학기 개강", startDate: "2026-08-31", displayDate: "2026. 8. 31. (월)" },
   { id: "midterm", title: "중간고사", startDate: "2026-10-19", endDate: "2026-10-23", displayDate: "2026. 10. 19. ~ 10. 23." },
   { id: "final", title: "기말고사", startDate: "2026-12-14", endDate: "2026-12-18", displayDate: "2026. 12. 14. ~ 12. 18." }

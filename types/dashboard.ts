@@ -1,9 +1,25 @@
-import type { BoardPost, ClassSchedule, Notice, UserProfile } from "@/lib/types";
+import type { BoardPost, ClassSchedule, Notice, Timetable, UserProfile } from "@/lib/types";
 
 export type DashboardUser = UserProfile;
 export type DashboardClass = ClassSchedule;
 export type DashboardNotice = Notice;
 export type DashboardPost = BoardPost;
+
+export interface DashboardData {
+  timetables: Timetable[];
+  notices: Notice[];
+  posts: BoardPost[];
+  academicEvents: AcademicEvent[];
+  personalTodaySchedules: TodayScheduleItem[];
+  todayMeal: MealMenu | null;
+}
+
+export interface DashboardViewData {
+  user: DashboardUser;
+  data: DashboardData;
+  checklistItems: ChecklistItem[];
+  databaseUserId: string | null;
+}
 
 export interface AcademicEvent { id: string; title: string; startDate: string; endDate?: string; displayDate: string }
 export interface ChecklistItem { id: string; label: string; completed: boolean }

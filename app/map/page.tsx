@@ -59,6 +59,7 @@ function MapContent() {
   const searchParams = useSearchParams();
   const building = searchParams.get("building");
   const location = searchParams.get("location");
+  const category = searchParams.get("category");
   const locationQuery = location?.replace(/^(수정캠|운정캠)_/, "") ?? building ?? "";
   const initialCampus: CampusKey = location?.startsWith("운정캠_") ? "unjeong" : "donam";
   const initial = campusPlaces.find((place) => place.campus === initialCampus && locationQuery && [place.name, place.buildingName, ...place.tags].some((value) => value.includes(locationQuery)))
@@ -67,7 +68,7 @@ function MapContent() {
   const [activeCampus, setActiveCampus] = useState<CampusKey>(initialCampus);
   const [selected, setSelected] = useState<CampusPlace | null>(initial);
   const [query, setQuery] = useState(locationQuery);
-  const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>("all");
+  const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>(category === "food" ? "food" : "all");
   const [selectedDetailItem, setSelectedDetailItem] = useState<string | null>(null);
   const visiblePlaceFilters = activeCampus === "donam"
     ? placeFilters

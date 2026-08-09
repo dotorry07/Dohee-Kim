@@ -78,6 +78,8 @@ export interface CampusPlace {
   floor: string;
   mapX: number;
   mapY: number;
+  latitude: number;
+  longitude: number;
   tags: string[];
 }
 

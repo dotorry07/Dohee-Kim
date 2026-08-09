@@ -1,23 +1,32 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { campusPlaces } from "@/lib/data";
 import { campusBuildingDetails, unjeongCampusBuildingDetails } from "@/lib/campus-place-details";
 import type { CampusBuildingDetail } from "@/lib/campus-place-details";
 import type { CampusPlace } from "@/lib/types";
 
+const CampusMap = dynamic(() => import("@/components/CampusMap"), {
+  ssr: false,
+  loading: () => <div className="leaflet-campus-map map-loading">지도를 불러오는 중입니다.</div>
+});
+
 const categoryLabels: Record<CampusPlace["category"], string> = {
   lecture: "강의동",
   library: "도서관",
   student: "학생회관",
   food: "식당/카페",
-  admin: "행정실",
+  admin: "기타",
   facility: "편의시설"
 };
 
 type CampusKey = "donam" | "unjeong";
-type PlaceFilterKey = "all" | "student" | "nanhyang" | "sujeong" | "sungshin" | "food" | "library" | "admin" | "facility";
+type PlaceFilterKey = "all" | "student" | "nanhyang" | "sujeong" | "sungshin" | "p" | "a" | "b" | "c" | "food" | "library" | "facility";
+type SujeongBuildingGroup = "공통" | "A동" | "B동" | "C동";
+
+const sujeongBuildingGroups: SujeongBuildingGroup[] = ["공통", "A동", "B동", "C동"];
 
 const placeFilters: Array<{ key: PlaceFilterKey; label: string }> = [
   { key: "all", label: "전체" },
@@ -27,8 +36,14 @@ const placeFilters: Array<{ key: PlaceFilterKey; label: string }> = [
   { key: "sungshin", label: "성신관" },
   { key: "food", label: "식당/카페" },
   { key: "library", label: "도서관" },
-  { key: "admin", label: "행정실" },
   { key: "facility", label: "편의시설" }
+];
+
+const unjeongBuildingFilters: Array<{ key: PlaceFilterKey; label: string }> = [
+  { key: "p", label: "P동" },
+  { key: "a", label: "A동" },
+  { key: "b", label: "B동" },
+  { key: "c", label: "C동" }
 ];
 
 function matchesPlaceFilter(place: CampusPlace, filter: PlaceFilterKey) {
@@ -37,12 +52,25 @@ function matchesPlaceFilter(place: CampusPlace, filter: PlaceFilterKey) {
   if (filter === "nanhyang") return place.buildingName === "난향관";
   if (filter === "sujeong") return place.buildingName === "수정관";
   if (filter === "sungshin") return place.buildingName === "성신관";
+  if (["p", "a", "b", "c"].includes(filter)) return place.buildingName === `${filter.toUpperCase()}동`;
   return place.category === filter;
 }
 
 function getDetailOptions(filter: PlaceFilterKey): CampusBuildingDetail | null {
   if (filter === "nanhyang") {
-    return { parentName: "난향관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층"].map((label) => ({ label, facilities: [] })) };
+    return {
+      parentName: "난향관",
+      items: [
+        { label: "8F", facilities: [{ name: "강의실", details: [] }] },
+        { label: "7F", facilities: [{ name: "강의실", details: [] }] },
+        { label: "6F", facilities: [{ name: "강의실", details: [] }] },
+        { label: "5F", facilities: [{ name: "학생생활상담소", details: [] }] },
+        { label: "4F", facilities: ["다독적홀", "종합상황실"].map((name) => ({ name, details: [] })) },
+        { label: "3F", facilities: [{ name: "교내식당 2", details: [] }] },
+        { label: "2F", facilities: [] },
+        { label: "1F", facilities: [] }
+      ]
+    };
   }
   return campusBuildingDetails[filter] ?? null;
 }
@@ -66,9 +94,14 @@ function MapContent() {
   const [query, setQuery] = useState(building ?? "");
   const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>("all");
   const [selectedDetailItem, setSelectedDetailItem] = useState<string | null>(null);
+  const [selectedSujeongGroup, setSelectedSujeongGroup] = useState<SujeongBuildingGroup | null>(null);
   const visiblePlaceFilters = activeCampus === "donam"
     ? placeFilters
-    : placeFilters.filter((filter) => !["student", "nanhyang", "sujeong", "sungshin"].includes(filter.key));
+    : [
+        placeFilters[0],
+        ...unjeongBuildingFilters,
+        ...placeFilters.filter((filter) => ["food", "library", "facility"].includes(filter.key))
+      ];
   const detailOptions = activeCampus === "donam"
     ? getDetailOptions(placeFilter)
     : unjeongCampusBuildingDetails[placeFilter] ?? null;
@@ -89,6 +122,9 @@ function MapContent() {
       .toLowerCase()
       .includes(normalizedQuery);
   }) ?? [];
+  const visibleDetailItems = placeFilter === "sujeong" && selectedSujeongGroup && !normalizedQuery
+    ? filteredDetailItems.filter((item) => item.label.startsWith(`${selectedSujeongGroup} `))
+    : filteredDetailItems;
   const selectedDetail = detailOptions?.items.find((item) => item.label === selectedDetailItem) ?? null;
 
   const filteredPlaces = useMemo(() => {
@@ -103,7 +139,10 @@ function MapContent() {
       return matchesCampus && matchesFilter && matchesQuery;
     });
   }, [activeCampus, placeFilter, query]);
-  const resultCount = detailOptions ? filteredDetailItems.length : filteredPlaces.length;
+  const showSujeongGroupList = placeFilter === "sujeong" && !selectedSujeongGroup && !normalizedQuery;
+  const resultCount = showSujeongGroupList
+    ? sujeongBuildingGroups.length
+    : detailOptions ? visibleDetailItems.length : filteredPlaces.length;
 
   return (
     <main className="page">
@@ -123,6 +162,7 @@ function MapContent() {
               setQuery(building ?? "");
               setPlaceFilter("all");
               setSelectedDetailItem(null);
+              setSelectedSujeongGroup(null);
             }}
           >
             돈암수정캠퍼스
@@ -136,23 +176,20 @@ function MapContent() {
               setQuery("");
               setPlaceFilter("all");
               setSelectedDetailItem(null);
+              setSelectedSujeongGroup(null);
             }}
           >
             운정그린캠퍼스
           </button>
         </div>
         <div className="map-image-area">
-          <div className={activeCampus === "unjeong" ? "campus-map unjeong-campus-map" : "campus-map"}>
-            {selected ? (
-              <span
-                className="pin"
-                data-label={selected.name}
-                style={{ left: `${selected.mapX}%`, top: `${selected.mapY}%` }}
-              />
-            ) : null}
-          </div>
+          <CampusMap
+            campus={activeCampus}
+            places={campusPlaces}
+            selectedPlaceId={selected?.id ?? null}
+            onSelectPlace={setSelected}
+          />
         </div>
-
         <div className="map-search-area">
           <div className="section-title">
             <h2>장소 검색</h2>
@@ -166,6 +203,7 @@ function MapContent() {
               onChange={(event) => {
                 setQuery(event.target.value);
                 setSelectedDetailItem(null);
+                if (event.target.value.trim()) setSelectedSujeongGroup(null);
               }}
             />
             <div className="tabs">
@@ -177,6 +215,7 @@ function MapContent() {
                   onClick={() => {
                     setPlaceFilter(filter.key);
                     setSelectedDetailItem(null);
+                    setSelectedSujeongGroup(null);
                     const matchingPlace = campusPlaces.find((place) => place.campus === activeCampus && matchesPlaceFilter(place, filter.key));
                     if (matchingPlace) setSelected(matchingPlace);
                   }}
@@ -187,7 +226,34 @@ function MapContent() {
             </div>
             <div className="list">
               {detailOptions ? (
-                filteredDetailItems.map((item) => (
+                showSujeongGroupList ? sujeongBuildingGroups.map((group) => (
+                  <button
+                    className="list-item"
+                    type="button"
+                    key={`sujeong-${group}`}
+                    onClick={() => setSelectedSujeongGroup(group)}
+                    style={{ textAlign: "left" }}
+                  >
+                    <strong>{group}</strong>
+                    <span className="muted">수정관 {group} 층별 안내</span>
+                  </button>
+                )) : [
+                  ...(placeFilter === "sujeong" && selectedSujeongGroup && !normalizedQuery ? [
+                    <button
+                      className="list-item"
+                      type="button"
+                      key="sujeong-group-back"
+                      onClick={() => {
+                        setSelectedSujeongGroup(null);
+                        setSelectedDetailItem(null);
+                      }}
+                      style={{ textAlign: "left" }}
+                    >
+                      <strong>← 동 선택으로</strong>
+                      <span className="muted">공통 · A동 · B동 · C동</span>
+                    </button>
+                  ] : []),
+                  ...visibleDetailItems.map((item) => (
                   <button
                     className={selectedDetailItem === item.label ? "list-item active" : "list-item"}
                     type="button"
@@ -198,7 +264,9 @@ function MapContent() {
                     <strong>{item.label}</strong>
                     <span className="muted">{detailOptions.parentName} · {item.label}</span>
                   </button>
-                )).concat(filteredDetailItems.length === 0 ? [<div className="list-item" key="empty-detail-result">검색 결과가 없습니다.</div>] : [])
+                  )),
+                  ...(visibleDetailItems.length === 0 ? [<div className="list-item" key="empty-detail-result">검색 결과가 없습니다.</div>] : [])
+                ]
               ) : (
                 <>
                   {filteredPlaces.map((place) => (

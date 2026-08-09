@@ -16,6 +16,69 @@ export interface CampusBuildingDetail {
 }
 
 export const unjeongCampusBuildingDetails: Record<string, CampusBuildingDetail> = {
+  p: {
+    parentName: "P동",
+    items: [
+      { label: "10층", facilities: ["구내식당", "베이커리", "카페", "운송부"].map((name) => ({ name, details: [] })) },
+      { label: "9층", facilities: ["인문융합예술대학장실", "교수실", "제5교학팀", "제6교학팀", "학생생활상담소", "대학원지원리플라스센터", "교강사휴게실"].map((name) => ({ name, details: [] })) },
+      { label: "8층", facilities: ["미디어영상연기학과 / 무용예술학과 실기실", "하늘정원"].map((name) => ({ name, details: [] })) },
+      { label: "7층", facilities: ["문화예술경영학과 / 미디어영상연기학과 / 현대실용음악학과 실기실"].map((name) => ({ name, details: [] })) },
+      { label: "6층", facilities: ["뷰티산업학과 실습실"].map((name) => ({ name, details: [] })) },
+      { label: "5층", facilities: ["운정도서관 열람실", "강의실"].map((name) => ({ name, details: [] })) },
+      { label: "4층", facilities: ["운정도서관"].map((name) => ({ name, details: [] })) },
+      { label: "3층", facilities: ["운정도서관"].map((name) => ({ name, details: [] })) },
+      { label: "2층", facilities: ["대강당 2층"].map((name) => ({ name, details: [] })) },
+      { label: "1층", facilities: ["대강당 1층"].map((name) => ({ name, details: [] })) },
+      { label: "B1", facilities: ["기계실"].map((name) => ({ name, details: [] })) },
+      { label: "B2", facilities: ["기계실"].map((name) => ({ name, details: [] })) },
+      { label: "B3", facilities: ["기계실"].map((name) => ({ name, details: [] })) }
+    ]
+  },
+  a: {
+    parentName: "A동",
+    items: [
+      { label: "7층", facilities: ["바이오헬스융합학부", "바이오식품공학과 교수실 / 실험실"].map((name) => ({ name, details: [] })) },
+      { label: "6층", facilities: ["바이오헬스융합학부", "바이오식품공학과 교수실 / 실험실", "실험공동실"].map((name) => ({ name, details: [] })) },
+      { label: "5층", facilities: ["화학·에너지융합학부 교수실 / 실험실"].map((name) => ({ name, details: [] })) },
+      { label: "4층", facilities: ["화학·에너지융합학부 교수실 / 실험실", "중앙기기실", "중앙실험지원센터"].map((name) => ({ name, details: [] })) },
+      { label: "3층", facilities: ["바이오신약의과학부 교수실 / 실험실"].map((name) => ({ name, details: [] })) },
+      { label: "2층", facilities: ["바이오신약의과학부 교수실 / 실험실"].map((name) => ({ name, details: [] })) },
+      { label: "1층", facilities: ["복식박물관"].map((name) => ({ name, details: [] })) },
+      { label: "B1", facilities: ["자연사박물관", "박물관운영팀", "학생휴게실", "복사실", "편의점"].map((name) => ({ name, details: [] })) },
+      { label: "B2", facilities: ["주차장"].map((name) => ({ name, details: [] })) },
+      { label: "B3", facilities: ["주차장"].map((name) => ({ name, details: [] })) }
+    ]
+  },
+  b: {
+    parentName: "B동",
+    items: [
+      { label: "7층", facilities: ["총장실", "부총장실", "처장실", "대회의원실", "소회의실"].map((name) => ({ name, details: [] })) },
+      { label: "6층", facilities: ["의류산업학과 실습실", "교수실"].map((name) => ({ name, details: [] })) },
+      { label: "5층", facilities: ["의류산업학과 실습실", "강의실", "창의융합라운지"].map((name) => ({ name, details: [] })) },
+      { label: "4층", facilities: ["의류산업학과 실습실", "강의실"].map((name) => ({ name, details: [] })) },
+      { label: "3층", facilities: ["자연과학대학장실 / 공과대학장실", "사회복지학과 교수실 / 실습실", "외국인교원연구실", "대학원강의실"].map((name) => ({ name, details: [] })) },
+      { label: "2층", facilities: ["생활산업대학장실", "소비자산업학과 교수실 / 실습실", "한국문화콘텐츠 실습실", "기초과학연구소"].map((name) => ({ name, details: [] })) },
+      { label: "1층", facilities: ["운정캠퍼스통합지원팀", "성신건강관리팀", "통합우편센터", "바이오신약의과학부 실험실"].map((name) => ({ name, details: [] })) },
+      { label: "B1", facilities: ["학생회실", "동아리실", "사물함실", "전시실 3", "전시실 4"].map((name) => ({ name, details: [] })) },
+      { label: "B2", facilities: ["주차장"].map((name) => ({ name, details: [] })) },
+      { label: "B3", facilities: ["주차장"].map((name) => ({ name, details: [] })) }
+    ]
+  },
+  c: {
+    parentName: "C동",
+    items: [
+      { label: "7층", facilities: ["간호대학장실", "간호학교수실", "강의실"].map((name) => ({ name, details: [] })) },
+      { label: "6층", facilities: ["간호학과 교수실 / 실습실", "바이오식품공학과 / 뷰티산업학과 실습실", "향장미용연구실"].map((name) => ({ name, details: [] })) },
+      { label: "5층", facilities: ["SWANS Center"].map((name) => ({ name, details: [] })) },
+      { label: "4층", facilities: ["청정신소재공학과 실험실", "교수실"].map((name) => ({ name, details: [] })) },
+      { label: "3층", facilities: ["원형강의실", "강의실"].map((name) => ({ name, details: [] })) },
+      { label: "2층", facilities: ["교강사휴게실", "강의실"].map((name) => ({ name, details: [] })) },
+      { label: "1층", facilities: ["중강당", "소강당"].map((name) => ({ name, details: [] })) },
+      { label: "B1", facilities: ["글로벌라운지", "자율PC실", "전산교육실", "방음실기실", "마루연습실", "카페", "강의실"].map((name) => ({ name, details: [] })) },
+      { label: "B2", facilities: ["무용예술학과 실기실"].map((name) => ({ name, details: [] })) },
+      { label: "B3", facilities: ["미디어영상연기학과 실기실", "Brickwall Sound"].map((name) => ({ name, details: [] })) }
+    ]
+  },
   library: {
     parentName: "파빌리온동 도서관",
     items: [
@@ -458,19 +521,71 @@ export const campusBuildingDetails: Record<string, CampusBuildingDetail> = {
   sungshin: {
     parentName: "성신관",
     items: [
-      { label: "2층", facilities: [{ name: "성신관열람실", details: ["운영시간: 연중무휴 06:00~23:30", "85석"] }] },
-      { label: "7층", facilities: [{ name: "대학원열람실", details: ["운영시간: 연중무휴 06:00~23:30", "48석(대학원생, 박사 및 강사 전용 열람실)"] }] }
+      { label: "10F", facilities: ["교수연구실", "다목적회의실", "로컬디자인정책연구소"].map((name) => ({ name, details: [] })) },
+      { label: "9F", facilities: ["대외협력부총장실", "교수연구실", "사회과학대학장실", "대학 교학팀(제2교학팀)", "문서고"].map((name) => ({ name, details: [] })) },
+      { label: "8F", facilities: ["통합대학원장실", "대학원 학과실", "대학원(강의실/원우회)", "대학원 교학팀", "대학 교학팀(제2교학팀)", "대·소회의실"].map((name) => ({ name, details: [] })) },
+      {
+        label: "7F",
+        facilities: [
+          { name: "강의실", details: [] },
+          { name: "대학원전용열람실", details: ["운영시간: 연중무휴 06:00~23:30", "48석(대학원생, 박사 및 강사 전용 열람실)"] },
+          { name: "반주학과실습실", details: [] },
+          { name: "음악치료전공실", details: [] }
+        ]
+      },
+      { label: "6F", facilities: ["교육혁신원장실", "교수학습지원팀", "교육과정혁신팀", "교육성과관리팀", "스튜디오", "MOOC 스튜디오", "셀프 스튜디오", "스마트클래스룸", "FL 클래스룸", "성신스터디룸", "수업행동분석실", "미디어강의실", "발전전략실"].map((name) => ({ name, details: [] })) },
+      { label: "5F", facilities: ["수정마루", "상담마루", "수하루", "강의실"].map((name) => ({ name, details: [] })) },
+      { label: "4F", facilities: ["성신역사관", "관악실습실", "타악기실", "현악실습실", "녹음실", "실습실", "관현악합주실", "피아노앙상블실", "오케스트라릿? · 합창실"].map((name) => ({ name, details: [] })) },
+      { label: "3F", facilities: [{ name: "강의실", details: [] }] },
+      {
+        label: "2F",
+        facilities: [
+          { name: "성신관련열람실 · 서고", details: ["성신관열람실 운영시간: 연중무휴 06:00~23:30", "85석"] },
+          { name: "강의실", details: [] }
+        ]
+      },
+      { label: "1F", facilities: ["학생지원팀", "학사운영팀", "연산기획평가팀", "연산지원팀", "창의융합 교학팀", "국제교류지원팀", "국제교육원", "회의실", "학생생활민원상담실", "대형강의실"].map((name) => ({ name, details: [] })) },
+      { label: "B1·2", facilities: [{ name: "주차장", details: [] }] }
     ]
   },
   sujeong: {
     parentName: "수정관",
     items: [
+      { label: "C동 10F", facilities: ["교수연구실", "유아교육실습실"].map((name) => ({ name, details: [] })) },
+      { label: "C동 9F", facilities: ["사범대학장실", "교육문제연구소", "교수연구실"].map((name) => ({ name, details: [] })) },
+      { label: "C동 8F", facilities: ["강의실", "다매체강의실", "교수연구실"].map((name) => ({ name, details: [] })) },
+      { label: "C동 7F", facilities: [{ name: "강의실", details: [] }] },
+      { label: "C동 6F", facilities: ["강의실", "서예실습실"].map((name) => ({ name, details: [] })) },
+      { label: "C동 5F", facilities: [{ name: "사범대교육과정자료실", details: [] }] },
+      { label: "C동 4F", facilities: [{ name: "강의실", details: [] }] },
+      { label: "B동 10F", facilities: ["교수연구실", "인문대 세미나실"].map((name) => ({ name, details: [] })) },
+      { label: "B동 9F", facilities: ["교수연구실", "인문융합예술대학장실"].map((name) => ({ name, details: [] })) },
+      { label: "B동 8F", facilities: [{ name: "교수연구실", details: [] }] },
+      { label: "B동 7F", facilities: ["인문과학연구소", "글로벌서울연구소", "동아시아연구소", "인문과학대학 자료실", "인문과학대학 실습실"].map((name) => ({ name, details: [] })) },
+      { label: "B동 6F", facilities: ["사회과대학원", "지리학과대학원 실습실(심리학과·지리학과·사회학과)"].map((name) => ({ name, details: [] })) },
       {
-        label: "B동 5층",
+        label: "B동 5F",
         facilities: [
-          { name: "수정관열람실", details: ["운영시간: 연중무휴 06:00~23:30", "62석(좌석배정기 이용)", "그룹스터디룸(디베이팅스퀘어) 10인실 2실: 예약 후 이용", "스마트라커 120개", "교강사 라운지"] }
+          { name: "IT융합대학장실", details: [] },
+          { name: "생활산업대학장실", details: [] },
+          { name: "공과대학장실", details: [] },
+          { name: "자연과학대학장실", details: [] },
+          { name: "수정관 열람실", details: ["운영시간: 연중무휴 06:00~23:30", "62석(좌석배정기 이용)", "그룹스터디룸(디베이팅스퀘어) 10인실 2실: 예약 후 이용", "스마트라커 120개"] },
+          { name: "교강사 라운지", details: [] }
         ]
-      }
+      },
+      { label: "A동 10F", facilities: [{ name: "교내식당 1", details: [] }] },
+      { label: "A동 9F", facilities: [{ name: "교수연구실", details: [] }] },
+      { label: "A동 8F", facilities: [{ name: "교수연구실", details: [] }] },
+      { label: "A동 7F", facilities: [{ name: "교수연구실", details: [] }] },
+      { label: "A동 6F", facilities: ["수학과실습실", "통계학과실습실"].map((name) => ({ name, details: [] })) },
+      { label: "A동 5F", facilities: [{ name: "대학교학팀(제3교학팀)", details: [] }] },
+      { label: "공통 4F", facilities: ["강의실", "대강당", "중강당", "소강당", "컴퓨터공학과 / AI융합학부 / 연구실 / 실험실", "교수연구실", "교수회의실"].map((name) => ({ name, details: [] })) },
+      { label: "공통 3F", facilities: ["창의융합라운지(창의융합대학장실)", "국제교육원 운영팀", "한국어과정강의실", "대학교학팀(제1교학팀)", "스포츠과학부 / AI융합학부 실습실"].map((name) => ({ name, details: [] })) },
+      { label: "공통 2F", facilities: ["강의실", "IT운영팀", "인재개발팀", "현장실습운영팀", "진로취업처장실", "주차관리실"].map((name) => ({ name, details: [] })) },
+      { label: "공통 1F", facilities: ["대학일자리플러스센터", "청년고용거버넌스팀", "국민취업지원 운영센터", "전시실", "Job café", "매점", "S-nap zone", "복사실"].map((name) => ({ name, details: [] })) },
+      { label: "공통 B1", facilities: ["관리실", "전기실", "기계실", "전기/기계감시실", "주차장"].map((name) => ({ name, details: [] })) },
+      { label: "공통 B2", facilities: [{ name: "주차장", details: [] }] }
     ]
   }
 };

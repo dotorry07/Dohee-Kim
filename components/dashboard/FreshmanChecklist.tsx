@@ -7,19 +7,23 @@ import type { ChecklistItem } from "@/types/dashboard";
 import styles from "@/app/dashboard/Dashboard.module.css";
 
 function storageKey(userId: string) { return `newbie-on:dashboard-checklist:${userId}`; }
+function mergeChecklistState(items: ChecklistItem[]) {
+  const completionById = new Map(items.map((item) => [item.id, item.completed]));
+  return freshmanChecklist.map((item) => ({ ...item, completed: completionById.get(item.id) ?? false }));
+}
 
 export function FreshmanChecklist({ userId, databaseUserId, initialItems = freshmanChecklist }: { userId: string; databaseUserId: string | null; initialItems?: ChecklistItem[] }) {
-  const [items, setItems] = useState<ChecklistItem[]>(initialItems);
+  const [items, setItems] = useState<ChecklistItem[]>(() => mergeChecklistState(initialItems));
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setItems(initialItems);
+    setItems(mergeChecklistState(initialItems));
   }, [initialItems]);
 
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(storageKey(userId));
-      if (saved) setItems(JSON.parse(saved) as ChecklistItem[]);
+      if (saved) setItems(mergeChecklistState(JSON.parse(saved) as ChecklistItem[]));
     } catch { /* 저장소를 사용할 수 없으면 현재 세션 상태를 유지합니다. */ }
     setReady(true);
   }, [userId]);

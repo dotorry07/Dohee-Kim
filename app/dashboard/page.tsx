@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { DashboardContent } from "@/components/dashboard/DashboardContent";
-import { academicEvents, freshmanChecklist, personalTodaySchedules, todayMeal } from "@/data/dashboardMock";
+import { academicEvents, campusMeals, freshmanChecklist, personalTodaySchedules } from "@/data/dashboardMock";
 import { loadDashboardFromSupabase } from "@/lib/dashboard/supabase";
 import { notices, posts, timetables } from "@/lib/data";
 import type { DashboardData, DashboardUser, DashboardViewData } from "@/types/dashboard";
@@ -14,7 +14,7 @@ const dashboardData: DashboardData = {
   posts,
   academicEvents,
   personalTodaySchedules,
-  todayMeal
+  campusMeals
 };
 
 export default function DashboardPage() {

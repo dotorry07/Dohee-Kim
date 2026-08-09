@@ -1,29 +1,50 @@
-import type { AcademicEvent, ChecklistItem, MealMenu, TodayScheduleItem } from "@/types/dashboard";
+import type { AcademicEvent, ChecklistItem, MealCampus, MealMenu, TodayScheduleItem } from "@/types/dashboard";
 
 // TODO: 학사일정 API가 준비되면 이 mock을 서버 응답으로 교체합니다.
 export const academicEvents: AcademicEvent[] = [
-  { id: "registration", title: "수강신청", startDate: "2026-08-19", displayDate: "2026. 8. 19. (수) 10:00" },
-  { id: "semester", title: "2학기 개강", startDate: "2026-08-31", displayDate: "2026. 8. 31. (월)" },
-  { id: "midterm", title: "중간고사", startDate: "2026-10-19", endDate: "2026-10-23", displayDate: "2026. 10. 19. ~ 10. 23." },
-  { id: "final", title: "기말고사", startDate: "2026-12-14", endDate: "2026-12-18", displayDate: "2026. 12. 14. ~ 12. 18." }
+  { id: "registration", title: "수강신청", startDate: "2026-08-19", displayDate: "2026. 08. 19." },
+  { id: "semester", title: "2학기 개강", startDate: "2026-09-01", displayDate: "2026. 09. 01." },
+  { id: "midterm", title: "중간고사", startDate: "2026-10-19", displayDate: "2026. 10. 19." },
+  { id: "final", title: "기말고사", startDate: "2026-12-14", displayDate: "2026. 12. 14." }
 ];
 
 // TODO: 사용자별 체크리스트 API가 준비되면 storage adapter만 교체합니다.
 export const freshmanChecklist: ChecklistItem[] = [
-  { id: "student-card", label: "학생증 발급 신청", completed: false },
-  { id: "library-card", label: "도서관 모바일 열람증 등록", completed: false },
-  { id: "course-cart", label: "수강신청 장바구니 담기", completed: false },
+  { id: "campus-wifi", label: "교내 Wi-Fi 연결하기", completed: false },
   { id: "lms-login", label: "LMS 최초 로그인", completed: false },
-  { id: "campus-wifi", label: "교내 Wi-Fi 연결", completed: false }
+  { id: "mobile-id", label: "성신 모바일 신분증 앱 설치 및 발급하기", completed: false },
+  { id: "course-cart", label: "수강신청 장바구니 담기", completed: false },
+  { id: "sujeong-shortcut", label: "수정캠 지름길 확인하기", completed: false },
+  { id: "portal-password", label: "통합정보시스템 비밀번호 변경", completed: false },
+  { id: "campus-food", label: "교내 식당/카페 위치 확인하기", completed: false }
 ];
 
-// TODO: 학식 API가 준비되면 이 mock을 서버 응답으로 교체합니다.
-export const todayMeal: MealMenu | null = {
-  cafeteria: "학생식당",
-  menus: ["돈육김치찌개", "계란말이", "제철 나물"],
-  hours: "11:00 - 14:00",
-  price: "5,500원",
-  status: "AVAILABLE"
+// TODO: 학식 API가 준비되면 캠퍼스/요일 키를 유지한 채 서버 응답으로 교체합니다.
+export const campusMeals: Record<MealCampus, MealMenu> = {
+  sujeong: {
+    cafeteria: "수정관 A동 10층 교내식당 1 (백반)",
+    menusByDay: {
+      MON: ["돈육김치찌개", "계란말이", "제철 나물"],
+      TUE: ["닭갈비", "미역국", "두부조림"],
+      WED: ["소불고기", "된장찌개", "잡채"],
+      THU: ["고등어구이", "콩나물국", "감자조림"],
+      FRI: ["제육볶음", "어묵국", "상추겉절이"]
+    },
+    hours: "11:00 - 14:00",
+    price: "5,500원"
+  },
+  unjeong: {
+    cafeteria: "P동 10층 교내식당",
+    menusByDay: {
+      MON: ["닭개장", "동그랑땡전", "오이무침"],
+      TUE: ["돈가스", "크림스프", "양배추샐러드"],
+      WED: ["불고기비빔밥", "유부장국", "만두튀김"],
+      THU: ["순두부찌개", "떡갈비", "콩나물무침"],
+      FRI: ["카레라이스", "치킨가라아게", "단무지무침"]
+    },
+    hours: "11:00 - 14:00",
+    price: "5,500원"
+  }
 };
 
 // TODO: 개인 일정 API가 준비되면 이 예시 일정을 사용자 일정으로 교체합니다.

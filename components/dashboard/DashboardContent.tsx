@@ -1,16 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getTodayClasses } from "@/lib/timetable";
-import type { ChecklistItem, DashboardData, DashboardIconName, DashboardUser, ScheduleType, TodayScheduleItem } from "@/types/dashboard";
-import { formatKoreanDate, getDdayLabel, getRelativeTime } from "@/utils/date";
+import type { Timetable } from "@/lib/types";
+import type { ChecklistItem, DashboardData, DashboardIconName, DashboardUser, MealWeekday, ScheduleType, TodayScheduleItem } from "@/types/dashboard";
+import { formatKoreanDate, getDdayLabel, getRelativeTime, normalizeDate } from "@/utils/date";
 import { FreshmanChecklist } from "./FreshmanChecklist";
 import styles from "@/app/dashboard/Dashboard.module.css";
 
 const noticeLabels = { academic: "학사", scholarship: "장학", registration: "수강", event: "행사", career: "취업/진로", general: "일반" } as const;
 const postLabels = { freshman: "새내기 Q&A", free: "자유게시판", department: "학과", info: "정보 공유" } as const;
 const scheduleLabels: Record<ScheduleType, string> = { CLASS: "수업", PART_TIME: "알바", CLUB: "동아리", PERSONAL: "개인 약속", OTHER: "기타" };
+const savedTimetablesKey = "newbie-on:timetables";
+const importantTimetablesKey = "newbie-on:important-timetables";
+type ScheduleState = "current" | "next" | "ended";
 
 function Icon({ name }: { name: DashboardIconName }) {
   const paths: Record<DashboardIconName, ReactNode> = {
@@ -29,22 +33,54 @@ function Heading({ icon, title, href, meta }: { icon: DashboardIconName; title: 
 }
 function minutes(time: string) { const [h, m] = time.split(":").map(Number); return h * 60 + m; }
 
-function ScheduleItem({ item, state }: { item: TodayScheduleItem; state?: "current" | "next" }) {
+function ScheduleItem({ item, state }: { item: TodayScheduleItem; state: ScheduleState }) {
   return <li className={`${styles.scheduleItem} ${state ? styles[state] : ""}`}>
     <div className={styles.scheduleTime}><strong>{item.startTime}</strong><span>{item.endTime ? `–${item.endTime}` : ""}</span></div>
     <span className={`${styles.scheduleBadge} ${styles[`schedule_${item.type}`]}`}>{scheduleLabels[item.type]}</span>
     <div className={styles.scheduleContent}><h3>{item.title}</h3>{item.location && <p>{item.location}</p>}{item.subtitle && <small>{item.subtitle}</small>}</div>
-    {state && <span className={styles.scheduleState}>{state === "current" ? "진행 중" : "다음 일정"}</span>}
+    <span className={styles.scheduleState}>{state === "current" ? (item.type === "CLASS" ? "수업 중" : "진행 중") : state === "next" ? "다음 일정" : "종료"}</span>
   </li>;
 }
 
 export function DashboardContent({ user, data, checklistItems, databaseUserId }: { user: DashboardUser; data: DashboardData; checklistItems: ChecklistItem[]; databaseUserId: string | null }) {
   const [mealCampus, setMealCampus] = useState<"sujeong" | "unjeong">("sujeong");
-  const { academicEvents, notices, personalTodaySchedules, posts, timetables, todayMeal } = data;
-  const now = new Date();
+  const [now, setNow] = useState(() => new Date());
+  const [dashboardTimetables, setDashboardTimetables] = useState<Timetable[]>(data.timetables);
+  const [favoriteTimetableIds, setFavoriteTimetableIds] = useState<Set<string>>(new Set());
+  const { academicEvents, campusMeals, notices, posts, timetables } = data;
+
+  const syncFavoriteTimetables = useCallback(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(savedTimetablesKey) ?? "[]") as Timetable[];
+      const favorites = JSON.parse(window.localStorage.getItem(importantTimetablesKey) ?? "[]") as string[];
+      setDashboardTimetables([...new Map([...timetables, ...saved].map((item) => [item.id, item])).values()]);
+      setFavoriteTimetableIds(new Set(favorites));
+    } catch {
+      setDashboardTimetables(timetables);
+      setFavoriteTimetableIds(new Set());
+    }
+  }, [timetables]);
+
+  useEffect(() => {
+    syncFavoriteTimetables();
+    const clock = window.setInterval(() => setNow(new Date()), 60_000);
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === savedTimetablesKey || event.key === importantTimetablesKey) syncFavoriteTimetables();
+    };
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", syncFavoriteTimetables);
+    return () => {
+      window.clearInterval(clock);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", syncFavoriteTimetables);
+    };
+  }, [syncFavoriteTimetables]);
+
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const selected = timetables.find((item) => item.userId === user.id && item.isSelected);
-  const classes = selected ? getTodayClasses(selected.classes) : [];
+  const userTimetables = dashboardTimetables.filter((item) => item.userId === user.id);
+  const favoriteTimetables = userTimetables.filter((item) => favoriteTimetableIds.has(item.id));
+  const activeTimetables = favoriteTimetables.length ? favoriteTimetables : userTimetables.filter((item) => item.isSelected);
+  const classes = activeTimetables.flatMap((item) => getTodayClasses(item.classes));
   const nextClass = classes.find((item) => minutes(item.startTime) > nowMinutes);
   const wait = nextClass ? minutes(nextClass.startTime) - nowMinutes : null;
   const displayName = user.nickname || user.name || "새내기";
@@ -53,12 +89,17 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
   const recent = [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
   const todaySchedules: TodayScheduleItem[] = [
     ...classes.map((item) => ({ id: item.id, type: "CLASS" as const, title: item.courseName, startTime: item.startTime, endTime: item.endTime, location: `${item.buildingName} ${item.roomName}`, subtitle: `${item.professorName} 교수` })),
-    ...personalTodaySchedules
+    ...activeTimetables.flatMap((timetable) => (timetable.personalSchedules ?? [])
+      .filter((item) => item.dayOfWeek === ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][now.getDay()])
+      .map((item) => ({ id: item.id, type: "PERSONAL" as const, title: item.title, startTime: item.startTime, endTime: item.endTime, subtitle: item.memo })))
   ].sort((a, b) => minutes(a.startTime) - minutes(b.startTime));
-  const currentSchedule = todaySchedules.find((item) => minutes(item.startTime) <= nowMinutes && item.endTime && minutes(item.endTime) > nowMinutes);
-  const nextSchedule = todaySchedules.find((item) => minutes(item.startTime) > nowMinutes);
   const firstScheduleLocation = todaySchedules.find((item) => item.location)?.location ?? "학생회관";
-  const campusMapLocation = mealCampus === "sujeong" ? "수정캠_학생식당" : "운정캠_학생식당";
+  const mealDay = [null, "MON", "TUE", "WED", "THU", "FRI", null][now.getDay()] as MealWeekday | null;
+  const todayMeal = campusMeals[mealCampus];
+  const todayMenus = mealDay ? todayMeal.menusByDay[mealDay] : undefined;
+  const mealMapHref = mealCampus === "sujeong"
+    ? "/map?campus=수정&category=식당&target=수정관10층"
+    : "/map?campus=운정&category=식당&target=P동10층";
 
   return <main className={styles.page}><div className={styles.container}>
     <section className={styles.hero}>
@@ -68,7 +109,7 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
 
     <section className={styles.twoGrid}>
       <article className={styles.card}><Heading icon="calendar" title="오늘의 일정" meta={`${todaySchedules.length}개`}/>
-        {todaySchedules.length ? <><ol className={styles.scheduleList}>{todaySchedules.map((item) => <ScheduleItem item={item} key={item.id} state={item.id === currentSchedule?.id ? "current" : item.id === nextSchedule?.id ? "next" : undefined}/>)}</ol><div className={styles.actionArea}><Link className={styles.actionButton} href={`/map?location=${encodeURIComponent(firstScheduleLocation)}`}>캠퍼스 길찾기</Link><small>다음 일정 장소({firstScheduleLocation}) 위치 확인하기</small></div></> : <div className={styles.empty}><p>오늘 예정된 일정이 없습니다.</p></div>}
+        {todaySchedules.length ? <><ol className={styles.scheduleList}>{todaySchedules.map((item) => { const state: ScheduleState = nowMinutes < minutes(item.startTime) ? "next" : item.endTime && nowMinutes < minutes(item.endTime) ? "current" : "ended"; return <ScheduleItem item={item} key={item.id} state={state}/>; })}</ol><div className={styles.actionArea}><Link className={styles.actionButton} href={`/map?location=${encodeURIComponent(firstScheduleLocation)}`}>캠퍼스 길찾기</Link><small>다음 일정 장소({firstScheduleLocation}) 위치 확인하기</small></div></> : <div className={`${styles.empty} ${styles.scheduleEmpty}`}><span className={styles.emptyIcon} aria-hidden="true">☕</span><p>오늘은 예정된 일정이 없습니다. 편안한 휴식을 취하세요! ☕</p></div>}
       </article>
       <article className={styles.card}><Heading icon="notice" title="중요 공지" href="/notices"/><div className={styles.noticeList}>{important.length ? important.map((notice) => <Link className={styles.noticeItem} href="/notices" key={notice.id}><span className={`${styles.badge} ${styles[`notice_${notice.category}`]}`}>{noticeLabels[notice.category]}</span><div><h3>{notice.isPinned && <i className={styles.unread} aria-label="읽지 않은 중요 공지"/>}{notice.title}</h3><p>{notice.summary}</p><time>{new Intl.DateTimeFormat("ko-KR").format(new Date(notice.publishedAt))}</time></div></Link>) : <div className={styles.empty}>표시할 공지가 없습니다.</div>}</div></article>
     </section>
@@ -77,12 +118,12 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
       <div className={styles.sideStack}>
         <article className={styles.card}><Heading icon="user" title="학생 프로필"/><div className={styles.profileTop}><div className={styles.avatar} aria-label="기본 프로필 아바타"><Icon name="user"/></div><div><h3>{displayName}</h3><span className={styles.freshmanBadge}>신입생</span></div></div><dl className={styles.profileList}><div><dt>학번</dt><dd>{studentNumber}</dd></div><div><dt>소속</dt><dd>{user.department}</dd></div><div><dt>학년</dt><dd>{user.grade}학년</dd></div><div><dt>이메일</dt><dd title={user.email}>{user.email}</dd></div></dl><Link className={styles.profileButton} href="/timetable">내 시간표 관리</Link></article>
       </div>
-      <article className={styles.card}><Heading icon="clock" title="D-DAY 학사일정" href="/notices"/><div className={styles.eventList}>{academicEvents.map((event) => <div className={styles.event} key={event.id}><span className={styles.iconBox}><Icon name="calendar"/></span><div><h3>{event.title}</h3><p>{event.displayDate}</p></div><strong>{getDdayLabel(now, event.startDate)}</strong></div>)}</div></article>
+      <article className={styles.card}><Heading icon="clock" title="D-DAY 학사일정" href="/notices"/><div className={styles.eventList}>{academicEvents.map((event) => { const isCompleted = normalizeDate(event.startDate).getTime() < normalizeDate(now).getTime(); return <div className={`${styles.event} ${isCompleted ? styles.eventCompleted : ""}`} key={event.id}><span className={styles.iconBox}><Icon name="calendar"/></span><div><h3>{event.title}</h3><p>{event.displayDate}</p></div><strong>{isCompleted ? "완료" : getDdayLabel(now, event.startDate)}</strong></div>; })}</div></article>
       <article className={styles.card}><Heading icon="chat" title="최근 게시글" href="/board"/><div className={styles.postList}>{recent.length ? recent.map((post) => { const isNew = now.getTime() - new Date(post.createdAt).getTime() <= 86_400_000; return <Link href={`/board/${post.id}`} className={styles.post} key={post.id}><div><span className={styles.postCategory}>{postLabels[post.category]}</span>{isNew && <span className={styles.newBadge}>NEW</span>}{post.viewCount >= 100 && <span className={styles.hotBadge}>HOT</span>}</div><h3>{post.title}</h3><p>댓글 {post.comments.length} · 조회 {post.viewCount} · {getRelativeTime(post.createdAt, now)}</p></Link>; }) : <div className={styles.empty}>최근 게시글이 없습니다.</div>}</div></article>
     </section>
 
     <section className={styles.bottomGrid}>
-      <article className={styles.card}><Heading icon="meal" title="오늘의 학식"/>{todayMeal ? <div className={styles.meal}><div className={styles.mealCampusTabs} role="group" aria-label="학식 캠퍼스 선택"><button className={mealCampus === "sujeong" ? styles.activeMealCampusTab : styles.mealCampusTab} type="button" aria-pressed={mealCampus === "sujeong"} onClick={() => setMealCampus("sujeong")}>수정캠</button><button className={mealCampus === "unjeong" ? styles.activeMealCampusTab : styles.mealCampusTab} type="button" aria-pressed={mealCampus === "unjeong"} onClick={() => setMealCampus("unjeong")}>운정캠</button></div><div className={styles.mealTitle}><h3>{todayMeal.cafeteria}</h3><span className={styles.mealStatus}>{todayMeal.status === "AVAILABLE" ? "식사 가능" : todayMeal.status === "CLOSING_SOON" ? "마감 임박" : "운영 종료"}</span></div><ul>{todayMeal.menus.map((menu) => <li key={menu}>{menu}</li>)}</ul><div><span>{todayMeal.hours}</span><strong>{todayMeal.price}</strong></div><div className={styles.actionArea}><Link className={styles.actionButton} href="/map?category=food">학식 자세히보기</Link><small>선택한 캠퍼스 식당 위치 확인</small></div></div> : <div className={styles.empty}>오늘 등록된 메뉴가 없습니다.</div>}</article>
+      <article className={styles.card}><Heading icon="meal" title="오늘의 학식"/><div className={styles.meal}><div className={styles.mealCampusTabs} role="group" aria-label="학식 캠퍼스 선택"><button className={mealCampus === "sujeong" ? styles.activeMealCampusTab : styles.mealCampusTab} type="button" aria-pressed={mealCampus === "sujeong"} onClick={() => setMealCampus("sujeong")}>수정캠</button><button className={mealCampus === "unjeong" ? styles.activeMealCampusTab : styles.mealCampusTab} type="button" aria-pressed={mealCampus === "unjeong"} onClick={() => setMealCampus("unjeong")}>운정캠</button></div><div className={styles.mealTitle}><h3>{todayMeal.cafeteria}</h3><span className={`${styles.mealStatus} ${!todayMenus ? styles.mealClosed : ""}`}>{todayMenus ? "식사 가능" : "휴무일"}</span></div>{todayMenus ? <ul>{todayMenus.map((menu) => <li key={menu}>{menu}</li>)}</ul> : <p className={styles.mealClosedMessage}>오늘은 휴무입니다</p>}<div><span>{todayMeal.hours}</span><strong>{todayMeal.price}</strong></div><div className={styles.actionArea}><Link className={styles.actionButton} href={mealMapHref}>학식 자세히보기</Link><small>선택한 캠퍼스 식당 위치 확인</small></div></div></article>
       <FreshmanChecklist userId={user.id} databaseUserId={databaseUserId} initialItems={checklistItems}/>
     </section>
   </div></main>;

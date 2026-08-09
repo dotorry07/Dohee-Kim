@@ -9,17 +9,21 @@
 .scheduleItem{position:relative;display:grid;grid-template-columns:76px auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:13px 14px;border:1px solid #ece7fa;border-radius:14px;background:#fff}
 .scheduleItem.current{border-color:#bbaaff;background:#f8f5ff;box-shadow:inset 3px 0 #7c5cfc}
 .scheduleItem.next{border-color:#ffd19a;background:#fffbf5;box-shadow:inset 3px 0 #ff9f43}
+.scheduleItem.ended{background:#fafafa;color:#817a90}.ended .scheduleState{color:#817a90}
 .scheduleTime{display:flex;flex-direction:column;font-size:12px}.scheduleTime strong{font-size:14px}.scheduleTime span{margin-top:2px;color:#6f6980}
 .scheduleBadge{padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}
 .schedule_CLASS{background:#eee6ff;color:#6339d6}.schedule_PART_TIME{background:#fff1e6;color:#b75418}.schedule_CLUB{background:#ffe8e8;color:#c73f3f}.schedule_PERSONAL{background:#fff5cf;color:#7b5a00}.schedule_OTHER{background:#eeeff3;color:#555a66}
 .scheduleContent{min-width:0}.scheduleContent h3,.scheduleContent p,.scheduleContent small{display:block;overflow:hidden;margin:0;text-overflow:ellipsis;white-space:nowrap}.scheduleContent h3{font-size:14px}.scheduleContent p{margin-top:4px;color:#6f6980;font-size:12px}.scheduleContent small{margin-top:3px;color:#8b8497;font-size:11px}
 .scheduleState{color:#6345db;font-size:11px;font-weight:850;white-space:nowrap}.next .scheduleState{color:#b75418}
+.scheduleEmpty{display:grid;place-items:center;gap:8px}.scheduleEmpty p{margin:0}.emptyIcon{display:grid;width:48px;height:48px;place-items:center;border-radius:50%;background:#f2edff;font-size:24px}
 .actionArea{display:flex!important;align-items:center;gap:10px;margin-top:15px}.actionArea small{color:#6f6980;font-size:11px}
 .disabledCta{padding:10px 14px;border:0;border-radius:12px;background:linear-gradient(135deg,#8b6bff 0%,#6f49f6 100%);color:#fff;font-size:12px;font-weight:800;opacity:.82;cursor:not-allowed;transition:transform .2s}.disabledCta:focus-visible{outline:3px solid #cfc0ff;outline-offset:3px}
 .event>strong{padding:5px 9px;border-radius:999px;background:#fff1e6;color:#e66a22}
+.eventCompleted{opacity:.58}.eventCompleted>strong{background:#e5e7eb;color:#626772}
 .progressTrack span{background:linear-gradient(90deg,#ffc857 0%,#ff9f43 100%)}
 .bottomGrid{display:grid;grid-template-columns:minmax(250px,1fr) minmax(0,2.6fr);align-items:stretch;gap:22px;margin-top:22px}.bottomGrid>.card,.bottomGrid .checklist{height:100%}.bottomGrid .checklist{display:flex;margin-top:0;padding-block:30px;flex-direction:column;justify-content:space-between}
 .mealTitle{display:flex!important;align-items:center;justify-content:space-between}.mealStatus{padding:5px 8px;border-radius:999px;background:#fff5cf;color:#765500;font-size:11px;font-weight:800}.meal>div>strong{padding:3px 7px;border-radius:7px;background:#fff5cf;color:#765500}
+.mealClosed{background:#eeeff3;color:#666b76}.mealClosedMessage{margin:14px 0;padding:18px;border-radius:12px;background:#f8f7fc;color:#6f6980;text-align:center}
 @media(max-width:1199px){.bottomGrid{grid-template-columns:minmax(230px,1fr) minmax(0,1.8fr)}.scheduleItem{grid-template-columns:70px auto minmax(0,1fr)}.scheduleState{grid-column:3}}
 @media(max-width:900px){.bottomGrid{grid-template-columns:1fr}.bottomGrid .checklist{grid-row:1}.checkList{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:767px){.scheduleItem{grid-template-columns:68px 1fr;align-items:start}.scheduleBadge{justify-self:start}.scheduleContent{grid-column:1/-1;padding-left:80px}.scheduleState{grid-column:2}.bottomGrid .checklist{grid-row:1}.checkList{grid-template-columns:1fr}.actionArea{align-items:flex-start;flex-direction:column}}

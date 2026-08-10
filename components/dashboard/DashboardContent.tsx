@@ -14,6 +14,9 @@ const postLabels = { freshman: "새내기 Q&A", free: "자유게시판", departm
 const scheduleLabels: Record<ScheduleType, string> = { CLASS: "수업", PART_TIME: "알바", CLUB: "동아리", PERSONAL: "개인 약속", OTHER: "기타" };
 const savedTimetablesKey = "newbie-on:timetables";
 const importantTimetablesKey = "newbie-on:important-timetables";
+const selectedTimetablesBySemesterKey = "newbie-on:selected-timetables-by-semester";
+const legacyMonthlyTimetableKey = "newbie-on:monthly-timetable";
+const currentSemester = "2026-2";
 type ScheduleState = "current" | "next" | "ended";
 
 function Icon({ name }: { name: DashboardIconName }) {
@@ -47,17 +50,25 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
   const [now, setNow] = useState(() => new Date());
   const [dashboardTimetables, setDashboardTimetables] = useState<Timetable[]>(data.timetables);
   const [favoriteTimetableIds, setFavoriteTimetableIds] = useState<Set<string>>(new Set());
+  const [selectedTimetableIdsBySemester, setSelectedTimetableIdsBySemester] = useState<Record<string, string>>({});
   const { academicEvents, campusMeals, notices, posts, timetables } = data;
 
   const syncFavoriteTimetables = useCallback(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem(savedTimetablesKey) ?? "[]") as Timetable[];
       const favorites = JSON.parse(window.localStorage.getItem(importantTimetablesKey) ?? "[]") as string[];
+      const savedSelectedTimetablesBySemester = window.localStorage.getItem(selectedTimetablesBySemesterKey);
+      const legacyMonthlyTimetableId = window.localStorage.getItem(legacyMonthlyTimetableKey);
+      const selectedBySemester = savedSelectedTimetablesBySemester
+        ? JSON.parse(savedSelectedTimetablesBySemester) as Record<string, string>
+        : legacyMonthlyTimetableId ? { [currentSemester]: legacyMonthlyTimetableId } : {};
       setDashboardTimetables([...new Map([...timetables, ...saved].map((item) => [item.id, item])).values()]);
       setFavoriteTimetableIds(new Set(favorites));
+      setSelectedTimetableIdsBySemester(selectedBySemester);
     } catch {
       setDashboardTimetables(timetables);
       setFavoriteTimetableIds(new Set());
+      setSelectedTimetableIdsBySemester({});
     }
   }, [timetables]);
 
@@ -65,7 +76,14 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
     syncFavoriteTimetables();
     const clock = window.setInterval(() => setNow(new Date()), 60_000);
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === savedTimetablesKey || event.key === importantTimetablesKey) syncFavoriteTimetables();
+      if (
+        event.key === savedTimetablesKey
+        || event.key === importantTimetablesKey
+        || event.key === selectedTimetablesBySemesterKey
+        || event.key === legacyMonthlyTimetableKey
+      ) {
+        syncFavoriteTimetables();
+      }
     };
     window.addEventListener("storage", handleStorage);
     window.addEventListener("focus", syncFavoriteTimetables);
@@ -78,8 +96,20 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
 
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const userTimetables = dashboardTimetables.filter((item) => item.userId === user.id);
-  const favoriteTimetables = userTimetables.filter((item) => favoriteTimetableIds.has(item.id));
-  const activeTimetables = favoriteTimetables.length ? favoriteTimetables : userTimetables.filter((item) => item.isSelected);
+  const currentSemesterTimetables = userTimetables.filter((item) => item.semester === currentSemester);
+  const selectedCurrentSemesterTimetableId = selectedTimetableIdsBySemester[currentSemester] ?? null;
+  const selectedCurrentSemesterTimetables = selectedCurrentSemesterTimetableId
+    ? currentSemesterTimetables.filter((item) => item.id === selectedCurrentSemesterTimetableId)
+    : [];
+  const selectedFlagCurrentSemesterTimetables = currentSemesterTimetables.filter((item) => item.isSelected);
+  const favoriteCurrentSemesterTimetables = currentSemesterTimetables.filter((item) => favoriteTimetableIds.has(item.id));
+  const activeTimetables = selectedCurrentSemesterTimetables.length
+    ? selectedCurrentSemesterTimetables
+    : selectedFlagCurrentSemesterTimetables.length
+      ? selectedFlagCurrentSemesterTimetables
+      : favoriteCurrentSemesterTimetables.length
+        ? favoriteCurrentSemesterTimetables
+        : currentSemesterTimetables;
   const classes = activeTimetables.flatMap((item) => getTodayClasses(item.classes));
   const nextClass = classes.find((item) => minutes(item.startTime) > nowMinutes);
   const wait = nextClass ? minutes(nextClass.startTime) - nowMinutes : null;

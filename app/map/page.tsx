@@ -107,6 +107,18 @@ function getTargetLocation(target: string | null) {
   return "";
 }
 
+function getDetailLocationText(detailOptions: CampusBuildingDetail, item: CampusFloorDetail) {
+  const facilityLocations = item.facilities
+    .map((facility) => facility.name.split(" · ")[1]?.trim())
+    .filter(Boolean);
+
+  if (facilityLocations.length > 0) {
+    return Array.from(new Set(facilityLocations)).join(" · ");
+  }
+
+  return `${detailOptions.parentName} ${item.label}`;
+}
+
 export default function MapPage() {
   return (
     <Suspense fallback={<main className="page"><div className="panel">지도를 불러오는 중입니다.</div></main>}>
@@ -230,7 +242,7 @@ function MapContent() {
 
   return (
     <main className="page">
-      <section className="page-header">
+      <section className="page-header map-page-header">
         <h1>학교 지도</h1>
         <p>건물명, 강의실명, 편의시설명으로 검색하고 시간표와 연결된 수업 장소를 확인합니다.</p>
       </section>
@@ -279,7 +291,7 @@ function MapContent() {
                       style={{ textAlign: "left" }}
                     >
                       <strong>{group}</strong>
-                      <span className="muted">수정관 {group} 층별 안내</span>
+                      <span className="muted">수정관 {group}</span>
                     </button>
                   ))
                 ) : (
@@ -295,7 +307,6 @@ function MapContent() {
                         style={{ textAlign: "left" }}
                       >
                         <strong>동 선택으로</strong>
-                        <span className="muted">공통 · A동 · B동 · C동</span>
                       </button>
                     ) : null}
                     {visibleDetailItems.map((item) => (
@@ -307,7 +318,7 @@ function MapContent() {
                         style={{ textAlign: "left" }}
                       >
                         <strong>{item.label}</strong>
-                        <span className="muted">{item.facilities.map((facility) => facility.name).join(" · ") || `${detailOptions.parentName} 시설 안내`}</span>
+                        <span className="muted">{getDetailLocationText(detailOptions, item)}</span>
                       </button>
                     ))}
                     {visibleDetailItems.length === 0 ? <div className="list-item">검색 결과가 없습니다.</div> : null}

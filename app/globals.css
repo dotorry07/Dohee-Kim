@@ -3371,6 +3371,47 @@ button {
   background-image: url("/images/unjeong-campus-map.svg");
 }
 
+.map-page-header {
+  position: relative;
+  margin-bottom: 20px;
+  border: 1px solid #e8deef;
+  border-radius: 8px;
+  background: linear-gradient(105deg, #fff 0%, #fbf8ff 54%, #f2e8ff 100%);
+  padding: 26px 28px;
+  overflow: hidden;
+}
+
+.map-page-header::after {
+  content: "MAP";
+  position: absolute;
+  right: 28px;
+  top: 50%;
+  display: grid;
+  width: clamp(76px, 10vw, 112px);
+  height: clamp(76px, 10vw, 112px);
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid rgba(88, 47, 130, 0.16);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(88, 47, 130, 0.72);
+  font-size: clamp(18px, 2.2vw, 26px);
+  font-weight: 900;
+  box-shadow: 0 18px 32px rgba(88, 47, 130, 0.12);
+}
+
+.map-page-header h1,
+.map-page-header p {
+  position: relative;
+  z-index: 1;
+}
+
+.map-page-header p {
+  max-width: min(680px, calc(100% - 140px));
+  color: #51475d;
+  font-weight: 800;
+}
+
 .map-search-panel {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
@@ -4370,6 +4411,18 @@ button {
 
   .map-search-panel {
     grid-template-columns: 1fr;
+  }
+
+  .map-page-header {
+    padding: 22px 20px;
+  }
+
+  .map-page-header::after {
+    display: none;
+  }
+
+  .map-page-header p {
+    max-width: 100%;
   }
 
   .map-search-area .list {

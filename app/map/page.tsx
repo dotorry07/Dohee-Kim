@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Suspense, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
@@ -86,11 +87,27 @@ export default function MapPage() {
 function MapContent() {
   const searchParams = useSearchParams();
   const building = searchParams.get("building");
-  const initial = campusPlaces.find((place) => place.campus === "donam" && building && place.buildingName.includes(building))
-    ?? campusPlaces.find((place) => place.campus === "donam")
+  const location = searchParams.get("location");
+  const category = searchParams.get("category");
+  const campus = searchParams.get("campus");
+  const target = searchParams.get("target");
+  const locationQuery = location?.replace(/^(수정캠|운정캠)_/, "") ?? building ?? "";
+  const initialCampus: CampusKey = campus === "운정" || location?.startsWith("운정캠_") ? "unjeong" : "donam";
+  const isFoodRoute = category === "food" || category === "식당";
+  const targetFacilityName = target === "수정관10층"
+    ? "교내식당 1 · 수정관 A동 10층"
+    : target === "P동10층"
+      ? "교내식당 · P동 10층"
+      : null;
+  const initial = campusPlaces.find((place) => place.campus === initialCampus && locationQuery && [place.name, place.buildingName, ...place.tags].some((value) => value.includes(locationQuery)))
+    ?? campusPlaces.find((place) => place.campus === initialCampus)
     ?? null;
-  const [activeCampus, setActiveCampus] = useState<CampusKey>("donam");
+  const [activeCampus, setActiveCampus] = useState<CampusKey>(initialCampus);
   const [selected, setSelected] = useState<CampusPlace | null>(initial);
+  const [query, setQuery] = useState(locationQuery);
+  const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>(isFoodRoute ? "food" : "all");
+  const [selectedDetailItem, setSelectedDetailItem] = useState<string | null>(targetFacilityName ? "식당" : null);
+  const targetFacilityRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState(building ?? "");
   const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>("all");
   const [selectedDetailItem, setSelectedDetailItem] = useState<string | null>(null);
@@ -127,6 +144,12 @@ function MapContent() {
     : filteredDetailItems;
   const selectedDetail = detailOptions?.items.find((item) => item.label === selectedDetailItem) ?? null;
 
+  useEffect(() => {
+    if (!targetFacilityName || !targetFacilityRef.current) return;
+    const frame = window.requestAnimationFrame(() => targetFacilityRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [targetFacilityName, selectedDetailItem]);
+
   const filteredPlaces = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return campusPlaces.filter((place) => {
@@ -158,8 +181,8 @@ function MapContent() {
             type="button"
             onClick={() => {
               setActiveCampus("donam");
-              setSelected(initial);
-              setQuery(building ?? "");
+              setSelected(campusPlaces.find((place) => place.campus === "donam") ?? null);
+              setQuery("");
               setPlaceFilter("all");
               setSelectedDetailItem(null);
               setSelectedSujeongGroup(null);
@@ -295,7 +318,7 @@ function MapContent() {
           <span className="badge">시설 안내</span>
         </div>
         {selectedDetail.facilities.length > 0 ? selectedDetail.facilities.map((facility) => facility.menuSections ? (
-          <div className="list-item" key={facility.name} style={{ marginTop: 12 }}>
+          <div className={`list-item${facility.name === targetFacilityName ? " active" : ""}`} key={facility.name} ref={facility.name === targetFacilityName ? targetFacilityRef : undefined} aria-current={facility.name === targetFacilityName ? "true" : undefined} style={{ marginTop: 12 }}>
             <strong>{facility.name}</strong>
             {facility.details.map((detail) => <span className="muted" key={detail}>{detail}</span>)}
             {facility.detailSections?.map((section) => (
@@ -319,7 +342,7 @@ function MapContent() {
             </details>
           </div>
         ) : (
-          <div className="list-item" key={facility.name} style={{ marginTop: 12 }}>
+          <div className={`list-item${facility.name === targetFacilityName ? " active" : ""}`} key={facility.name} ref={facility.name === targetFacilityName ? targetFacilityRef : undefined} aria-current={facility.name === targetFacilityName ? "true" : undefined} style={{ marginTop: 12 }}>
             <strong>{facility.name}</strong>
             {facility.details.map((detail) => <span className="muted" key={detail}>{detail}</span>)}
             {facility.detailSections?.map((section) => (

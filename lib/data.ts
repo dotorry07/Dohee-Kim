@@ -123,6 +123,7 @@ export const personalSchedules: PersonalSchedule[] = [
 export const campusPlaces: CampusPlace[] = [
   {
     id: "place-1",
+    campus: "donam",
     name: "수정관",
     category: "lecture",
     description: "컴퓨터공학과 전공 수업과 실습실이 많은 강의동입니다.",
@@ -130,10 +131,13 @@ export const campusPlaces: CampusPlace[] = [
     floor: "1F-7F",
     mapX: 35,
     mapY: 42,
+    latitude: 37.59121332,
+    longitude: 127.02289446,
     tags: ["강의동", "실습실", "전공"]
   },
   {
     id: "place-2",
+    campus: "donam",
     name: "성신관",
     category: "lecture",
     description: "교양 수업과 대형 강의가 자주 열리는 중심 강의동입니다.",
@@ -141,10 +145,13 @@ export const campusPlaces: CampusPlace[] = [
     floor: "B1-8F",
     mapX: 55,
     mapY: 35,
+    latitude: 37.59164072,
+    longitude: 127.02201446,
     tags: ["강의동", "교양", "대형강의"]
   },
   {
     id: "place-3",
+    campus: "donam",
     name: "중앙도서관",
     category: "library",
     description: "열람실, 자료실, 스터디룸을 이용할 수 있습니다.",
@@ -152,10 +159,13 @@ export const campusPlaces: CampusPlace[] = [
     floor: "1F-6F",
     mapX: 70,
     mapY: 56,
+    latitude: 37.5907954143,
+    longitude: 127.0216038286,
     tags: ["도서관", "열람실", "스터디룸"]
   },
   {
     id: "place-4",
+    campus: "donam",
     name: "학생회관",
     category: "student",
     description: "동아리방, 학생지원 부서, 휴게 공간이 모여 있습니다.",
@@ -163,18 +173,79 @@ export const campusPlaces: CampusPlace[] = [
     floor: "1F-5F",
     mapX: 43,
     mapY: 68,
+    latitude: 37.59227328,
+    longitude: 127.02113546,
     tags: ["동아리", "학생지원", "휴게"]
   },
   {
     id: "place-5",
-    name: "난향관 카페",
-    category: "food",
-    description: "수업 사이에 간단히 식사하거나 음료를 마시기 좋은 공간입니다.",
+    campus: "donam",
+    name: "난향관",
+    category: "lecture",
+    description: "강의실과 학생생활상담소, 종합상황실, 교내식당이 있는 건물입니다.",
     buildingName: "난향관",
     floor: "1F",
     mapX: 24,
     mapY: 61,
-    tags: ["카페", "식당", "휴식"]
+    latitude: 37.5923389429,
+    longitude: 127.0213237429,
+    tags: ["강의동", "학생생활상담소", "교내식당"]
+  },
+  {
+    id: "place-unjeong-p",
+    campus: "unjeong",
+    name: "P동",
+    category: "lecture",
+    description: "강의실, 학과 사무실과 10층 학생 편의시설이 있는 건물입니다.",
+    buildingName: "P동",
+    floor: "건물 전체",
+    mapX: 47,
+    mapY: 74,
+    latitude: 37.632608,
+    longitude: 127.02789,
+    tags: ["강의동", "학과사무실", "식당"]
+  },
+  {
+    id: "place-unjeong-a",
+    campus: "unjeong",
+    name: "A동",
+    category: "lecture",
+    description: "강의실과 교육 시설이 있는 건물입니다.",
+    buildingName: "A동",
+    floor: "건물 전체",
+    mapX: 32,
+    mapY: 45,
+    latitude: 37.631551,
+    longitude: 127.027068,
+    tags: ["강의동", "박물관"]
+  },
+  {
+    id: "place-unjeong-b",
+    campus: "unjeong",
+    name: "B동",
+    category: "lecture",
+    description: "강의실, 학과 사무실과 학생 편의시설이 있는 건물입니다.",
+    buildingName: "B동",
+    floor: "건물 전체",
+    mapX: 55,
+    mapY: 37,
+    latitude: 37.632005,
+    longitude: 127.027336,
+    tags: ["강의동", "편의점", "건강관리팀"]
+  },
+  {
+    id: "place-unjeong-c",
+    campus: "unjeong",
+    name: "C동",
+    category: "lecture",
+    description: "강의실과 교육 시설이 있는 건물입니다.",
+    buildingName: "C동",
+    floor: "건물 전체",
+    mapX: 73,
+    mapY: 60,
+    latitude: 37.63246,
+    longitude: 127.027516,
+    tags: ["강의동", "연결통로"]
   }
 ];
 

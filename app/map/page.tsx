@@ -1,13 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Suspense, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { campusPlaces } from "@/lib/data";
 import { campusBuildingDetails, unjeongCampusBuildingDetails } from "@/lib/campus-place-details";
-import type { CampusBuildingDetail } from "@/lib/campus-place-details";
+import { campusPlaces } from "@/lib/data";
 import type { CampusPlace } from "@/lib/types";
+import type { CampusBuildingDetail, CampusFacilityDetail, CampusFloorDetail } from "@/lib/campus-place-details";
 
 const CampusMap = dynamic(() => import("@/components/CampusMap"), {
   ssr: false,
@@ -23,12 +22,8 @@ const categoryLabels: Record<CampusPlace["category"], string> = {
   facility: "편의시설"
 };
 
-type CampusKey = "donam" | "unjeong";
-type PlaceFilterKey = "all" | "student" | "nanhyang" | "sujeong" | "sungshin" | "food" | "library" | "admin" | "facility";
-type DetailItem = { label: string; caption?: string };
-type DetailOption = { parentName: string; items: DetailItem[] };
-type DetailSection = { title: string; lines: string[] };
-type PlaceFilterKey = "all" | "student" | "nanhyang" | "sujeong" | "sungshin" | "p" | "a" | "b" | "c" | "food" | "library" | "facility";
+type CampusKey = CampusPlace["campus"];
+type PlaceFilterKey = "all" | "student" | "nanhyang" | "sujeong" | "sungshin" | "p" | "a" | "b" | "c" | "food" | "library" | "admin" | "facility";
 type SujeongBuildingGroup = "공통" | "A동" | "B동" | "C동";
 
 const sujeongBuildingGroups: SujeongBuildingGroup[] = ["공통", "A동", "B동", "C동"];
@@ -43,7 +38,6 @@ const placeFilters: Array<{ key: PlaceFilterKey; label: string }> = [
   { key: "library", label: "도서관" },
   { key: "facility", label: "편의시설" }
 ];
-
 const unjeongBuildingFilters: Array<{ key: PlaceFilterKey; label: string }> = [
   { key: "p", label: "P동" },
   { key: "a", label: "A동" },
@@ -61,33 +55,12 @@ function matchesPlaceFilter(place: CampusPlace, filter: PlaceFilterKey) {
   return place.category === filter;
 }
 
-function getDetailOptions(filter: PlaceFilterKey): DetailOption | null {
-  if (filter === "student") {
-    return { parentName: "학생회관", items: ["1층", "2층", "3층", "4층", "5층"].map((label) => ({ label })) };
+function getDetailOptions(campus: CampusKey, filter: PlaceFilterKey): CampusBuildingDetail | null {
+  if (filter === "all" || filter === "admin") {
+    return null;
   }
-  if (filter === "nanhyang") {
-    return { parentName: "난향관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층"].map((label) => ({ label })) };
-  }
-  if (filter === "sujeong") {
-    return { parentName: "수정관", items: ["1층", "2층", "3층", "4층", "5층", "6층", "7층", "8층", "9층", "10층"].map((label) => ({ label })) };
-  }
-  if (filter === "sungshin") {
-    return { parentName: "성신관", items: ["A관", "B관", "C관"].map((label) => ({ label })) };
-  }
-  if (filter === "library") {
-    return {
-      parentName: "도서관",
-      items: [
-        ...["1층", "2층", "3층", "4층", "5층", "6층", "7층"].map((label) => ({ label })),
-        { label: "성신관 2층", caption: "도서관" },
-        { label: "성신관 7층", caption: "도서관" },
-        { label: "수정관 B동 5층", caption: "도서관" }
-      ]
-    };
-  }
-  return null;
-function getDetailOptions(filter: PlaceFilterKey): CampusBuildingDetail | null {
-  if (filter === "nanhyang") {
+
+  if (campus === "donam" && filter === "nanhyang") {
     return {
       parentName: "난향관",
       items: [
@@ -102,234 +75,37 @@ function getDetailOptions(filter: PlaceFilterKey): CampusBuildingDetail | null {
       ]
     };
   }
-  return campusBuildingDetails[filter] ?? null;
+
+  return campus === "donam"
+    ? campusBuildingDetails[filter] ?? null
+    : unjeongCampusBuildingDetails[filter] ?? null;
 }
 
-const detailSections: Record<string, DetailSection[]> = {
-  "학생회관-1층": [
-    {
-      title: "층별시설",
-      lines: [
-        "장애학생지원센터, 사물함실, 소극장, 동아리실"
-      ]
-    }
-  ],
-  "학생회관-2층": [
-    {
-      title: "층별시설",
-      lines: [
-        "총학생회실, 단과대학생회실, 세미나실, 동아리실, 학생복지위원회, 셀프카페테리아"
-      ]
-    }
-  ],
-  "학생회관-3층": [
-    {
-      title: "층별시설",
-      lines: [
-        "기도실, 동아리실, 세미나실, 셀프카페테리아"
-      ]
-    }
-  ],
-  "학생회관-4층": [
-    {
-      title: "층별시설",
-      lines: [
-        "통합동아리실(준,신규동아리), 성신학보사, 셀프카페테리아(파우더룸)"
-      ]
-    }
-  ],
-  "학생회관-5층": [
-    {
-      title: "층별시설",
-      lines: [
-        "성신체인지봉사단, FORUS, 성신교육방송국, 성신미러사"
-      ]
-    }
-  ],
-  "도서관-1층": [
-    {
-      title: "대출 반납실",
-      lines: [
-        "평 일: 09:00∼19:00",
-        "(방학중: 17:00까지)",
-        "- 학부재학생: 14일간 7권 대출 가능",
-        "- 도서연체시 연체일수 만큼 대출 중지"
-      ]
-    },
-    {
-      title: "특성화학습관",
-      lines: [
-        "연중무휴",
-        "06:00∼23:30",
-        "- 스터디 및 휴식 공간",
-        "- 프린트"
-      ]
-    },
-    {
-      title: "센트럴플라자",
-      lines: [
-        "연중무휴 24시간",
-        "(23:30 ~ 익일 05:00까지는 출입통제)",
-        "- 노트북 이용가능",
-        "- 80석"
-      ]
-    }
-  ],
-  "도서관-2층": [
-    {
-      title: "멀티미디어스튜디오",
-      lines: [
-        "토,일,공휴일 휴실",
-        "06:00∼23:30",
-        "- 42석(좌석배정기 이용)"
-      ]
-    },
-    {
-      title: "전자정보실",
-      lines: [
-        "토,일,공휴일 휴실",
-        "06:00∼23:30",
-        "- 비도서 및 전자자료 관내대출"
-      ]
-    },
-    {
-      title: "크리에이티브스튜디오",
-      lines: [
-        "평 일: 09:00∼19:00",
-        "(방학중: 17:00까지)",
-        "- 촬영및 편집 가능"
-      ]
-    },
-    {
-      title: "서양서/문학 자료실",
-      lines: [
-        "평 일: 09:00∼19:00",
-        "(방학중: 17:00까지)",
-        "- 전 주제분야 서양서"
-      ]
-    }
-  ],
-  "도서관-3층": [
-    {
-      title: "집중/개인 열람실",
-      lines: [
-        "연중무휴 24시간",
-        "(23:30 ~ 익일 05:00까지는 출입통제)",
-        "- 집중열람 70석(좌석배정기 이용)",
-        "- 개인열람 5석(좌석배정기 이용)"
-      ]
-    },
-    {
-      title: "인문과학자료실",
-      lines: [
-        "평 일: 09:00∼19:00",
-        "(방학중: 17:00까지)",
-        "- Human Science"
-      ]
-    }
-  ],
-  "도서관-4층": [
-    {
-      title: "그룹스터디룸",
-      lines: [
-        "연중무휴",
-        "06:00∼23:30",
-        "- 6인 8실(디베이팅스퀘어) : 예약 후 이용",
-        "- 12인 1실(프리젠테이션스퀘어) : 예약 후 이용"
-      ]
-    },
-    {
-      title: "사회과학자료 제1실",
-      lines: [
-        "평 일: 09:00∼19:00",
-        "(방학중: 17:00까지)",
-        "- Social Science 1"
-      ]
-    }
-  ],
-  "도서관-5층": [
-    {
-      title: "그룹스터디룸",
-      lines: [
-        "연중무휴",
-        "06:00∼23:30",
-        "- 6인 4실(디베이팅스퀘어) : 예약 후 이용",
-        "- 8인 4실(콜라보레이션라운지) : 오픈형, 예약 후 이용"
-      ]
-    },
-    {
-      title: "사회과학자료 제2실",
-      lines: [
-        "평 일: 09:00∼19:00",
-        "(방학중: 17:00까지)",
-        "- Social Science 2"
-      ]
-    }
-  ],
-  "도서관-6층": [
-    {
-      title: "그룹스터디룸",
-      lines: [
-        "연중무휴",
-        "06:00∼23:30",
-        "- 6인 4실(디베이팅스퀘어) : 예약 후 이용",
-        "- 6인 4실(이노베이션라운지) : 오픈형, 예약 후 이용"
-      ]
-    },
-    {
-      title: "자연과학자료실",
-      lines: [
-        "평 일: 09:00∼19:00",
-        "(방학중: 17:00까지)",
-        "- Natural &Technology"
-      ]
-    }
-  ],
-  "도서관-7층": [
-    {
-      title: "크리스탈라운지",
-      lines: [
-        "연중무휴",
-        "06:00∼23:30",
-        "- 60석"
-      ]
-    },
-    {
-      title: "역사예술자료실",
-      lines: [
-        "평 일: 09:00∼19:00",
-        "(방학중: 17:00까지)",
-        "- History & Arts"
-      ]
-    }
-  ],
-  "도서관-성신관 2층": [
-    {
-      title: "성신관열람실",
-      lines: [
-        "06:00∼23:30",
-        "- 85석"
-      ]
-    }
-  ],
-  "도서관-성신관 7층": [
-    {
-      title: "대학원열람실",
-      lines: [
-        "06:00∼23:30",
-        "- 48석(대학원 석·박사 및 강사 전용열람실)"
-      ]
-    }
-  ],
-  "도서관-수정관 B동 5층": [
-    {
-      title: "수정관열람실",
-      lines: [
-        "06:00∼23:30"
-      ]
-    }
-  ]
-};
+function getInitialDetailLabel(detailOptions: CampusBuildingDetail | null, target: string | null) {
+  if (!detailOptions?.items.length) {
+    return "";
+  }
+
+  if (target === "수정관10층") {
+    return detailOptions.items.find((item) => item.label.includes("10"))?.label ?? detailOptions.items[0].label;
+  }
+
+  if (target === "P동10층") {
+    return detailOptions.items.find((item) => item.label.includes("10"))?.label ?? detailOptions.items[0].label;
+  }
+
+  return detailOptions.items[0].label;
+}
+
+function getCampusFromParams(campus: string | null, location: string | null): CampusKey {
+  return campus === "운정" || location?.startsWith("운정캠_") ? "unjeong" : "donam";
+}
+
+function getTargetLocation(target: string | null) {
+  if (target === "수정관10층") return "수정관";
+  if (target === "P동10층") return "P동";
+  return "";
+}
 
 export default function MapPage() {
   return (
@@ -346,26 +122,13 @@ function MapContent() {
   const category = searchParams.get("category");
   const campus = searchParams.get("campus");
   const target = searchParams.get("target");
-  const locationQuery = location?.replace(/^(수정캠|운정캠)_/, "") ?? building ?? "";
-  const initialCampus: CampusKey = campus === "운정" || location?.startsWith("운정캠_") ? "unjeong" : "donam";
-  const isFoodRoute = category === "food" || category === "식당";
-  const targetFacilityName = target === "수정관10층"
-    ? "교내식당 1 · 수정관 A동 10층"
-    : target === "P동10층"
-      ? "교내식당 · P동 10층"
-      : null;
-  const initial = campusPlaces.find((place) => place.campus === initialCampus && locationQuery && [place.name, place.buildingName, ...place.tags].some((value) => value.includes(locationQuery)))
-    ?? campusPlaces.find((place) => place.campus === initialCampus)
-    ?? null;
+  const initialCampus = getCampusFromParams(campus, location);
+  const initialQuery = getTargetLocation(target) || location?.replace(/^(수정캠|운정캠)_/, "") || building || "";
   const [activeCampus, setActiveCampus] = useState<CampusKey>(initialCampus);
-  const [selected, setSelected] = useState<CampusPlace | null>(initial);
-  const [query, setQuery] = useState(locationQuery);
-  const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>(isFoodRoute ? "food" : "all");
-  const [selectedDetailItem, setSelectedDetailItem] = useState<string | null>(targetFacilityName ? "식당" : null);
-  const targetFacilityRef = useRef<HTMLDivElement | null>(null);
-  const [query, setQuery] = useState(building ?? "");
-  const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>("all");
-  const [selectedDetailItem, setSelectedDetailItem] = useState<string | null>(null);
+  const [query, setQuery] = useState(initialQuery);
+  const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>(category === "food" || category === "식당" ? "food" : "all");
+  const detailOptions = getDetailOptions(activeCampus, placeFilter);
+  const [selectedDetailLabel, setSelectedDetailLabel] = useState(() => getInitialDetailLabel(detailOptions, target));
   const [selectedSujeongGroup, setSelectedSujeongGroup] = useState<SujeongBuildingGroup | null>(null);
   const visiblePlaceFilters = activeCampus === "donam"
     ? placeFilters
@@ -374,36 +137,6 @@ function MapContent() {
         ...unjeongBuildingFilters,
         ...placeFilters.filter((filter) => ["food", "library", "facility"].includes(filter.key))
       ];
-  const detailOptions = activeCampus === "donam"
-    ? getDetailOptions(placeFilter)
-    : unjeongCampusBuildingDetails[placeFilter] ?? null;
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredDetailItems = detailOptions?.items.filter((item) => {
-    if (!normalizedQuery) return true;
-    return [
-      detailOptions.parentName,
-      item.label,
-      ...item.facilities.flatMap((facility) => [
-        facility.name,
-        ...facility.details,
-        ...(facility.detailSections?.flatMap((section) => [section.title, ...section.items]) ?? []),
-        ...(facility.menuSections?.flatMap((section) => [section.name, ...section.items]) ?? [])
-      ])
-    ]
-      .join(" ")
-      .toLowerCase()
-      .includes(normalizedQuery);
-  }) ?? [];
-  const visibleDetailItems = placeFilter === "sujeong" && selectedSujeongGroup && !normalizedQuery
-    ? filteredDetailItems.filter((item) => item.label.startsWith(`${selectedSujeongGroup} `))
-    : filteredDetailItems;
-  const selectedDetail = detailOptions?.items.find((item) => item.label === selectedDetailItem) ?? null;
-
-  useEffect(() => {
-    if (!targetFacilityName || !targetFacilityRef.current) return;
-    const frame = window.requestAnimationFrame(() => targetFacilityRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
-    return () => window.cancelAnimationFrame(frame);
-  }, [targetFacilityName, selectedDetailItem]);
 
   const filteredPlaces = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -416,16 +149,84 @@ function MapContent() {
         .includes(normalized);
       return matchesCampus && matchesFilter && matchesQuery;
     });
-  }, [placeFilter, query]);
-  const resultCount = detailOptions ? detailOptions.items.length : filteredPlaces.length;
-  const selectedDetailSections = detailOptions && selectedDetailItem
-    ? detailSections[`${detailOptions.parentName}-${selectedDetailItem}`] ?? []
-    : [];
   }, [activeCampus, placeFilter, query]);
+
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(() => {
+    const initial = filteredPlaces[0] ?? campusPlaces.find((place) => place.campus === initialCampus) ?? null;
+    return initial?.id ?? null;
+  });
+  const selected = campusPlaces.find((place) => place.id === selectedPlaceId && place.campus === activeCampus)
+    ?? filteredPlaces[0]
+    ?? campusPlaces.find((place) => place.campus === activeCampus)
+    ?? null;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredDetailItems = useMemo(() => {
+
+    if (!detailOptions) {
+      return [];
+    }
+
+    if (!normalizedQuery) {
+      return detailOptions.items;
+    }
+
+    return detailOptions.items.filter((item) => (
+      [
+        detailOptions.parentName,
+        item.label,
+        ...item.facilities.flatMap((facility) => [
+          facility.name,
+          ...facility.details,
+          ...(facility.detailSections?.flatMap((section) => [section.title, ...section.items]) ?? []),
+          ...(facility.menuSections?.flatMap((section) => [section.name, ...section.items]) ?? [])
+        ])
+      ].join(" ").toLowerCase().includes(normalizedQuery)
+    ));
+  }, [detailOptions, normalizedQuery]);
   const showSujeongGroupList = placeFilter === "sujeong" && !selectedSujeongGroup && !normalizedQuery;
+  const visibleDetailItems = placeFilter === "sujeong" && selectedSujeongGroup && !normalizedQuery
+    ? filteredDetailItems.filter((item) => item.label.startsWith(`${selectedSujeongGroup} `))
+    : filteredDetailItems;
+  const selectedDetail = showSujeongGroupList
+    ? null
+    : visibleDetailItems.find((item) => item.label === selectedDetailLabel)
+      ?? visibleDetailItems[0]
+      ?? null;
   const resultCount = showSujeongGroupList
     ? sujeongBuildingGroups.length
     : detailOptions ? visibleDetailItems.length : filteredPlaces.length;
+
+  function changeCampus(nextCampus: CampusKey) {
+    setActiveCampus(nextCampus);
+    setQuery("");
+    setPlaceFilter("all");
+    setSelectedDetailLabel("");
+    setSelectedSujeongGroup(null);
+    setSelectedPlaceId(campusPlaces.find((place) => place.campus === nextCampus)?.id ?? null);
+  }
+
+  function changePlaceFilter(nextFilter: PlaceFilterKey) {
+    const nextDetailOptions = getDetailOptions(activeCampus, nextFilter);
+    setPlaceFilter(nextFilter);
+    setSelectedSujeongGroup(null);
+    setSelectedDetailLabel(nextFilter === "sujeong" ? "" : getInitialDetailLabel(nextDetailOptions, target));
+    const matchingPlace = campusPlaces.find((place) => place.campus === activeCampus && matchesPlaceFilter(place, nextFilter));
+    setSelectedPlaceId(matchingPlace?.id ?? null);
+  }
+
+  function changeQuery(nextQuery: string) {
+    setQuery(nextQuery);
+    setSelectedDetailLabel("");
+    if (nextQuery.trim()) {
+      setSelectedSujeongGroup(null);
+    }
+  }
+
+  function selectSujeongGroup(group: SujeongBuildingGroup) {
+    setSelectedSujeongGroup(group);
+    const firstInGroup = detailOptions?.items.find((item) => item.label.startsWith(`${group} `));
+    setSelectedDetailLabel(firstInGroup?.label ?? "");
+  }
 
   return (
     <main className="page">
@@ -436,72 +237,31 @@ function MapContent() {
 
       <section className="panel map-search-panel">
         <div className="campus-switch-tabs" aria-label="캠퍼스 선택">
-          <button
-            className={activeCampus === "donam" ? "campus-switch-tab active" : "campus-switch-tab"}
-            type="button"
-            onClick={() => {
-              setActiveCampus("donam");
-              setSelected(campusPlaces.find((place) => place.campus === "donam") ?? null);
-              setQuery("");
-              setPlaceFilter("all");
-              setSelectedDetailItem(null);
-              setSelectedSujeongGroup(null);
-            }}
-          >
-            돈암수정캠퍼스
-          </button>
-          <button
-            className={activeCampus === "unjeong" ? "campus-switch-tab active" : "campus-switch-tab"}
-            type="button"
-            onClick={() => {
-              setActiveCampus("unjeong");
-              setSelected(campusPlaces.find((place) => place.campus === "unjeong") ?? null);
-              setQuery("");
-              setPlaceFilter("all");
-              setSelectedDetailItem(null);
-              setSelectedSujeongGroup(null);
-            }}
-          >
-            운정그린캠퍼스
-          </button>
+          <button className={activeCampus === "donam" ? "campus-switch-tab active" : "campus-switch-tab"} type="button" onClick={() => changeCampus("donam")}>돈암수정캠퍼스</button>
+          <button className={activeCampus === "unjeong" ? "campus-switch-tab active" : "campus-switch-tab"} type="button" onClick={() => changeCampus("unjeong")}>운정그린캠퍼스</button>
         </div>
         <div className="map-image-area">
           <CampusMap
             campus={activeCampus}
             places={campusPlaces}
             selectedPlaceId={selected?.id ?? null}
-            onSelectPlace={setSelected}
+            onSelectPlace={(place) => setSelectedPlaceId(place.id)}
           />
         </div>
         <div className="map-search-area">
           <div className="section-title">
             <h2>장소 검색</h2>
-            <span className="badge">{resultCount}곳</span>
+            <span className="badge">{detailOptions ? `${resultCount}개 구역` : `${resultCount}곳`}</span>
           </div>
           <div className="form">
-            <input
-              className="search"
-              placeholder="건물, 시설, 태그 검색"
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setSelectedDetailItem(null);
-                if (event.target.value.trim()) setSelectedSujeongGroup(null);
-              }}
-            />
+            <input className="search" placeholder="건물, 시설, 태그 검색" value={query} onChange={(event) => changeQuery(event.target.value)} />
             <div className="tabs">
               {visiblePlaceFilters.map((filter) => (
                 <button
                   className={placeFilter === filter.key ? "tab active" : "tab"}
                   key={filter.key}
                   type="button"
-                  onClick={() => {
-                    setPlaceFilter(filter.key);
-                    setSelectedDetailItem(null);
-                    setSelectedSujeongGroup(null);
-                    const matchingPlace = campusPlaces.find((place) => place.campus === activeCampus && matchesPlaceFilter(place, filter.key));
-                    if (matchingPlace) setSelected(matchingPlace);
-                  }}
+                  onClick={() => changePlaceFilter(filter.key)}
                 >
                   {filter.label}
                 </button>
@@ -509,63 +269,58 @@ function MapContent() {
             </div>
             <div className="list">
               {detailOptions ? (
-                showSujeongGroupList ? sujeongBuildingGroups.map((group) => (
-                  <button
-                    className={selectedDetailItem === item.label ? "list-item active" : "list-item"}
-                    type="button"
-                    key={`${detailOptions.parentName}-${item.label}`}
-                    onClick={() => setSelectedDetailItem(item.label)}
-                    style={{ textAlign: "left" }}
-                  >
-                    <strong>{item.label}</strong>
-                    <span className="muted">{item.caption ?? detailOptions.parentName} · {item.label}</span>
-                    className="list-item"
-                    type="button"
-                    key={`sujeong-${group}`}
-                    onClick={() => setSelectedSujeongGroup(group)}
-                    style={{ textAlign: "left" }}
-                  >
-                    <strong>{group}</strong>
-                    <span className="muted">수정관 {group} 층별 안내</span>
-                  </button>
-                )) : [
-                  ...(placeFilter === "sujeong" && selectedSujeongGroup && !normalizedQuery ? [
+                showSujeongGroupList ? (
+                  sujeongBuildingGroups.map((group) => (
                     <button
                       className="list-item"
                       type="button"
-                      key="sujeong-group-back"
-                      onClick={() => {
-                        setSelectedSujeongGroup(null);
-                        setSelectedDetailItem(null);
-                      }}
+                      key={`sujeong-${group}`}
+                      onClick={() => selectSujeongGroup(group)}
                       style={{ textAlign: "left" }}
                     >
-                      <strong>← 동 선택으로</strong>
-                      <span className="muted">공통 · A동 · B동 · C동</span>
+                      <strong>{group}</strong>
+                      <span className="muted">수정관 {group} 층별 안내</span>
                     </button>
-                  ] : []),
-                  ...visibleDetailItems.map((item) => (
-                  <button
-                    className={selectedDetailItem === item.label ? "list-item active" : "list-item"}
-                    type="button"
-                    key={`${detailOptions.parentName}-${item.label}`}
-                    onClick={() => setSelectedDetailItem(item.label)}
-                    style={{ textAlign: "left" }}
-                  >
-                    <strong>{item.label}</strong>
-                    <span className="muted">{detailOptions.parentName} · {item.label}</span>
-                  </button>
-                  )),
-                  ...(visibleDetailItems.length === 0 ? [<div className="list-item" key="empty-detail-result">검색 결과가 없습니다.</div>] : [])
-                ]
+                  ))
+                ) : (
+                  <>
+                    {placeFilter === "sujeong" && selectedSujeongGroup && !normalizedQuery ? (
+                      <button
+                        className="list-item"
+                        type="button"
+                        onClick={() => {
+                          setSelectedSujeongGroup(null);
+                          setSelectedDetailLabel("");
+                        }}
+                        style={{ textAlign: "left" }}
+                      >
+                        <strong>동 선택으로</strong>
+                        <span className="muted">공통 · A동 · B동 · C동</span>
+                      </button>
+                    ) : null}
+                    {visibleDetailItems.map((item) => (
+                      <button
+                        className={selectedDetail?.label === item.label ? "list-item active" : "list-item"}
+                        type="button"
+                        key={`${detailOptions.parentName}-${item.label}`}
+                        onClick={() => setSelectedDetailLabel(item.label)}
+                        style={{ textAlign: "left" }}
+                      >
+                        <strong>{item.label}</strong>
+                        <span className="muted">{item.facilities.map((facility) => facility.name).join(" · ") || `${detailOptions.parentName} 시설 안내`}</span>
+                      </button>
+                    ))}
+                    {visibleDetailItems.length === 0 ? <div className="list-item">검색 결과가 없습니다.</div> : null}
+                  </>
+                )
               ) : (
                 <>
                   {filteredPlaces.map((place) => (
                     <button
-                      className="list-item"
+                      className={selected?.id === place.id ? "list-item active" : "list-item"}
                       type="button"
                       key={place.id}
-                      onClick={() => setSelected(place)}
+                      onClick={() => setSelectedPlaceId(place.id)}
                       style={{ textAlign: "left" }}
                     >
                       <strong>{place.name}</strong>
@@ -580,96 +335,90 @@ function MapContent() {
         </div>
       </section>
 
-      <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
-        {detailOptions && selectedDetailItem ? (
-          <>
-            <div className="section-title">
-              <h2>{selectedDetailItem}</h2>
-              <span className="badge">{detailOptions.parentName}</span>
-            </div>
-            {selectedDetailSections.length > 0 ? (
-              <div className="map-detail-content">
-                {selectedDetailSections.map((section) => (
-                  <div className="map-detail-section" key={section.title}>
-                    <strong>{section.title}</strong>
-                    {section.lines.map((line) => <span key={line}>{line}</span>)}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="muted">세부사항은 추후 작성 예정입니다.</p>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="section-title">
-              <h2>{selected.name}</h2>
-              <span className="badge">{categoryLabels[selected.category]}</span>
-            </div>
-            <p>{selected.description}</p>
-            <div className="meta">
-              <span>{selected.buildingName}</span>
-              <span>{selected.floor}</span>
-              {selected.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
-            </div>
-          </>
-        )}
-      </section>
-      {selectedDetail && detailOptions ? <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
-        <div className="section-title">
-          <h2>{detailOptions.parentName} {selectedDetail.label}</h2>
-          <span className="badge">시설 안내</span>
-        </div>
-        {selectedDetail.facilities.length > 0 ? selectedDetail.facilities.map((facility) => facility.menuSections ? (
-          <div className={`list-item${facility.name === targetFacilityName ? " active" : ""}`} key={facility.name} ref={facility.name === targetFacilityName ? targetFacilityRef : undefined} aria-current={facility.name === targetFacilityName ? "true" : undefined} style={{ marginTop: 12 }}>
-            <strong>{facility.name}</strong>
-            {facility.details.map((detail) => <span className="muted" key={detail}>{detail}</span>)}
-            {facility.detailSections?.map((section) => (
-              <div className="facility-detail-section" key={section.title}>
-                <h3>{section.title}</h3>
-                <ul>
-                  {section.items.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </div>
-            ))}
-            <details style={{ marginTop: 8 }}>
-              <summary><strong>메뉴 및 가격 보기</strong></summary>
-              {facility.menuSections.map((section) => (
-                <div key={section.name} style={{ marginTop: 12 }}>
-                  <strong>{section.name}</strong>
-                  <div className="meta" style={{ marginTop: 8 }}>
-                    {section.items.map((item) => <span className="chip" key={`${section.name}-${item}`}>{item}</span>)}
-                  </div>
-                </div>
-              ))}
-            </details>
+      {selectedDetail && detailOptions ? (
+        <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
+          <div className="section-title">
+            <h2>{detailOptions.parentName} {selectedDetail.label}</h2>
+            <span className="badge">시설 안내</span>
           </div>
-        ) : (
-          <div className={`list-item${facility.name === targetFacilityName ? " active" : ""}`} key={facility.name} ref={facility.name === targetFacilityName ? targetFacilityRef : undefined} aria-current={facility.name === targetFacilityName ? "true" : undefined} style={{ marginTop: 12 }}>
-            <strong>{facility.name}</strong>
-            {facility.details.map((detail) => <span className="muted" key={detail}>{detail}</span>)}
-            {facility.detailSections?.map((section) => (
-              <div className="facility-detail-section" key={section.title}>
-                <h3>{section.title}</h3>
-                <ul>
-                  {section.items.map((item) => <li key={item}>{item}</li>)}
-                </ul>
-              </div>
-            ))}
+          <CampusFloorDetailView floor={selectedDetail} />
+        </section>
+      ) : selected ? (
+        <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
+          <div className="section-title">
+            <h2>{selected.name}</h2>
+            <span className="badge">{categoryLabels[selected.category]}</span>
           </div>
-        )) : <p className="muted">상세 정보가 준비 중입니다.</p>}
-      </section> : selected ? <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
-        <div className="section-title">
-          <h2>{selected.name}</h2>
-          <span className="badge">{categoryLabels[selected.category]}</span>
-        </div>
-        <p>{selected.description}</p>
-        <div className="meta">
-          <span>{selected.buildingName}</span>
-          <span>{selected.floor}</span>
-          {selected.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
-        </div>
-      </section> : null}
+          <p>{selected.description}</p>
+          <div className="meta">
+            <span>{selected.buildingName}</span>
+            <span>{selected.floor}</span>
+            {selected.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
+          </div>
+        </section>
+      ) : null}
     </main>
+  );
+}
+
+function CampusFloorDetailView({ floor }: { floor: CampusFloorDetail }) {
+  return (
+    <div className="map-detail-content">
+      <div className="section-title">
+        <h3>{floor.label}</h3>
+        <span className="badge">{floor.facilities.length}개 시설</span>
+      </div>
+      {floor.facilities.map((facility) => <CampusFacilityDetailView facility={facility} key={facility.name} />)}
+    </div>
+  );
+}
+
+function CampusFacilityDetailView({ facility }: { facility: CampusFacilityDetail }) {
+  return (
+    <div className="map-detail-section">
+      <strong>{facility.name}</strong>
+      {facility.details.map((detail) => <span key={detail}>{detail}</span>)}
+      {facility.detailSections?.map((section) => (
+        <div className="facility-detail-section" key={section.title}>
+          <h3>{section.title}</h3>
+          <ul>
+            {section.items.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </div>
+      ))}
+      {facility.menuSections ? <CampusMenuGroups sections={facility.menuSections} /> : null}
+    </div>
+  );
+}
+
+function CampusMenuGroups({ sections }: { sections: NonNullable<CampusFacilityDetail["menuSections"]> }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="facility-menu-panel">
+      <div className="facility-menu-prompt">
+        <span>메뉴 보기를 누르면 메뉴가 나옵니다</span>
+        <button
+          aria-expanded={isOpen}
+          className="facility-menu-toggle"
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+        >
+          {isOpen ? "메뉴 접기" : "메뉴 보기"}
+        </button>
+      </div>
+      {isOpen ? (
+        <div className="facility-menu-groups">
+          {sections.map((section) => (
+            <section className="facility-menu-group" key={section.name}>
+              <h3>{section.name}</h3>
+              <ul>
+                {section.items.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </section>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }

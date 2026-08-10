@@ -421,7 +421,7 @@ export default function NoticesPage() {
           <div className="hero-art" aria-hidden="true">
             <img
               className="megaphone-image"
-              src="/images/notices/ChatGPT%20Image%202026%E1%84%82%E1%85%A7%E1%86%AB%207%E1%84%8B%E1%85%AF%E1%86%AF%2030%E1%84%8B%E1%85%B5%E1%86%AF%20%E1%84%8B%E1%85%A9%E1%84%8C%E1%85%A5%E1%86%AB%2010_32_09.png"
+              src="/images/notices/notice-banner-megaphone.png"
               alt=""
             />
           </div>

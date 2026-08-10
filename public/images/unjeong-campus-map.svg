@@ -12,8 +12,8 @@
   <circle cx="150" cy="585" r="44" fill="#f6c65b"/>
   <text x="388" y="335" fill="#fff" font-family="Arial, sans-serif" font-size="31" font-weight="700" text-anchor="middle">A동</text>
   <text x="665" y="275" fill="#fff" font-family="Arial, sans-serif" font-size="31" font-weight="700" text-anchor="middle">B동</text>
-  <text x="878" y="440" fill="#fff" font-family="Arial, sans-serif" font-size="27" font-weight="700" text-anchor="middle">도서관</text>
-  <text x="568" y="545" fill="#fff" font-family="Arial, sans-serif" font-size="27" font-weight="700" text-anchor="middle">학생회관</text>
+  <text x="878" y="440" fill="#fff" font-family="Arial, sans-serif" font-size="31" font-weight="700" text-anchor="middle">C동</text>
+  <text x="568" y="545" fill="#fff" font-family="Arial, sans-serif" font-size="31" font-weight="700" text-anchor="middle">P동</text>
   <text x="275" y="495" fill="#fff" font-family="Arial, sans-serif" font-size="27" font-weight="700" text-anchor="middle">강의동</text>
   <text x="150" y="595" fill="#18201d" font-family="Arial, sans-serif" font-size="24" font-weight="700" text-anchor="middle">정문</text>
 </svg>

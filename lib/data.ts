@@ -108,17 +108,7 @@ export const courses: Course[] = [
   }
 ];
 
-export const personalSchedules: PersonalSchedule[] = [
-  {
-    id: "personal-1",
-    userId: demoUser.id,
-    title: "통학 고정 시간",
-    dayOfWeek: "FRI",
-    startTime: "16:00",
-    endTime: "18:00",
-    memo: "금요일은 일찍 출발"
-  }
-];
+export const personalSchedules: PersonalSchedule[] = [];
 
 export const campusPlaces: CampusPlace[] = [
   {

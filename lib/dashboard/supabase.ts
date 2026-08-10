@@ -1,5 +1,5 @@
-import type { UserProfile } from "@/lib/types";
-import type { ChecklistItem, DashboardData, TodayScheduleItem } from "@/types/dashboard";
+import type { PersonalSchedule, UserProfile } from "@/lib/types";
+import type { ChecklistItem, DashboardData } from "@/types/dashboard";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type DashboardSupabaseResult = {
@@ -9,7 +9,16 @@ type DashboardSupabaseResult = {
   databaseUserId: string | null;
 };
 
-const dayCodes = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
+type DashboardPersonalScheduleRow = {
+  id: string;
+  user_id: string;
+  timetable_id: string | null;
+  title: string;
+  day_of_week: PersonalSchedule["dayOfWeek"];
+  start_time: string;
+  end_time: string;
+  memo: string | null;
+};
 
 export async function loadDashboardFromSupabase(
   fallbackUser: UserProfile,
@@ -44,17 +53,12 @@ export async function loadDashboardFromSupabase(
       createdAt: profile.created_at
     };
 
-    const [timetableResult, personalResult, checklistResult] = await Promise.all([
+    const [timetableResult, checklistResult] = await Promise.all([
       supabase
         .from("timetables")
         .select("id, user_id, semester, title, is_selected, score, created_at, class_schedules(id, timetable_id, course_id, course_name, professor_name, day_of_week, start_time, end_time, building_name, room_name, color, memo)")
         .eq("user_id", profile.id)
         .eq("is_selected", true),
-      supabase
-        .from("personal_schedules")
-        .select("id, title, start_time, end_time, memo")
-        .eq("user_id", profile.id)
-        .eq("day_of_week", dayCodes[new Date().getDay()]),
       supabase
         .from("freshman_checklist_items")
         .select("item_key, label, completed")
@@ -62,8 +66,26 @@ export async function loadDashboardFromSupabase(
         .order("sort_order")
     ]);
 
-    const timetables = !timetableResult.error && timetableResult.data?.length
-      ? timetableResult.data.map((row) => ({
+    const timetableRows = !timetableResult.error && timetableResult.data?.length ? timetableResult.data : [];
+    const timetableIds = timetableRows.map((row) => row.id);
+    const personalResult = timetableIds.length
+      ? await supabase
+          .from("personal_schedules")
+          .select("id, user_id, timetable_id, title, day_of_week, start_time, end_time, memo")
+          .in("timetable_id", timetableIds)
+      : { data: [], error: null };
+    const personalRows = !personalResult.error ? (personalResult.data ?? []) as DashboardPersonalScheduleRow[] : [];
+    const personalSchedulesByTimetableId = personalRows.reduce<Map<string, DashboardPersonalScheduleRow[]>>((grouped, row) => {
+      if (!row.timetable_id) {
+        return grouped;
+      }
+
+      grouped.set(row.timetable_id, [...(grouped.get(row.timetable_id) ?? []), row]);
+      return grouped;
+    }, new Map());
+
+    const timetables = timetableRows.length
+      ? timetableRows.map((row) => ({
           id: row.id,
           userId: row.user_id,
           semester: row.semester,
@@ -84,20 +106,18 @@ export async function loadDashboardFromSupabase(
             roomName: item.room_name,
             color: item.color,
             memo: item.memo ?? undefined
+          })),
+          personalSchedules: (personalSchedulesByTimetableId.get(row.id) ?? []).map((item) => ({
+            id: item.id,
+            userId: item.user_id,
+            title: item.title,
+            dayOfWeek: item.day_of_week,
+            startTime: item.start_time,
+            endTime: item.end_time,
+            memo: item.memo ?? undefined
           }))
         })) as DashboardData["timetables"]
       : fallbackData.timetables;
-
-    const personalTodaySchedules: TodayScheduleItem[] = !personalResult.error && personalResult.data?.length
-      ? personalResult.data.map((row) => ({
-          id: row.id,
-          type: "PERSONAL",
-          title: row.title,
-          startTime: row.start_time,
-          endTime: row.end_time,
-          subtitle: row.memo ?? undefined
-        }))
-      : fallbackData.personalTodaySchedules;
 
     const checklistItems: ChecklistItem[] = !checklistResult.error && checklistResult.data?.length
       ? checklistResult.data.map((row) => ({ id: row.item_key, label: row.label, completed: row.completed }))
@@ -105,7 +125,7 @@ export async function loadDashboardFromSupabase(
 
     return {
       user: databaseUser,
-      data: { ...fallbackData, timetables, personalTodaySchedules },
+      data: { ...fallbackData, timetables, personalTodaySchedules: [] },
       checklistItems,
       databaseUserId: profile.id
     };

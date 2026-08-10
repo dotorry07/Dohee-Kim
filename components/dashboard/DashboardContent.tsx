@@ -36,6 +36,10 @@ function Heading({ icon, title, href, meta }: { icon: DashboardIconName; title: 
 }
 function minutes(time: string) { const [h, m] = time.split(":").map(Number); return h * 60 + m; }
 
+function getNoticeHref(sourceUrl?: string) {
+  return sourceUrl || "/notices";
+}
+
 function ScheduleItem({ item, state }: { item: TodayScheduleItem; state: ScheduleState }) {
   return <li className={`${styles.scheduleItem} ${state ? styles[state] : ""}`}>
     <div className={styles.scheduleTime}><strong>{item.startTime}</strong><span>{item.endTime ? `–${item.endTime}` : ""}</span></div>
@@ -95,9 +99,13 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
   }, [syncFavoriteTimetables]);
 
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const userTimetables = dashboardTimetables.filter((item) => item.userId === user.id);
-  const currentSemesterTimetables = userTimetables.filter((item) => item.semester === currentSemester);
   const selectedCurrentSemesterTimetableId = selectedTimetableIdsBySemester[currentSemester] ?? null;
+  const userTimetables = dashboardTimetables.filter((item) => (
+    item.userId === user.id
+    || item.userId === databaseUserId
+    || item.id === selectedCurrentSemesterTimetableId
+  ));
+  const currentSemesterTimetables = userTimetables.filter((item) => item.semester === currentSemester);
   const selectedCurrentSemesterTimetables = selectedCurrentSemesterTimetableId
     ? currentSemesterTimetables.filter((item) => item.id === selectedCurrentSemesterTimetableId)
     : [];
@@ -117,13 +125,14 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
   const studentNumber = user.id.replace(/\D/g, "").slice(-8) || "학번 미등록";
   const important = [...notices].sort((a, b) => Number(b.isPinned) - Number(a.isPinned)).slice(0, 4);
   const recent = [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
-  const todaySchedules: TodayScheduleItem[] = [
+  const timetablePersonalSchedules = activeTimetables.flatMap((timetable) => (timetable.personalSchedules ?? [])
+    .filter((item) => item.dayOfWeek === ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][now.getDay()])
+    .map((item) => ({ id: item.id, type: "PERSONAL" as const, title: item.title, startTime: item.startTime, endTime: item.endTime, subtitle: item.memo })));
+  const todaySchedules: TodayScheduleItem[] = Array.from(new Map([
     ...classes.map((item) => ({ id: item.id, type: "CLASS" as const, title: item.courseName, startTime: item.startTime, endTime: item.endTime, location: `${item.buildingName} ${item.roomName}`, subtitle: `${item.professorName} 교수` })),
-    ...activeTimetables.flatMap((timetable) => (timetable.personalSchedules ?? [])
-      .filter((item) => item.dayOfWeek === ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][now.getDay()])
-      .map((item) => ({ id: item.id, type: "PERSONAL" as const, title: item.title, startTime: item.startTime, endTime: item.endTime, subtitle: item.memo })))
-  ].sort((a, b) => minutes(a.startTime) - minutes(b.startTime));
-  const firstScheduleLocation = todaySchedules.find((item) => item.location)?.location ?? "학생회관";
+    ...timetablePersonalSchedules
+  ].map((item) => [item.id, item])).values()).sort((a, b) => minutes(a.startTime) - minutes(b.startTime));
+  const firstScheduleLocation = todaySchedules.find((item) => item.location)?.location ?? null;
   const mealDay = [null, "MON", "TUE", "WED", "THU", "FRI", null][now.getDay()] as MealWeekday | null;
   const todayMeal = campusMeals[mealCampus];
   const todayMenus = mealDay ? todayMeal.menusByDay[mealDay] : undefined;
@@ -139,9 +148,9 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
 
     <section className={styles.twoGrid}>
       <article className={styles.card}><Heading icon="calendar" title="오늘의 일정" meta={`${todaySchedules.length}개`}/>
-        {todaySchedules.length ? <><ol className={styles.scheduleList}>{todaySchedules.map((item) => { const state: ScheduleState = nowMinutes < minutes(item.startTime) ? "next" : item.endTime && nowMinutes < minutes(item.endTime) ? "current" : "ended"; return <ScheduleItem item={item} key={item.id} state={state}/>; })}</ol><div className={styles.actionArea}><Link className={styles.actionButton} href={`/map?location=${encodeURIComponent(firstScheduleLocation)}`}>캠퍼스 길찾기</Link><small>다음 일정 장소({firstScheduleLocation}) 위치 확인하기</small></div></> : <div className={`${styles.empty} ${styles.scheduleEmpty}`}><span className={styles.emptyIcon} aria-hidden="true">☕</span><p>오늘은 예정된 일정이 없습니다. 편안한 휴식을 취하세요! ☕</p></div>}
+        {todaySchedules.length ? <><ol className={styles.scheduleList}>{todaySchedules.map((item) => { const state: ScheduleState = nowMinutes < minutes(item.startTime) ? "next" : item.endTime && nowMinutes < minutes(item.endTime) ? "current" : "ended"; return <ScheduleItem item={item} key={item.id} state={state}/>; })}</ol>{firstScheduleLocation ? <div className={styles.actionArea}><Link className={styles.actionButton} href={`/map?location=${encodeURIComponent(firstScheduleLocation)}`}>캠퍼스 길찾기</Link><small>다음 일정 장소({firstScheduleLocation}) 위치 확인하기</small></div> : null}</> : <div className={`${styles.empty} ${styles.scheduleEmpty}`}><span className={styles.emptyIcon} aria-hidden="true">☕</span><p>오늘은 예정된 일정이 없습니다. 편안한 휴식을 취하세요! ☕</p></div>}
       </article>
-      <article className={styles.card}><Heading icon="notice" title="중요 공지" href="/notices"/><div className={styles.noticeList}>{important.length ? important.map((notice) => <Link className={styles.noticeItem} href="/notices" key={notice.id}><span className={`${styles.badge} ${styles[`notice_${notice.category}`]}`}>{noticeLabels[notice.category]}</span><div><h3>{notice.isPinned && <i className={styles.unread} aria-label="읽지 않은 중요 공지"/>}{notice.title}</h3><p>{notice.summary}</p><time>{new Intl.DateTimeFormat("ko-KR").format(new Date(notice.publishedAt))}</time></div></Link>) : <div className={styles.empty}>표시할 공지가 없습니다.</div>}</div></article>
+      <article className={styles.card}><Heading icon="notice" title="중요 공지" href="/notices"/><div className={styles.noticeList}>{important.length ? important.map((notice) => <Link className={styles.noticeItem} href={getNoticeHref(notice.sourceUrl)} key={notice.id}><span className={`${styles.badge} ${styles[`notice_${notice.category}`]}`}>{noticeLabels[notice.category]}</span><div><h3>{notice.isPinned && <i className={styles.unread} aria-label="읽지 않은 중요 공지"/>}{notice.title}</h3><p>{notice.summary}</p><time>{new Intl.DateTimeFormat("ko-KR").format(new Date(notice.publishedAt))}</time></div></Link>) : <div className={styles.empty}>표시할 공지가 없습니다.</div>}</div></article>
     </section>
 
     <section className={styles.mainGrid}>

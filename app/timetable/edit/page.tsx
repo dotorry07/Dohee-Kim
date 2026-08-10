@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
-import { courses, personalSchedules as seedPersonalSchedules } from "@/lib/data";
+import { courses } from "@/lib/data";
 import { sungshinDepartments } from "@/lib/sungshin-departments";
 import { dayLabels, isRecordedRemoteClass, overlaps, timetableColors, toMinutes, weekdays } from "@/lib/timetable";
 import { loadRemoteTimetables, saveRemoteTimetable } from "@/lib/timetable-storage";
@@ -13,6 +13,7 @@ import styles from "../SwipeNotice.module.css";
 import type { ClassSchedule, Course, DayOfWeek, PersonalSchedule, Timetable, UserProfile } from "@/lib/types";
 
 const savedTimetablesKey = "newbie-on:timetables";
+const emptyPersonalSchedules: PersonalSchedule[] = [];
 const plannerHours = Array.from({ length: 12 }, (_, index) => 9 + index);
 const plannerStartMinutes = plannerHours[0] * 60;
 const plannerEndMinutes = (plannerHours[plannerHours.length - 1] + 1) * 60;
@@ -629,7 +630,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   const [semester, setSemester] = useState(currentSemester);
   const selectedSemester = splitSemester(semester);
   const [classes, setClasses] = useState<ClassSchedule[]>([]);
-  const [personalSchedules, setPersonalSchedules] = useState<PersonalSchedule[]>(seedPersonalSchedules);
+  const [personalSchedules, setPersonalSchedules] = useState<PersonalSchedule[]>(emptyPersonalSchedules);
   const [selectedRequiredCourseIds, setSelectedRequiredCourseIds] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [selectedMajorTrack, setSelectedMajorTrack] = useState<MajorTrack>("primary");
@@ -722,7 +723,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     let nextTitle = "새 시간표";
     let nextSemester = currentSemester;
     let nextClasses: ClassSchedule[] = [];
-    let nextPersonalSchedules: PersonalSchedule[] = seedPersonalSchedules;
+    let nextPersonalSchedules: PersonalSchedule[] = emptyPersonalSchedules;
     let nextSelectedRequiredCourseIds: string[] = [];
     let nextSelectedMajorDepartments = [department];
     let nextSelectedMajorGrade = String(grade);
@@ -754,7 +755,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         nextTitle = existing.title;
         nextSemester = normalizeSupportedSemester(existing.semester);
         nextClasses = existing.classes;
-        nextPersonalSchedules = existing.personalSchedules ?? seedPersonalSchedules;
+        nextPersonalSchedules = existing.personalSchedules ?? emptyPersonalSchedules;
         nextSelectedRequiredCourseIds = getSelectedRequiredCourseNames(existing.classes, requiredCourses);
       }
     }
@@ -816,7 +817,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         setTitle(existing.title);
         setSemester(normalizeSupportedSemester(existing.semester));
         setClasses(existing.classes);
-        setPersonalSchedules(existing.personalSchedules ?? seedPersonalSchedules);
+        setPersonalSchedules(existing.personalSchedules ?? emptyPersonalSchedules);
         setSelectedRequiredCourseIds(getSelectedRequiredCourseNames(existing.classes, requiredCourses));
         setError("");
       } catch {

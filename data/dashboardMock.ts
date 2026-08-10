@@ -49,6 +49,4 @@ export const campusMeals: Record<MealCampus, MealMenu> = {
 
 // TODO: 개인 일정 API가 준비되면 이 예시 일정을 사용자 일정으로 교체합니다.
 export const personalTodaySchedules: TodayScheduleItem[] = [
-  { id: "club-orientation", type: "CLUB", title: "새내기 OT 준비", startTime: "13:00", endTime: "15:00", location: "학생회관", subtitle: "동아리 운영진 모임" },
-  { id: "part-time-cafe", type: "PART_TIME", title: "카페 근무", startTime: "18:00", endTime: "22:00", location: "성신여대입구점", subtitle: "저녁 근무" }
 ];

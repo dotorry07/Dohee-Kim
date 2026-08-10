@@ -28,7 +28,7 @@ export function AppHeader() {
       <div className="topbar-inner">
         <Link className="brand" href="/">
           <span className="brand-mark" aria-hidden="true">
-            <img src="/images/app-logo-header.png" alt="" />
+            <img src="/images/app-logo-header.png" alt="" width={36} height={36} />
           </span>
           <span>새내기 ON</span>
         </Link>

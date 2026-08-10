@@ -55,7 +55,7 @@ button {
   top: 0;
   z-index: 20;
   border-bottom: 1px solid var(--line);
-  background: rgba(250, 249, 246, 0.95);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(12px);
 }
 
@@ -63,39 +63,49 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  max-width: 1180px;
+  gap: 32px;
+  width: 100%;
+  max-width: 1440px;
+  min-height: 65px;
   margin: 0 auto;
-  padding: 14px 20px;
+  padding: 12px 32px;
 }
 
 .brand {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
   font-weight: 800;
   letter-spacing: 0;
 }
 
 .brand-mark {
   display: grid;
+  flex: 0 0 36px;
   width: 36px;
   height: 36px;
   place-items: center;
+  overflow: hidden;
 }
 
 .brand-mark img {
   display: block;
   width: 100%;
   height: 100%;
+  max-width: 36px;
+  max-height: 36px;
   object-fit: contain;
 }
 
 .nav {
   display: flex;
+  min-width: 0;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: nowrap;
 }
 
 .nav a,
@@ -4197,8 +4207,25 @@ button {
   }
 
   .topbar-inner {
-    align-items: flex-start;
-    flex-direction: column;
+    gap: 18px;
+    padding-inline: 16px;
+  }
+
+  .nav {
+    justify-content: flex-start;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav a,
+  .nav button {
+    flex: 0 0 auto;
   }
 
   .grid.two,

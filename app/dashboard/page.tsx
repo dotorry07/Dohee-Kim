@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
-import { courses, notices, posts, timetables } from "@/lib/data";
+import { courses, notices, posts } from "@/lib/data";
 import { dayLabels, getTodayClasses } from "@/lib/timetable";
+import { loadRemoteTimetables } from "@/lib/timetable-storage";
+import type { Timetable, UserProfile } from "@/lib/types";
+
+const savedTimetablesKey = "newbie-on:timetables";
 
 function toMinutes(time: string) {
   const [hour, minute] = time.split(":").map(Number);
@@ -101,23 +106,54 @@ function DashboardIcon({ name }: { name: "calendar" | "megaphone" | "star" | "ch
 export default function DashboardPage() {
   return (
     <AuthGuard>
-      {(user) => {
-        const now = new Date();
-        const selected = timetables.find((item) => item.userId === user.id && item.isSelected);
-        const todayClasses = selected ? getTodayClasses(selected.classes) : [];
-        const nextClass = todayClasses.find((item) => toMinutes(item.endTime) > now.getHours() * 60 + now.getMinutes());
-        const minutesUntilNext = nextClass ? getMinutesUntil(nextClass.startTime, now) : null;
-        const today = new Intl.DateTimeFormat("ko-KR", {
-          month: "long",
-          day: "numeric",
-          weekday: "short"
-        }).format(now);
-        const pinnedNotices = notices.filter((notice) => notice.isPinned).slice(0, 2);
-        const recommendedCourses = [...courses].sort((a, b) => b.reviewAverage - a.reviewAverage).slice(0, 3);
-        const recentPosts = [...posts].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5);
+      {(user) => <DashboardWorkspace user={user} />}
+    </AuthGuard>
+  );
+}
 
-        return (
-          <main className="dashboard-page">
+function DashboardWorkspace({ user }: { user: UserProfile }) {
+  const [userTimetables, setUserTimetables] = useState<Timetable[]>([]);
+  const now = new Date();
+  const selected = userTimetables.find((item) => item.isSelected);
+  const todayClasses = selected ? getTodayClasses(selected.classes) : [];
+  const nextClass = todayClasses.find((item) => toMinutes(item.endTime) > now.getHours() * 60 + now.getMinutes());
+  const minutesUntilNext = nextClass ? getMinutesUntil(nextClass.startTime, now) : null;
+  const today = new Intl.DateTimeFormat("ko-KR", {
+    month: "long",
+    day: "numeric",
+    weekday: "short"
+  }).format(now);
+  const pinnedNotices = notices.filter((notice) => notice.isPinned).slice(0, 2);
+  const recommendedCourses = [...courses].sort((a, b) => b.reviewAverage - a.reviewAverage).slice(0, 3);
+  const recentPosts = [...posts].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 5);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(savedTimetablesKey);
+
+    if (saved) {
+      try {
+        setUserTimetables(JSON.parse(saved) as Timetable[]);
+      } catch {
+        window.localStorage.removeItem(savedTimetablesKey);
+      }
+    }
+
+    async function loadRemote() {
+      try {
+        const remoteTimetables = await loadRemoteTimetables(user);
+        if (remoteTimetables) {
+          setUserTimetables(remoteTimetables);
+        }
+      } catch {
+        // 로컬 저장 시간표가 있으면 그대로 사용합니다.
+      }
+    }
+
+    void loadRemote();
+  }, [user]);
+
+  return (
+    <main className="dashboard-page">
             <section className="dashboard-shell">
               <div className="dashboard-hero">
                 <div>
@@ -180,7 +216,7 @@ export default function DashboardPage() {
                   ) : (
                     <div className="dashboard-empty">
                       <strong>오늘 수업이 없습니다.</strong>
-                      <span>대표 시간표를 선택하면 오늘 일정이 표시됩니다.</span>
+                      <span>시간표를 선택하면 오늘 일정이 표시됩니다.</span>
                     </div>
                   )}
                 </article>
@@ -281,8 +317,5 @@ export default function DashboardPage() {
               </section>
             </section>
           </main>
-        );
-      }}
-    </AuthGuard>
   );
 }

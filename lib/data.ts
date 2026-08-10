@@ -1,4 +1,4 @@
-import type { BoardPost, CampusPlace, Course, CourseReview, Notice, PersonalSchedule, Timetable, UserProfile } from "@/lib/types";
+import type { BoardPost, CampusPlace, Course, CourseReview, Notice, PersonalSchedule, UserProfile } from "@/lib/types";
 
 export const departments = ["컴퓨터공학과", "AI융합학부", "경영학과", "미디어커뮤니케이션학과", "간호학과"];
 export const grades = [1, 2, 3, 4] as const;
@@ -117,33 +117,6 @@ export const personalSchedules: PersonalSchedule[] = [
     startTime: "16:00",
     endTime: "18:00",
     memo: "금요일은 일찍 출발"
-  }
-];
-
-export const timetables: Timetable[] = [
-  {
-    id: "timetable-1",
-    userId: demoUser.id,
-    semester: "2026-1",
-    title: "1학년 1학기 추천안",
-    isSelected: true,
-    score: 4.58,
-    classes: courses.slice(0, 4).map((course, index) => ({
-      id: `class-${course.id}`,
-      timetableId: "timetable-1",
-      courseId: course.id,
-      courseName: course.courseName,
-      professorName: course.professorName,
-      dayOfWeek: course.dayOfWeek,
-      startTime: course.startTime,
-      endTime: course.endTime,
-      buildingName: course.buildingName,
-      roomName: course.roomName,
-      color: ["#582f82", "#7350a0", "#8b5fbf", "#442363"][index],
-      memo: course.requiredType === "required" ? "필수 이수" : ""
-    })),
-    personalSchedules,
-    createdAt: "2026-03-02T09:00:00.000Z"
   }
 ];
 

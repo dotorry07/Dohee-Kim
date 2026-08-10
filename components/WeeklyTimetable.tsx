@@ -3,7 +3,7 @@ import { dayLabels, isRecordedRemoteClass, toMinutes, weekdays } from "@/lib/tim
 import type { CSSProperties } from "react";
 import type { ClassSchedule, PersonalSchedule } from "@/lib/types";
 
-const hours = Array.from({ length: 14 }, (_, index) => 9 + index);
+const hours = Array.from({ length: 12 }, (_, index) => 9 + index);
 
 export function WeeklyTimetable({
   classes,
@@ -13,8 +13,8 @@ export function WeeklyTimetable({
   personalSchedules?: PersonalSchedule[];
 }) {
   const onlineClasses = classes.filter(isRecordedRemoteClass);
-  const mergedClasses = mergeAdjacentClasses(classes.filter((item) => !isRecordedRemoteClass(item)));
-  const schedules = (personalSchedules ?? []).filter((item) => weekdays.includes(item.dayOfWeek as (typeof weekdays)[number]));
+  const mergedClasses = mergeAdjacentClasses(classes.filter((item) => !isRecordedRemoteClass(item))).filter(isInVisibleTimeRange);
+  const schedules = (personalSchedules ?? []).filter((item) => weekdays.includes(item.dayOfWeek as (typeof weekdays)[number]) && isInVisibleTimeRange(item));
 
   return (
     <div className="weekly">
@@ -126,4 +126,10 @@ function getOverlayStyle(item: { dayOfWeek: string; startTime: string; endTime: 
     "--start-slot": startSlot,
     "--duration-slots": durationSlots
   } as CSSProperties;
+}
+
+function isInVisibleTimeRange(item: { startTime: string; endTime: string }) {
+  const start = Math.max(toMinutes(item.startTime), hours[0] * 60);
+  const end = Math.min(toMinutes(item.endTime), (hours[hours.length - 1] + 1) * 60);
+  return end > start;
 }

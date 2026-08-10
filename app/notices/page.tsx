@@ -502,6 +502,8 @@ export default function NoticesPage() {
         </form>
       </section>
 
+      {isLoading ? <section className="success" style={{ marginTop: 16 }}>성신여대 공식 사이트 공지사항을 불러오는 중입니다.</section> : null}
+      {error ? <section className="error" style={{ marginTop: 16 }}>{error}</section> : null}
       {isLoading ? <section className="notice-state">학과 공지사항에서 대회 관련 공지를 불러오는 중입니다.</section> : null}
       {error ? <section className="notice-state error-state">{error}</section> : null}
 

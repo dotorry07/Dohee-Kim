@@ -1,6 +1,7 @@
 "use client";
 
 import { demoUser } from "@/lib/data";
+import { extractStudentNumber, getGradeFromStudentNumber, getGradeFromUserId } from "@/lib/student";
 import type { UserProfile } from "@/lib/types";
 
 const USER_KEY = "newbie-on:user";
@@ -16,7 +17,10 @@ export function getStoredUser(): UserProfile | null {
   }
 
   try {
-    return JSON.parse(raw) as UserProfile;
+    const user = JSON.parse(raw) as UserProfile;
+    const grade = getGradeFromUserId(user.id, user.grade);
+
+    return grade === user.grade ? user : { ...user, grade };
   } catch {
     window.localStorage.removeItem(USER_KEY);
     return null;
@@ -41,16 +45,20 @@ export function signUp(input: {
   studentNumber?: string;
 }) {
   const timestamp = Date.now();
+  const normalizedStudentNumber = input.studentNumber?.trim() ?? "";
+  const grade = normalizedStudentNumber
+    ? getGradeFromStudentNumber(normalizedStudentNumber)
+    : input.grade as UserProfile["grade"];
   const user: UserProfile = {
     ...demoUser,
-    id: input.studentNumber?.trim() ? `local-${input.studentNumber.trim()}` : `local-${timestamp}`,
+    id: normalizedStudentNumber ? `local-${normalizedStudentNumber}` : `local-${timestamp}`,
     authUserId: `auth-local-${timestamp}`,
     email: input.email,
     name: input.name,
     nickname: input.name,
     department: input.department,
     secondaryDepartment: input.secondaryDepartment?.trim() ?? "",
-    grade: input.grade as UserProfile["grade"],
+    grade,
     createdAt: new Date().toISOString()
   };
 
@@ -65,10 +73,19 @@ export function signOut() {
 }
 
 export function updateStoredNickname(nickname: string) {
+  return updateStoredProfile({ nickname });
+}
+
+export function updateStoredProfile(input: Partial<Pick<UserProfile, "nickname" | "name" | "department" | "secondaryDepartment">>) {
   const user = getStoredUser();
   if (!user) return null;
 
-  const updatedUser = { ...user, nickname };
+  const studentNumber = extractStudentNumber(user.id);
+  const updatedUser = {
+    ...user,
+    ...input,
+    grade: studentNumber ? getGradeFromStudentNumber(studentNumber) : user.grade
+  };
   window.localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
   return updatedUser;
 }

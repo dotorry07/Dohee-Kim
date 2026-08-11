@@ -63,7 +63,7 @@ export function generateTimetableCandidates(input: {
 
   const electives = input.courses
     .filter((course) => course.department === input.department && course.grade === input.grade && course.requiredType === "elective")
-    .sort((a, b) => b.reviewAverage - a.reviewAverage);
+    .sort((a, b) => a.courseName.localeCompare(b.courseName, "ko"));
 
   const combinations = [
     baseCourses,
@@ -79,15 +79,13 @@ export function generateTimetableCandidates(input: {
 }
 
 function toTimetable(userId: string, courseSet: Course[], index: number): Timetable {
-  const score = courseSet.reduce((sum, course) => sum + course.reviewAverage, 0) / Math.max(courseSet.length, 1);
-
   return {
     id: `candidate-${index + 1}`,
     userId,
     semester: "2026-1",
     title: `추천 시간표 ${index + 1}`,
     isSelected: index === 0,
-    score: Number(score.toFixed(2)),
+    score: courseSet.length,
     classes: courseSet.map((course, courseIndex) => ({
       id: `candidate-${index + 1}-${course.id}`,
       timetableId: `candidate-${index + 1}`,

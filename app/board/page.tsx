@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { BoardAuthorMenu } from "@/components/board-author-menu";
+import { BannerTagIcon } from "@/components/BannerTagIcon";
 import { BOARD_RANKS, BoardRankIcon, BoardUserRank } from "@/components/board-user-rank";
-import { getStoredUser, updateStoredNickname } from "@/lib/auth/client";
+import { getStoredUser } from "@/lib/auth/client";
 import { getBoardPosts, loadPersistentBoardPosts, saveBoardPosts, subscribeToBoardPosts } from "@/lib/board-storage";
 import type { BoardPost } from "@/lib/types";
 import { TimetableSelect } from "../timetable/TimetableSelect";
@@ -114,9 +115,6 @@ export default function BoardPage() {
   const [currentDraftId, setCurrentDraftId] = useState("");
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [isRankGuideOpen, setIsRankGuideOpen] = useState(false);
-  const [isNicknameEditing, setIsNicknameEditing] = useState(false);
-  const [nicknameDraft, setNicknameDraft] = useState("");
-  const [nicknameError, setNicknameError] = useState("");
   const [draftToDelete, setDraftToDelete] = useState<BoardDraft | null>(null);
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
 
@@ -335,61 +333,24 @@ export default function BoardPage() {
     setIsComposerOpen(true);
   }
 
-  function startNicknameEditing() {
-    if (!user) return;
-    setNicknameDraft(user.nickname);
-    setNicknameError("");
-    setIsNicknameEditing(true);
-  }
-
-  async function updateNickname(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!user) return;
-
-    const nickname = nicknameDraft.trim();
-    if (nickname.length < 2 || nickname.length > 12) {
-      setNicknameError("닉네임은 2~12자로 입력해 주세요.");
-      return;
-    }
-
-    const nextPosts = posts.map((post) => ({
-      ...post,
-      authorName: post.userId === user.id ? nickname : post.authorName,
-      comments: post.comments.map((item) => item.userId === user.id ? { ...item, authorName: nickname } : item)
-    }));
-    const saved = await saveBoardPosts(nextPosts);
-    if (!saved) {
-      setNicknameError("닉네임을 DB에 저장하지 못했습니다.");
-      return;
-    }
-
-    const updatedUser = updateStoredNickname(nickname);
-    setPosts(nextPosts);
-    setUser(updatedUser);
-    setIsNicknameEditing(false);
-    setNicknameError("");
-  }
-
   return (
     <main className="page board-page">
       <section className="page-header board-page-header">
-        <div>
-          <h1>게시판</h1>
-          <p>자유게시판, 학과별 게시판, 정보 공유 글을 확인합니다.</p>
-        </div>
-        <div className="board-banner-decoration" aria-hidden="true">
-          <svg viewBox="0 0 210 100">
-            <path className="board-banner-bubble board-banner-bubble-back" d="M100 19h75a13 13 0 0 1 13 13v27a13 13 0 0 1-13 13h-24l-15 14 3-14h-39a13 13 0 0 1-13-13V32a13 13 0 0 1 13-13Z" />
-            <path className="board-banner-bubble" d="M27 34h80a14 14 0 0 1 14 14v26a14 14 0 0 1-14 14H65L48 98l5-10H27a14 14 0 0 1-14-14V48a14 14 0 0 1 14-14Z" />
-            <circle cx="39" cy="61" r="4" />
-            <circle cx="58" cy="61" r="4" />
-            <circle cx="77" cy="61" r="4" />
-            <g transform="translate(142 27) scale(1.15)">
-              <path className="board-banner-gem" d="M8.4 8.1 12 2.6l3.6 5.5-1.15 11.6h-4.9L8.4 8.1Z" />
-              <path className="board-banner-gem board-banner-gem-side" d="m7.5 7.25 2.2 3.95-.9 8-4.65-3.7-.35-5.3 3.7-2.95ZM16.5 6.2l3.7 3.2-.8 6.9-4.95 3.4-.35-7.7 2.4-5.8Z" />
-              <path className="board-banner-shine" d="m12 4.9-1.35 4.25L12 17.6l1.35-8.45L12 4.9ZM5.6 10.7l3.05 2.2m9.75-3.05-3.7 3.05" />
-            </g>
-          </svg>
+        <div className="app-banner-inner">
+          <div className="app-banner-copy">
+            <h1>게시판</h1>
+            <p>자유게시판, 학과별 게시판, 정보 공유 글을 확인합니다.</p>
+            <div className="app-banner-tags" aria-hidden="true">
+              <span><BannerTagIcon icon="chat" />자유게시판</span>
+              <span><BannerTagIcon icon="building" />학과별 게시판</span>
+              <span><BannerTagIcon icon="bulb" />정보 공유</span>
+              <span><BannerTagIcon icon="write" />글 작성</span>
+              <span><BannerTagIcon icon="like" />댓글/추천</span>
+            </div>
+          </div>
+          <div className="app-banner-art board-banner-art" aria-hidden="true">
+            <img src="/images/banner-board.png" alt="" />
+          </div>
         </div>
       </section>
 
@@ -462,25 +423,12 @@ export default function BoardPage() {
                       <Link href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`}>
                         <strong>{user.nickname}</strong>
                       </Link>
-                      <button className="board-profile-edit-button" type="button" aria-label="닉네임 수정" onClick={startNicknameEditing}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 3.7-.8L19 7.9a1.7 1.7 0 0 0 0-2.4l-.5-.5a1.7 1.7 0 0 0-2.4 0L5.8 15.3 5 19Z" /><path d="m14.8 6.3 2.9 2.9" /></svg>
-                      </button>
                     </div>
                     <Link className="board-profile-activity-button" href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`}>
                       게시판 활동 보기
                     </Link>
                   </div>
                 </div>
-                {isNicknameEditing ? (
-                  <form className="board-nickname-form" onSubmit={updateNickname}>
-                    <input aria-label="새 닉네임" autoFocus maxLength={12} value={nicknameDraft} onChange={(event) => setNicknameDraft(event.target.value)} />
-                    <div>
-                      <button className="button" type="submit">저장</button>
-                      <button className="ghost-button" type="button" onClick={() => setIsNicknameEditing(false)}>취소</button>
-                    </div>
-                    {nicknameError ? <small className="error">{nicknameError}</small> : null}
-                  </form>
-                ) : null}
               </>
             ) : (
               <Link className="board-profile-login" href="/auth/login">
@@ -515,7 +463,7 @@ export default function BoardPage() {
           </aside>
 
           <button className="panel board-sidebar-rank-button" type="button" onClick={() => setIsRankGuideOpen(true)}>
-            <BoardRankIcon className="violet" name="수정 등급" />
+            <BoardRankIcon className="rank-4" name="수정 등급" />
             <span className="board-sidebar-rank-copy">
               <strong>수정 등급</strong>
               <small>등급별 아이콘과 활동 기준 보기</small>
@@ -558,7 +506,9 @@ export default function BoardPage() {
       ) : null}
 
       {isComposerOpen ? (
-        <div className="board-composer-backdrop" role="presentation">
+        <div className="board-composer-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) closeComposer();
+        }}>
           <section className="board-composer" role="dialog" aria-modal="true" aria-labelledby="board-composer-title">
             <div className="section-title">
               <div>
@@ -626,7 +576,9 @@ export default function BoardPage() {
             </form>
           </section>
           {isCloseConfirmOpen ? (
-            <div className="board-close-confirm-backdrop">
+            <div className="board-close-confirm-backdrop" onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setIsCloseConfirmOpen(false);
+            }}>
               <section className="board-close-confirm" role="alertdialog" aria-modal="true" aria-labelledby="board-close-confirm-title" aria-describedby="board-close-confirm-description">
                 <div className="board-close-confirm-icon" aria-hidden="true">?</div>
                 <h2 id="board-close-confirm-title">작성 중인 글을 임시저장할까요?</h2>
@@ -640,15 +592,17 @@ export default function BoardPage() {
             </div>
           ) : null}
           {draftToDelete ? (
-            <div className="board-close-confirm-backdrop">
-              <section className="board-close-confirm board-draft-delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="board-draft-delete-title" aria-describedby="board-draft-delete-description">
-                <div className="board-close-confirm-icon" aria-hidden="true">
+            <div className="board-close-confirm-backdrop" onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setDraftToDelete(null);
+            }}>
+              <section className="board-close-confirm board-draft-delete-confirm delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="board-draft-delete-title" aria-describedby="board-draft-delete-description">
+                <div className="board-close-confirm-icon delete-confirm-mark" aria-hidden="true">
                   <svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 10v7m4-7v7" /></svg>
                 </div>
                 <h2 id="board-draft-delete-title">임시저장 글을 삭제할까요?</h2>
                 <p id="board-draft-delete-description"><strong>{draftToDelete.title.trim() || "제목 없음"}</strong><br />삭제한 임시저장 글은 다시 복구할 수 없습니다.</p>
                 <div className="board-close-confirm-actions">
-                  <button className="button board-draft-delete-confirm-button" type="button" onClick={confirmDeleteDraft}>삭제</button>
+                  <button className="button" type="button" onClick={confirmDeleteDraft}>삭제</button>
                   <button className="ghost-button" type="button" onClick={() => setDraftToDelete(null)}>취소</button>
                 </div>
               </section>

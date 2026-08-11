@@ -30,23 +30,36 @@ function ConnectedDashboard({ fallbackUser }: { fallbackUser: DashboardUser }) {
     checklistItems: freshmanChecklist,
     databaseUserId: null
   });
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
+    setIsLoading(true);
     setView({ user: fallbackUser, data: dashboardData, checklistItems: freshmanChecklist, databaseUserId: null });
 
-    void loadDashboardView(fallbackUser).then((result) => {
-      if (active) {
-        setView(result);
-      }
-    });
+    void loadDashboardView(fallbackUser)
+      .then((result) => {
+        if (active) {
+          setView(result);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setView({ user: fallbackUser, data: dashboardData, checklistItems: freshmanChecklist, databaseUserId: null });
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoading(false);
+        }
+      });
 
     return () => {
       active = false;
     };
   }, [fallbackUser]);
 
-  return <DashboardContent user={view.user} data={view.data} checklistItems={view.checklistItems} databaseUserId={view.databaseUserId} />;
+  return <DashboardContent user={view.user} data={view.data} checklistItems={view.checklistItems} databaseUserId={view.databaseUserId} isLoading={isLoading} />;
 }
 
 async function loadDashboardView(fallbackUser: DashboardUser): Promise<DashboardViewData> {

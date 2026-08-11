@@ -133,6 +133,14 @@ const semesterOptions = [
   { value: "1", label: "1학기" }
 ] as const;
 const electiveAreaOptions = ["인식과가치", "문학과예술", "사회의이해", "자연의설명", "공학과기술", "도전과실천"] as const;
+const electiveAreaIcons: Record<(typeof electiveAreaOptions)[number], string> = {
+  인식과가치: "💡",
+  문학과예술: "🎨",
+  사회의이해: "🌐",
+  자연의설명: "🌿",
+  공학과기술: "⚙️",
+  도전과실천: "🚀"
+};
 const electivePreferenceOptions: { value: ElectivePreference; label: string }[] = [
   { value: "no-consecutive", label: "연강시러" },
   { value: "no-first-period", label: "1교시 시러" },
@@ -697,7 +705,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         .filter((course) => isRecommendedCourseSelected(course) || !courseConflictsWithSchedule(course))
         .sort((left, right) => (
           Number(isRecommendedCourseSelected(right)) - Number(isRecommendedCourseSelected(left))
-          || right.reviewAverage - left.reviewAverage
+          || left.courseName.localeCompare(right.courseName, "ko")
         ));
       const selectedCourses = selectableCourses.filter(isRecommendedCourseSelected);
       const unselectedCourses = selectableCourses.filter((course) => !isRecommendedCourseSelected(course));
@@ -708,6 +716,32 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       ];
     },
     [classes, personalSchedules]
+  );
+  const selectedElectiveClasses = useMemo(
+    () => {
+      const selectedRecommendedIds = new Set(
+        recommendedElectiveCourses
+          .filter(isRecommendedCourseSelected)
+          .map((course) => `required-${course.id}`)
+      );
+      const selectedSungshinPrefixes = electiveCourses
+        .filter(isSungshinCourseSelected)
+        .map(getSungshinClassIdPrefix);
+      const selectedClassMap = new Map<string, ClassSchedule>();
+
+      classes.forEach((item) => {
+        if (
+          item.memo?.includes("교양")
+          || selectedRecommendedIds.has(item.id)
+          || selectedSungshinPrefixes.some((prefix) => item.id.startsWith(prefix))
+        ) {
+          selectedClassMap.set(item.id, item);
+        }
+      });
+
+      return Array.from(selectedClassMap.values());
+    },
+    [classes, electiveCourses, recommendedElectiveCourses]
   );
 
   useEffect(() => {
@@ -1026,7 +1060,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     router.push(`/timetable?semester=${encodeURIComponent(savedTimetable.semester)}`);
   }
 
-  function toClassSchedule(course: Course, colorOffset: number): ClassSchedule {
+  function toClassSchedule(course: Course, colorOffset: number, memo = "필수 이수"): ClassSchedule {
     return {
       id: `required-${course.id}`,
       timetableId: "draft",
@@ -1039,12 +1073,12 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       buildingName: course.buildingName,
       roomName: course.roomName,
       color: timetableColors[colorOffset % timetableColors.length],
-      memo: "필수 이수"
+      memo
     };
   }
 
   function addRecommendedCourse(course: Course) {
-    const newClass = toClassSchedule(course, classes.length);
+    const newClass = toClassSchedule(course, classes.length, "교양");
 
     if (!isRecordedRemoteClass(newClass) && classes.some((item) => !isRecordedRemoteClass(item) && overlaps(item, newClass))) {
       setCourseConflictNotice("선택한 강좌가 기존 강의 시간과 겹칩니다.");
@@ -1530,7 +1564,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
             <h1 id="timetable-edit-title">시간표 제작</h1>
             <p>{plannerSteps[activeStepIndex]?.label ?? "수업 선택"} 단계에서 필요한 항목을 선택하세요.</p>
           </div>
-          <img className="timetable-top-banner-image" src="/images/timetable-banner-icon.png" alt="" />
+          <img className="timetable-top-banner-image" src="/images/banner-timetable.png" alt="" />
         </div>
       </section>
 
@@ -1710,7 +1744,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
           </section>
 
           <section className="panel selected-class-list-panel">
-            <div className="section-title">
+            <div className="section-title selected-class-list-title">
               <h2>선택된 강의 목록</h2>
               <span className="badge">{classes.length}개</span>
             </div>
@@ -1786,7 +1820,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                       checked={selectedElectiveAreas.includes(area)}
                       onChange={(event) => toggleElectiveArea(area, event.target.checked)}
                     />
-                    <i aria-hidden="true" />
+                    <i aria-hidden="true">{electiveAreaIcons[area]}</i>
                     <span>
                       <strong>{area}</strong>
                     </span>
@@ -1855,7 +1889,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                           <span>
                             <strong>{course.courseName}</strong>
                             <em>교양</em>
-                            <small>{course.professorName} · {dayLabels[course.dayOfWeek]} {course.startTime}-{course.endTime} · 평균 {course.reviewAverage.toFixed(1)}점</small>
+                            <small>{course.professorName} · {dayLabels[course.dayOfWeek]} {course.startTime}-{course.endTime}</small>
                           </span>
                         </label>
                       );
@@ -1872,6 +1906,22 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
             </article>
 
           </section>
+          {selectedElectiveClasses.length ? (
+            <section className="panel selected-class-list-panel selected-elective-list-panel">
+              <div className="section-title selected-class-list-title">
+                <h2>선택된 교양 목록</h2>
+                <span className="badge">{selectedElectiveClasses.length}개</span>
+              </div>
+              <div className="list">
+                {selectedElectiveClasses.map((item) => (
+                  <div className="list-item" key={item.id}>
+                    <strong>{item.courseName}</strong>
+                    <span className="muted">{[item.professorName, getClassScheduleLabel(item), item.memo].filter(Boolean).join(" · ")}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </>
       ) : null}
 
@@ -1881,7 +1931,9 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       </div>
 
       {pendingSemester ? (
-        <div className="modal-backdrop" role="presentation">
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setPendingSemester(null);
+        }}>
           <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="semester-change-title">
             <div>
               <h2 id="semester-change-title">학기를 변경할까요?</h2>
@@ -1895,7 +1947,9 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         </div>
       ) : null}
       {courseConflictNotice ? (
-        <div className="modal-backdrop" role="presentation">
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setCourseConflictNotice("");
+        }}>
           <section className="conflict-alert-modal" role="alertdialog" aria-modal="true" aria-labelledby="course-conflict-title">
             <div className="conflict-alert-marker" aria-hidden="true">!</div>
             <div>
@@ -2114,7 +2168,9 @@ function PersonalSchedulePlanner({
         ) : null}
       </div>
       {pendingSchedule ? (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) closeCreateModal();
+        }}>
           <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="create-personal-schedule-title">
             <div>
               <h2 id="create-personal-schedule-title">개인 일정 생성</h2>
@@ -2143,15 +2199,20 @@ function PersonalSchedulePlanner({
         </div>
       ) : null}
       {deletingSchedule ? (
-        <div className="modal-backdrop">
-          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-personal-schedule-title">
+        <div className="modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setDeletingSchedule(null);
+        }}>
+          <section className="confirm-modal yes-no-confirm delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-personal-schedule-title">
+            <div className="yes-no-confirm-mark delete-confirm-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 10v7m4-7v7" /></svg>
+            </div>
             <div>
               <h2 id="delete-personal-schedule-title">개인 일정 삭제</h2>
               <p>{deletingSchedule.title} 일정을 삭제할까요?</p>
             </div>
             <div className="modal-actions">
+              <button className="button" type="button" onClick={confirmDeleteSchedule}>예</button>
               <button className="ghost-button" type="button" onClick={() => setDeletingSchedule(null)}>아니오</button>
-              <button className="button danger-button" type="button" onClick={confirmDeleteSchedule}>예</button>
             </div>
           </section>
         </div>

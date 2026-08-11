@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { signUp } from "@/lib/auth/client";
+import { getGradeFromStudentNumber } from "@/lib/student";
 import { validateSignup } from "@/lib/validators/auth";
 
 interface DepartmentResponse {
@@ -175,7 +176,7 @@ export default function SignupPage() {
                 className={studentNumberError ? "invalid" : ""}
                 value={studentNumber}
                 onChange={(event) => {
-                  setStudentNumber(event.target.value);
+                  setStudentNumber(event.target.value.replace(/\D/g, "").slice(0, 8));
                   if (studentNumberError) {
                     setStudentNumberError("");
                   }
@@ -388,15 +389,4 @@ function DepartmentCombobox({
 
 function normalize(value: string) {
   return value.replace(/\s+/g, "").toLowerCase();
-}
-
-function getGradeFromStudentNumber(studentNumber: string) {
-  const admissionYear = Number(studentNumber.slice(0, 4));
-  const currentYear = new Date().getFullYear();
-
-  if (!Number.isFinite(admissionYear) || admissionYear < 1900) {
-    return 1;
-  }
-
-  return Math.min(4, Math.max(1, currentYear - admissionYear + 1));
 }

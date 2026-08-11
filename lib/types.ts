@@ -27,7 +27,6 @@ export interface Course {
   buildingName: string;
   roomName: string;
   requiredType: "required" | "elective";
-  reviewAverage: number;
   createdAt: string;
 }
 
@@ -119,20 +118,6 @@ export interface BoardPost {
   comments: Comment[];
   createdAt: string;
   updatedAt: string;
-}
-
-export interface CourseReview {
-  id: string;
-  userId: string;
-  courseName: string;
-  professorName: string;
-  semester: string;
-  rating: number;
-  assignmentLevel: "low" | "medium" | "high";
-  examLevel: "low" | "medium" | "high";
-  attendanceType: string;
-  content: string;
-  createdAt: string;
 }
 
 export interface Notice {

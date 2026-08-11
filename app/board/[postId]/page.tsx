@@ -38,6 +38,8 @@ export default function BoardPostPage() {
   const [editForm, setEditForm] = useState({ category: "free" as BoardPost["category"], title: "", content: "" });
   const [editingCommentId, setEditingCommentId] = useState("");
   const [editingCommentContent, setEditingCommentContent] = useState("");
+  const [isPostDeleteConfirmOpen, setIsPostDeleteConfirmOpen] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState("");
   const viewCountRequested = useRef(false);
 
   useEffect(() => {
@@ -133,17 +135,23 @@ export default function BoardPostPage() {
     setError("");
   }
 
-  async function deleteSelectedPost() {
+  function requestDeleteSelectedPost() {
     if (!selectedPost || selectedPost.userId !== user?.id) {
       return;
     }
 
-    if (!window.confirm("게시글을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.")) {
+    setIsPostDeleteConfirmOpen(true);
+  }
+
+  async function confirmDeleteSelectedPost() {
+    if (!selectedPost || selectedPost.userId !== user?.id) {
+      setIsPostDeleteConfirmOpen(false);
       return;
     }
 
     const nextPosts = posts.filter((post) => post.id !== selectedPost.id);
     setPosts(nextPosts);
+    setIsPostDeleteConfirmOpen(false);
     const saved = await persistPosts(nextPosts);
     if (saved) {
       router.push("/board");
@@ -218,23 +226,39 @@ export default function BoardPostPage() {
     await persistPosts(nextPosts);
   }
 
-  async function deleteComment(commentId: string) {
+  function requestDeleteComment(commentId: string) {
     if (!selectedPost || !user) {
       return;
     }
 
     const targetComment = selectedPost.comments.find((item) => item.id === commentId);
-    if (!targetComment || targetComment.userId !== user.id || !window.confirm("댓글을 삭제하시겠습니까?")) {
+    if (!targetComment || targetComment.userId !== user.id) {
+      return;
+    }
+
+    setDeletingCommentId(commentId);
+  }
+
+  async function confirmDeleteComment() {
+    if (!selectedPost || !user || !deletingCommentId) {
+      setDeletingCommentId("");
+      return;
+    }
+
+    const targetComment = selectedPost.comments.find((item) => item.id === deletingCommentId);
+    if (!targetComment || targetComment.userId !== user.id) {
+      setDeletingCommentId("");
       return;
     }
 
     const nextPosts = posts.map((post) => post.id === selectedPost.id ? {
       ...post,
-      comments: post.comments.filter((item) => item.id !== commentId),
+      comments: post.comments.filter((item) => item.id !== deletingCommentId),
       updatedAt: new Date().toISOString()
     } : post);
 
     setPosts(nextPosts);
+    setDeletingCommentId("");
     await persistPosts(nextPosts);
   }
 
@@ -316,7 +340,7 @@ export default function BoardPostPage() {
             <div className="chip-row">
               <button className="ghost-button" type="button" onClick={startEditing}>수정</button>
               <span className="board-action-divider" aria-hidden="true" />
-              <button className="ghost-button" type="button" onClick={deleteSelectedPost}>삭제</button>
+              <button className="ghost-button" type="button" onClick={requestDeleteSelectedPost}>삭제</button>
             </div>
           ) : null}
         </div>
@@ -389,7 +413,7 @@ export default function BoardPostPage() {
                     <>
                       <button className="ghost-button" type="button" onClick={() => startEditingComment(item.id)}>수정</button>
                       <span className="board-action-divider" aria-hidden="true" />
-                      <button className="ghost-button" type="button" onClick={() => void deleteComment(item.id)}>삭제</button>
+                      <button className="ghost-button" type="button" onClick={() => requestDeleteComment(item.id)}>삭제</button>
                     </>
                   )}
                 </div>
@@ -419,6 +443,43 @@ export default function BoardPostPage() {
           추천 {selectedPost.recommendCount}
         </button>
       </div>
+      {isPostDeleteConfirmOpen ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setIsPostDeleteConfirmOpen(false);
+        }}>
+          <section className="confirm-modal yes-no-confirm delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-post-title" aria-describedby="delete-post-description">
+            <div className="yes-no-confirm-mark delete-confirm-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 10v7m4-7v7" /></svg>
+            </div>
+            <div>
+              <h2 id="delete-post-title">게시글을 삭제하시겠습니까?</h2>
+              <p id="delete-post-description">삭제 후 복구할 수 없습니다.</p>
+            </div>
+            <div className="modal-actions">
+              <button className="button" type="button" onClick={() => void confirmDeleteSelectedPost()}>예</button>
+              <button className="ghost-button" type="button" onClick={() => setIsPostDeleteConfirmOpen(false)}>아니오</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {deletingCommentId ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setDeletingCommentId("");
+        }}>
+          <section className="confirm-modal yes-no-confirm delete-confirm" role="alertdialog" aria-modal="true" aria-labelledby="delete-comment-title">
+            <div className="yes-no-confirm-mark delete-confirm-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 10v7m4-7v7" /></svg>
+            </div>
+            <div>
+              <h2 id="delete-comment-title">댓글을 삭제하시겠습니까?</h2>
+            </div>
+            <div className="modal-actions">
+              <button className="button" type="button" onClick={() => void confirmDeleteComment()}>예</button>
+              <button className="ghost-button" type="button" onClick={() => setDeletingCommentId("")}>아니오</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

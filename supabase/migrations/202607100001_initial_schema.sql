@@ -38,7 +38,6 @@ create table public.courses (
   building_name text not null,
   room_name text not null,
   required_type text not null check (required_type in ('required', 'elective')),
-  review_average numeric(2, 1) not null default 0,
   created_at timestamptz not null default now()
 );
 
@@ -86,21 +85,6 @@ create table public.comments (
   created_at timestamptz not null default now()
 );
 
-create table public.course_reviews (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.users(id) on delete cascade,
-  course_name text not null,
-  professor_name text not null,
-  semester text not null,
-  rating integer not null check (rating between 1 and 5),
-  assignment_level text not null check (assignment_level in ('low', 'medium', 'high')),
-  exam_level text not null check (exam_level in ('low', 'medium', 'high')),
-  attendance_type text not null,
-  content text not null,
-  created_at timestamptz not null default now(),
-  unique (user_id, course_name, professor_name)
-);
-
 create table public.notices (
   id uuid primary key default gen_random_uuid(),
   category text not null check (category in ('academic', 'scholarship', 'registration', 'event', 'career', 'general')),
@@ -130,6 +114,5 @@ alter table public.class_schedules enable row level security;
 alter table public.personal_schedules enable row level security;
 alter table public.board_posts enable row level security;
 alter table public.comments enable row level security;
-alter table public.course_reviews enable row level security;
 alter table public.notices enable row level security;
 alter table public.campus_places enable row level security;

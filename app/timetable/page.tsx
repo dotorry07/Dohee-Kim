@@ -4,6 +4,7 @@ import { Fragment, PointerEvent, useCallback, useEffect, useLayoutEffect, useMem
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthGuard } from "@/components/AuthGuard";
+import { BannerTagIcon } from "@/components/BannerTagIcon";
 import { dayLabels, isRecordedRemoteClass, toMinutes, weekdays } from "@/lib/timetable";
 import { deleteRemoteTimetable, loadRemoteTimetables, selectRemoteMonthlyTimetable } from "@/lib/timetable-storage";
 import { TimetableSelect } from "./TimetableSelect";
@@ -507,12 +508,21 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
   return (
     <main className="page timetable-home" ref={pageRef}>
       <section className="timetable-top-banner" aria-labelledby="timetable-page-title">
-        <div className="timetable-top-banner-inner">
-          <div className="timetable-top-banner-copy">
+        <div className="timetable-top-banner-inner app-banner-inner">
+          <div className="timetable-top-banner-copy app-banner-copy">
             <h1 id="timetable-page-title">내 시간표</h1>
             <p>저장한 시간표를 학기별로 확인해보세요.</p>
+            <div className="app-banner-tags" aria-hidden="true">
+              <span><BannerTagIcon icon="calendar" />학기별 조회</span>
+              <span><BannerTagIcon icon="star" />시간표 선택</span>
+              <span><BannerTagIcon icon="phone" />이미지 저장</span>
+              <span><BannerTagIcon icon="clock" />개인 일정</span>
+              <span><BannerTagIcon icon="edit" />시간표 편집</span>
+            </div>
           </div>
-          <img className="timetable-top-banner-image" src="/images/timetable-banner-icon.png" alt="" />
+          <div className="app-banner-art timetable-banner-art" aria-hidden="true">
+            <img className="timetable-top-banner-image" src="/images/banner-timetable.png" alt="" />
+          </div>
         </div>
       </section>
 
@@ -713,22 +723,29 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
       </div>
 
       {deletingTimetable ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-timetable-title">
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setDeletingTimetableId(null);
+        }}>
+          <section className="confirm-modal yes-no-confirm delete-confirm" role="dialog" aria-modal="true" aria-labelledby="delete-timetable-title">
+            <div className="yes-no-confirm-mark delete-confirm-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13M10 10v7m4-7v7" /></svg>
+            </div>
             <div>
               <h2 id="delete-timetable-title">시간표를 삭제할까요?</h2>
               <p>{deletingTimetable.title || "이 시간표"}를 삭제하면 목록에서 사라집니다.</p>
             </div>
             <div className="modal-actions">
+              <button className="button" type="button" onClick={() => void deleteTimetable(deletingTimetable.id)}>삭제</button>
               <button className="ghost-button" type="button" onClick={() => setDeletingTimetableId(null)}>취소</button>
-              <button className="button danger-button" type="button" onClick={() => void deleteTimetable(deletingTimetable.id)}>삭제</button>
             </div>
           </section>
         </div>
       ) : null}
 
       {isCreateModalOpen ? (
-        <div className="modal-backdrop" role="presentation">
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setIsCreateModalOpen(false);
+        }}>
           <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="create-timetable-title">
             <div>
               <h2 id="create-timetable-title">새 시간표 이름</h2>
@@ -761,22 +778,27 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
       ) : null}
 
       {pendingMonthlyTimetable ? (
-        <div className="modal-backdrop" role="presentation">
-          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="monthly-timetable-title">
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setPendingMonthlyTimetableId(null);
+        }}>
+          <section className="confirm-modal yes-no-confirm" role="alertdialog" aria-modal="true" aria-labelledby="monthly-timetable-title">
+            <div className="yes-no-confirm-mark" aria-hidden="true">?</div>
             <div>
               <h2 id="monthly-timetable-title">{getSelectedTimetableLabel(pendingMonthlyTimetable.semester)}를 변경하시겠습니까?</h2>
               <p>{pendingMonthlyTimetable.title || "이 시간표"}를 {getSelectedTimetableLabel(pendingMonthlyTimetable.semester)}로 선택합니다.</p>
             </div>
             <div className="modal-actions">
-              <button className="ghost-button" type="button" onClick={() => setPendingMonthlyTimetableId(null)}>아니요</button>
               <button className="button" type="button" onClick={confirmMonthlyTimetableChange}>예</button>
+              <button className="ghost-button" type="button" onClick={() => setPendingMonthlyTimetableId(null)}>아니오</button>
             </div>
           </section>
         </div>
       ) : null}
 
       {pendingDownloadTimetable ? (
-        <div className="modal-backdrop" role="presentation">
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setPendingDownloadTimetableId(null);
+        }}>
           <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="download-timetable-title">
             <div>
               <h2 id="download-timetable-title">시간표를 다운로드하겠습니까?</h2>

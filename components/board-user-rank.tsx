@@ -6,10 +6,11 @@ type BoardUserRankProps = {
 };
 
 export const BOARD_RANKS = [
-  { minimum: 0, name: "새싹 수정", className: "seed" },
-  { minimum: 5, name: "보랏빛 수정", className: "violet" },
-  { minimum: 15, name: "푸른 수정", className: "blue" },
-  { minimum: 30, name: "빛나는 수정", className: "radiant" }
+  { minimum: 0, name: "투명 수정", className: "rank-1", imageSrc: "/images/board-rank-1.png" },
+  { minimum: 5, name: "하늘 수정", className: "rank-2", imageSrc: "/images/board-rank-2.png" },
+  { minimum: 15, name: "푸른 수정", className: "rank-3", imageSrc: "/images/board-rank-3.png" },
+  { minimum: 30, name: "연보라 수정", className: "rank-4", imageSrc: "/images/board-rank-4.png" },
+  { minimum: 50, name: "보라 수정", className: "rank-5", imageSrc: "/images/board-rank-5.png" }
 ] as const;
 
 export function BoardUserRank({ posts, userId }: BoardUserRankProps) {
@@ -30,13 +31,11 @@ type BoardRankIconProps = {
 };
 
 export function BoardRankIcon({ className, name, ariaLabel = name }: BoardRankIconProps) {
+  const rank = BOARD_RANKS.find((item) => item.className === className) ?? BOARD_RANKS[0];
+
   return (
     <span className={`board-rank-badge ${className}`} data-rank-name={name} aria-label={ariaLabel}>
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path className="rank-gem" d="M8.4 8.1 12 2.6l3.6 5.5-1.15 11.6h-4.9L8.4 8.1Z" />
-        <path className="rank-gem rank-gem-side" d="m7.5 7.25 2.2 3.95-.9 8-4.65-3.7-.35-5.3 3.7-2.95ZM16.5 6.2l3.7 3.2-.8 6.9-4.95 3.4-.35-7.7 2.4-5.8Z" />
-        <path className="rank-shine" d="m12 4.9-1.35 4.25L12 17.6l1.35-8.45L12 4.9ZM5.6 10.7l3.05 2.2m9.75-3.05-3.7 3.05" />
-      </svg>
+      <img src={rank.imageSrc} alt="" aria-hidden="true" />
     </span>
   );
 }

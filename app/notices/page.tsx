@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { BannerTagIcon } from "@/components/BannerTagIcon";
 import { sungshinDepartments } from "@/lib/sungshin-departments";
 import type { Notice } from "@/lib/types";
 
@@ -439,12 +440,12 @@ export default function NoticesPage() {
             <h1>공지사항</h1>
             <p>학교의 중요한 소식과 안내사항을 확인하세요!</p>
             <div className="hero-tags" aria-hidden="true">
-              <span>▣ 학사 일정</span>
-              <span>▤ 수강신청</span>
-              <span>◇ 장학</span>
-              <span>◆ 행사</span>
-              <span>■ 취업/진로</span>
-              <span>● 기타 안내</span>
+              <span><BannerTagIcon icon="calendar" />학사 일정</span>
+              <span><BannerTagIcon icon="checklist" />수강신청</span>
+              <span><BannerTagIcon icon="scholarship" />장학</span>
+              <span><BannerTagIcon icon="party" />행사</span>
+              <span><BannerTagIcon icon="briefcase" />취업/진로</span>
+              <span><BannerTagIcon icon="pin" />기타 안내</span>
             </div>
           </div>
           <div className="hero-art" aria-hidden="true">
@@ -872,7 +873,7 @@ export default function NoticesPage() {
           max-width: 1180px;
           margin: 0 auto;
           padding: 56px 24px 80px;
-          font-family: Pretendard, "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          font-family: "NanumSquareRound", Arial, Helvetica, sans-serif;
         }
 
         .notices-hero {
@@ -1181,7 +1182,7 @@ export default function NoticesPage() {
         .notice-section-heading h2 {
           margin: 0;
           color: #2b2035;
-          font-family: Pretendard, "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          font-family: "NanumSquareRound", Arial, Helvetica, sans-serif;
           font-size: 22px;
           font-weight: 900;
           letter-spacing: -0.025em;
@@ -1281,14 +1282,13 @@ export default function NoticesPage() {
 
         .notices-hero {
           min-height: 218px;
-          background:
-            radial-gradient(circle at 91% 43%, rgba(169, 111, 255, 0.2) 0 24px, transparent 25px),
-            radial-gradient(circle at 68% 58%, rgba(185, 145, 255, 0.16) 0 35px, transparent 36px),
-            linear-gradient(105deg, #fbf8ff 0%, #f6efff 57%, #eee2ff 100%);
+          background: linear-gradient(105deg, #fbf8ff 0%, #f6efff 57%, #eee2ff 100%);
+          overflow: hidden;
         }
 
         .hero-inner {
           position: relative;
+          z-index: 1;
           display: flex;
           width: 100%;
           max-width: 1180px;
@@ -1306,6 +1306,7 @@ export default function NoticesPage() {
 
         .notices-hero h1 {
           margin-bottom: 10px;
+          font-family: "NanumSquareRoundExtraBold", "NanumSquareRound", Arial, Helvetica, sans-serif;
           font-size: clamp(44px, 5vw, 62px);
           font-weight: 900;
         }
@@ -1323,7 +1324,7 @@ export default function NoticesPage() {
           margin-top: 17px;
         }
 
-        .hero-tags span {
+        .hero-tags > span {
           display: inline-flex;
           min-height: 32px;
           align-items: center;
@@ -1336,10 +1337,6 @@ export default function NoticesPage() {
           font-size: 12px;
           font-weight: 800;
           box-shadow: 0 5px 14px rgba(86, 44, 133, 0.05);
-        }
-
-        .hero-tags span::first-letter {
-          color: #6325c3;
         }
 
         .hero-art {
@@ -1369,9 +1366,10 @@ export default function NoticesPage() {
           width: 100%;
           height: 100%;
           border-radius: 28px;
-          object-fit: cover;
+          object-fit: contain;
           object-position: center;
           mix-blend-mode: multiply;
+          transform: scale(1.08);
         }
 
         .megaphone {
@@ -1511,7 +1509,7 @@ export default function NoticesPage() {
         .sidebar-panel h2 {
           margin: 0 0 16px;
           color: #241b2d;
-          font-family: Pretendard, "Pretendard Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          font-family: "NanumSquareRound", Arial, Helvetica, sans-serif;
           font-size: 19px;
           font-weight: 900;
           letter-spacing: -0.03em;
@@ -1922,14 +1920,16 @@ export default function NoticesPage() {
           }
 
           .hero-inner {
-            min-height: 210px;
             padding: 28px 20px;
           }
 
           .hero-art {
             position: absolute;
             top: 0;
-            right: -52px;
+            right: -72px;
+            width: 210px;
+            height: 150px;
+            margin: 0;
             opacity: 0.4;
           }
 
@@ -1942,7 +1942,7 @@ export default function NoticesPage() {
             max-width: calc(100% - 70px);
           }
 
-          .hero-tags span {
+          .hero-tags > span {
             min-height: 28px;
             padding: 5px 9px;
             font-size: 10px;
@@ -2094,13 +2094,16 @@ function NoticeList({
               ) : notice.applicationUrl ? (
                 <a href={notice.applicationUrl} target="_blank" rel="noreferrer">신청 링크</a>
               ) : null}
-              {notice.sourceUrl ? (
-                <a href={notice.sourceUrl} target="_blank" rel="noreferrer">원문 보기</a>
-              ) : null}
             </div>
           </div>
           <time dateTime={notice.publishedAt}>{formatNoticeDate(notice.publishedAt)}</time>
-          <span className="row-arrow" aria-hidden="true">›</span>
+          {notice.sourceUrl ? (
+            <a className="row-arrow" href={notice.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${notice.title} 원문 보기`}>
+              ›
+            </a>
+          ) : (
+            <span className="row-arrow disabled" aria-hidden="true">›</span>
+          )}
         </article>
       ))}
       <style jsx>{`
@@ -2264,10 +2267,27 @@ function NoticeList({
         }
 
         .row-arrow {
+          display: inline-grid;
+          width: 24px;
+          height: 32px;
+          place-items: center;
           color: #6f6877;
           font-size: 27px;
           font-weight: 300;
           text-align: right;
+        }
+
+        .row-arrow:hover {
+          color: #5e288e;
+        }
+
+        .row-arrow:focus-visible {
+          outline: 3px solid #cfc0ff;
+          outline-offset: 3px;
+        }
+
+        .row-arrow.disabled {
+          opacity: 0.35;
         }
 
         .notice-thumb {

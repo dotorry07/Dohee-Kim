@@ -12,7 +12,7 @@ function mergeChecklistState(items: ChecklistItem[]) {
   return freshmanChecklist.map((item) => ({ ...item, completed: completionById.get(item.id) ?? false }));
 }
 
-export function FreshmanChecklist({ userId, databaseUserId, initialItems = freshmanChecklist }: { userId: string; databaseUserId: string | null; initialItems?: ChecklistItem[] }) {
+export function FreshmanChecklist({ userId, databaseUserId, initialItems = freshmanChecklist, isLoading = false }: { userId: string; databaseUserId: string | null; initialItems?: ChecklistItem[]; isLoading?: boolean }) {
   const [items, setItems] = useState<ChecklistItem[]>(() => mergeChecklistState(initialItems));
   const [ready, setReady] = useState(false);
 
@@ -47,17 +47,26 @@ export function FreshmanChecklist({ userId, databaseUserId, initialItems = fresh
 
   return (
     <article className={`${styles.card} ${styles.checklist}`}>
-      <div className={styles.cardHeading}><div><p className={styles.eyebrow}>START GUIDE</p><h2>새내기 필수 체크리스트</h2></div><strong className={styles.progressText}>{completed}/{items.length} 완료</strong></div>
-      <div className={styles.progressMeta}><span>입학 준비 진행률</span><span>{percent}%</span></div>
-      <div className={styles.progressTrack} role="progressbar" aria-label="새내기 체크리스트 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><span style={{ width: `${percent}%` }} /></div>
-      <div className={styles.checkList}>
-        {items.map((item) => (
-          <div className={`${styles.checkItem} ${item.completed ? styles.checked : ""}`} key={item.id}>
-            <input id={`check-${item.id}`} type="checkbox" checked={item.completed} onChange={() => toggleItem(item.id)} />
-            <label htmlFor={`check-${item.id}`}>{item.label}</label>
+      <div className={styles.cardHeading}><div><p className={styles.eyebrow}>START GUIDE</p><h2>새내기 필수 체크리스트</h2></div><strong className={styles.progressText}>{isLoading ? "로딩 중" : `${completed}/${items.length} 완료`}</strong></div>
+      {isLoading ? (
+        <div className={styles.cardLoading} role="status" aria-live="polite">
+          <span className={styles.loadingSpinner} aria-hidden="true" />
+          <span>로딩중입니다...</span>
+        </div>
+      ) : (
+        <>
+          <div className={styles.progressMeta}><span>입학 준비 진행률</span><span>{percent}%</span></div>
+          <div className={styles.progressTrack} role="progressbar" aria-label="새내기 체크리스트 진행률" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><span style={{ width: `${percent}%` }} /></div>
+          <div className={styles.checkList}>
+            {items.map((item) => (
+              <div className={`${styles.checkItem} ${item.completed ? styles.checked : ""}`} key={item.id}>
+                <input id={`check-${item.id}`} type="checkbox" checked={item.completed} onChange={() => toggleItem(item.id)} />
+                <label htmlFor={`check-${item.id}`}>{item.label}</label>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </article>
   );
 }

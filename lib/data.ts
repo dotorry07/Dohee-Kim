@@ -1,4 +1,4 @@
-import type { BoardPost, CampusPlace, CampusShortcut, Course, CourseReview, Notice, PersonalSchedule, UserProfile } from "@/lib/types";
+import type { BoardPost, CampusPlace, CampusShortcut, Course, Notice, PersonalSchedule, UserProfile } from "@/lib/types";
 
 export const departments = ["컴퓨터공학과", "AI융합학부", "경영학과", "미디어커뮤니케이션학과", "간호학과"];
 export const grades = [1, 2, 3, 4] as const;
@@ -29,7 +29,6 @@ export const courses: Course[] = [
     buildingName: "수정관",
     roomName: "304",
     requiredType: "required",
-    reviewAverage: 4.7,
     createdAt: "2026-02-01T00:00:00.000Z"
   },
   {
@@ -44,7 +43,6 @@ export const courses: Course[] = [
     buildingName: "성신관",
     roomName: "210",
     requiredType: "required",
-    reviewAverage: 4.9,
     createdAt: "2026-02-01T00:00:00.000Z"
   },
   {
@@ -59,7 +57,6 @@ export const courses: Course[] = [
     buildingName: "수정관",
     roomName: "502",
     requiredType: "required",
-    reviewAverage: 4.4,
     createdAt: "2026-02-01T00:00:00.000Z"
   },
   {
@@ -74,7 +71,6 @@ export const courses: Course[] = [
     buildingName: "난향관",
     roomName: "101",
     requiredType: "required",
-    reviewAverage: 4.6,
     createdAt: "2026-02-01T00:00:00.000Z"
   },
   {
@@ -89,7 +85,6 @@ export const courses: Course[] = [
     buildingName: "성신관",
     roomName: "407",
     requiredType: "elective",
-    reviewAverage: 4.2,
     createdAt: "2026-02-01T00:00:00.000Z"
   },
   {
@@ -104,7 +99,6 @@ export const courses: Course[] = [
     buildingName: "수정관",
     roomName: "412",
     requiredType: "elective",
-    reviewAverage: 4.1,
     createdAt: "2026-02-01T00:00:00.000Z"
   }
 ];
@@ -377,47 +371,5 @@ export const posts: BoardPost[] = [
     comments: [],
     createdAt: "2026-03-05T16:10:00.000Z",
     updatedAt: "2026-03-05T16:10:00.000Z"
-  }
-];
-
-export const courseReviews: CourseReview[] = [
-  {
-    id: "review-1",
-    userId: demoUser.id,
-    courseName: "프로그래밍기초",
-    professorName: "이도윤",
-    semester: "2026-1",
-    rating: 5,
-    assignmentLevel: "medium",
-    examLevel: "medium",
-    attendanceType: "전자출결",
-    content: "실습 설명이 명확하고 초보자도 따라가기 좋았습니다.",
-    createdAt: "2026-06-20T09:00:00.000Z"
-  },
-  {
-    id: "review-2",
-    userId: "user-2",
-    courseName: "컴퓨팅사고",
-    professorName: "박지현",
-    semester: "2026-1",
-    rating: 4.5,
-    assignmentLevel: "low",
-    examLevel: "medium",
-    attendanceType: "호명",
-    content: "팀 활동이 많고 새내기에게 학교 적응 팁도 많이 줍니다.",
-    createdAt: "2026-06-22T09:00:00.000Z"
-  },
-  {
-    id: "review-3",
-    userId: "user-4",
-    courseName: "이산수학",
-    professorName: "정하은",
-    semester: "2026-1",
-    rating: 4,
-    assignmentLevel: "high",
-    examLevel: "high",
-    attendanceType: "전자출결",
-    content: "과제가 꾸준하지만 시험 대비에는 도움이 됩니다.",
-    createdAt: "2026-06-24T09:00:00.000Z"
   }
 ];

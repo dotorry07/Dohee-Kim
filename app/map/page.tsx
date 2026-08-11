@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
+import { BannerTagIcon } from "@/components/BannerTagIcon";
 import { campusBuildingDetails, unjeongCampusBuildingDetails } from "@/lib/campus-place-details";
 import { campusPlaces, campusShortcuts } from "@/lib/data";
 import type { CampusPlace, CampusShortcut } from "@/lib/types";
@@ -260,8 +261,22 @@ function MapContent() {
   return (
     <main className="page">
       <section className="page-header map-page-header">
-        <h1>학교 지도</h1>
-        <p>건물명, 강의실명, 편의시설명으로 검색하고 시간표와 연결된 수업 장소를 확인합니다.</p>
+        <div className="app-banner-inner">
+          <div className="app-banner-copy">
+            <h1>학교 지도</h1>
+            <p>건물명, 강의실명, 편의시설명으로 검색하고 시간표와 연결된 수업 장소를 확인합니다.</p>
+            <div className="app-banner-tags" aria-hidden="true">
+              <span><BannerTagIcon icon="map" />캠퍼스 지도</span>
+              <span><BannerTagIcon icon="search" />건물 검색</span>
+              <span><BannerTagIcon icon="coffee" />편의시설</span>
+              <span><BannerTagIcon icon="walk" />지름길</span>
+              <span><BannerTagIcon icon="pin" />수업 장소</span>
+            </div>
+          </div>
+          <div className="app-banner-art map-banner-art" aria-hidden="true">
+            <img src="/images/banner-map.png" alt="" />
+          </div>
+        </div>
       </section>
 
       <div className="map-view-tabs" aria-label="지도 보기 선택">

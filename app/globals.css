@@ -609,7 +609,7 @@ button {
 
 .login-page {
   display: grid;
-  grid-template-columns: minmax(0, 1.04fr) minmax(440px, 0.96fr);
+  grid-template-columns: minmax(360px, 0.78fr) minmax(520px, 1.22fr);
   min-height: calc(100vh - 66px);
   background: #ffffff;
 }
@@ -622,30 +622,17 @@ button {
   justify-content: center;
   gap: 44px;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 18px 18px, rgba(255, 255, 255, 0.13) 1px, transparent 1.4px) 0 0 / 36px 36px,
-    linear-gradient(150deg, #2b105f 0%, #371872 44%, #48217e 100%);
+  background: #13062d url("/images/login-sidebar-background.png") right bottom / auto 100% no-repeat;
   color: #ffffff;
-  padding: clamp(34px, 5vw, 70px) clamp(28px, 5.8vw, 78px);
+  padding: clamp(34px, 5vw, 70px) clamp(28px, 4.4vw, 58px);
 }
 
-.login-showcase::before,
-.login-showcase::after {
-  content: "";
-  position: absolute;
-  left: 4%;
-  top: 12%;
-  width: min(72vw, 820px);
-  aspect-ratio: 1;
-  border: 1px solid rgba(189, 156, 255, 0.13);
-  border-radius: 50%;
-  pointer-events: none;
+.login-showcase::before {
+  content: none;
 }
 
 .login-showcase::after {
-  left: -8%;
-  top: 28%;
-  width: min(58vw, 620px);
+  content: none;
 }
 
 .login-brand,
@@ -696,11 +683,11 @@ button {
 }
 
 .login-showcase h1 {
-  max-width: 620px;
+  max-width: 520px;
   margin: 0;
-  font-size: clamp(50px, 7.4vw, 104px);
+  font-size: clamp(34px, 4.8vw, 66px);
   font-weight: 900;
-  line-height: 0.95;
+  line-height: 1.08;
   letter-spacing: 0;
 }
 
@@ -714,29 +701,70 @@ button {
   max-width: 430px;
   margin: 34px 0 0;
   color: rgba(224, 211, 247, 0.78);
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.68;
   word-break: keep-all;
 }
 
 .login-benefits {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  display: grid;
+  gap: 20px;
   margin: 0;
   padding: 0;
   list-style: none;
-  transform: translateY(-18px);
+  transform: translateY(4px);
 }
 
 .login-benefits li {
-  border: 1px solid rgba(214, 196, 255, 0.2);
-  border-radius: 999px;
-  color: rgba(221, 207, 255, 0.72);
-  padding: 9px 18px;
-  font-size: 14px;
-  font-weight: 800;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  max-width: 430px;
+}
+
+.login-benefit-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(125, 82, 232, 0.42);
+  box-shadow: 0 10px 22px rgba(19, 6, 45, 0.18);
+}
+
+.login-benefit-icon svg {
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.login-benefit-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border-left: 1px solid rgba(181, 144, 255, 0.42);
+  padding-left: 18px;
+}
+
+.login-benefit-copy strong {
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.login-benefit-copy span {
+  color: rgba(214, 196, 255, 0.76);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.45;
+  word-break: keep-all;
 }
 
 .login-quote {
@@ -948,73 +976,72 @@ button {
 }
 
 .signup-page {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.78fr) minmax(520px, 1.22fr);
   min-height: calc(100vh - 66px);
-  background:
-    radial-gradient(circle at 50% 34%, rgba(139, 95, 191, 0.08), transparent 28%),
-    linear-gradient(180deg, #ffffff 0%, #ffffff 32%, #fbfaff 100%);
-  padding-bottom: 60px;
+  background: #fff;
 }
 
-.signup-hero {
-  border-bottom: 1px solid rgba(139, 95, 191, 0.1);
-  background:
-    radial-gradient(circle at 84% 33%, rgba(143, 86, 232, 0.18), transparent 13%),
-    linear-gradient(90deg, #f6efff 0%, #fbf8ff 48%, #eadbff 100%);
+.signup-visual {
+  position: relative;
+  display: grid;
+  min-height: calc(100vh - 66px);
+  align-content: start;
+  overflow: hidden;
+  background: #f7f0ff url("/images/signup-sidebar-background.png") center calc(100% + 10vh) / 100% auto no-repeat;
+  padding: clamp(58px, 8vw, 118px) clamp(30px, 4.6vw, 62px);
 }
 
-.signup-hero-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 36px;
-  width: min(1180px, calc(100vw - 40px));
-  min-height: 174px;
-  margin: 0 auto;
-  padding: 28px 0;
+.signup-visual-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 500px;
 }
 
-.signup-eyebrow {
-  display: block;
-  margin-bottom: 12px;
-  color: #7636dc;
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.signup-hero h1 {
+.signup-visual h1 {
   margin: 0;
-  color: #171026;
-  font-size: clamp(34px, 4vw, 48px);
+  color: #261457;
+  font-size: clamp(32px, 4vw, 56px);
   font-weight: 900;
-  line-height: 1.14;
+  line-height: 1.18;
   letter-spacing: 0;
   word-break: keep-all;
 }
 
-.signup-hero p {
-  margin: 18px 0 0;
-  color: #766584;
-  font-size: 17px;
+.signup-visual h1 strong {
+  color: #8b48f4;
+}
+
+.signup-visual h1 span {
+  display: block;
+}
+
+.signup-visual p {
+  max-width: 440px;
+  margin: 26px 0 0;
+  color: #79679e;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1.5;
+  line-height: 1.7;
   word-break: keep-all;
 }
 
-.signup-hero img {
-  width: clamp(138px, 18vw, 230px);
-  height: clamp(112px, 14vw, 178px);
-  object-fit: contain;
-  filter: drop-shadow(0 18px 28px rgba(108, 55, 182, 0.24));
+.signup-visual img {
+  display: none;
 }
 
 .signup-card {
-  width: min(100% - 40px, 690px);
-  margin: 34px auto 0;
+  align-self: center;
+  justify-self: center;
+  width: min(100% - 72px, 640px);
+  max-height: calc(100vh - 116px);
+  overflow-y: auto;
+  margin: 0;
   border: 1px solid #eee7f7;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 24px 60px rgba(35, 24, 45, 0.1);
-  padding: clamp(24px, 3.2vw, 38px);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 70px rgba(35, 24, 45, 0.12);
+  padding: clamp(30px, 3.4vw, 46px);
 }
 
 .signup-card-header {
@@ -1023,8 +1050,8 @@ button {
 
 .signup-card-header h2 {
   margin: 0 0 10px;
-  color: #1b1029;
-  font-size: 28px;
+  color: #2c146d;
+  font-size: 34px;
   font-weight: 900;
   line-height: 1.2;
 }
@@ -1107,6 +1134,32 @@ button {
 .signup-field select:focus {
   border-color: #9b73f4;
   outline: 3px solid rgba(137, 91, 210, 0.16);
+}
+
+.signup-field input.invalid {
+  border-color: #d93045;
+  background: #fff6f7;
+  color: #8f1525;
+}
+
+.signup-field input.invalid::placeholder {
+  color: #c72c3e;
+}
+
+.signup-field input.invalid:focus {
+  border-color: #d93045;
+  outline-color: rgba(217, 48, 69, 0.16);
+}
+
+.signup-field-help {
+  color: #a391b7;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.signup-field-help.error-text {
+  color: #c72c3e;
 }
 
 .signup-field .search-dropdown {
@@ -5541,16 +5594,6 @@ button {
     justify-content: flex-start;
   }
 
-  .login-showcase::before {
-    left: 12%;
-    top: 12%;
-    width: 520px;
-  }
-
-  .login-showcase::after {
-    display: none;
-  }
-
   .login-brand {
     font-size: 18px;
   }
@@ -5572,22 +5615,46 @@ button {
   }
 
   .login-showcase h1 {
-    font-size: clamp(40px, 13vw, 62px);
+    font-size: clamp(28px, 8.8vw, 42px);
   }
 
   .login-showcase-copy > p:last-child {
     margin-top: 22px;
-    font-size: 15px;
+    font-size: 13px;
   }
 
   .login-benefits {
+    gap: 16px;
     margin-bottom: 0;
     transform: none;
   }
 
   .login-benefits li {
-    padding: 8px 12px;
-    font-size: 12px;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 14px;
+    max-width: 100%;
+  }
+
+  .login-benefit-icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  .login-benefit-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .login-benefit-copy {
+    padding-left: 14px;
+  }
+
+  .login-benefit-copy strong {
+    font-size: 14px;
+  }
+
+  .login-benefit-copy span {
+    font-size: 11px;
   }
 
   .login-quote {
@@ -5641,39 +5708,29 @@ button {
   }
 
   .signup-page {
-    padding-bottom: 36px;
+    grid-template-columns: 1fr;
+    background: #fbf8ff;
   }
 
-  .signup-hero-inner {
-    align-items: flex-start;
-    width: calc(100vw - 32px);
-    min-height: 0;
-    gap: 18px;
-    padding: 26px 0;
+  .signup-visual {
+    min-height: 360px;
+    background-position: center calc(100% + 10vh);
+    padding: 38px 24px 180px;
   }
 
-  .signup-eyebrow {
-    margin-bottom: 9px;
-    font-size: 13px;
+  .signup-visual h1 {
+    font-size: 29px;
   }
 
-  .signup-hero h1 {
-    font-size: 30px;
-  }
-
-  .signup-hero p {
-    margin-top: 12px;
-    font-size: 14px;
-  }
-
-  .signup-hero img {
-    width: 96px;
-    height: 96px;
+  .signup-visual p {
+    margin-top: 16px;
+    font-size: 12px;
   }
 
   .signup-card {
     width: calc(100% - 28px);
-    margin-top: 24px;
+    max-height: none;
+    margin: 24px auto 36px;
     padding: 20px 16px;
   }
 

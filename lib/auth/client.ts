@@ -38,11 +38,13 @@ export function signUp(input: {
   department: string;
   secondaryDepartment?: string;
   grade: number;
+  studentNumber?: string;
 }) {
+  const timestamp = Date.now();
   const user: UserProfile = {
     ...demoUser,
-    id: `local-${Date.now()}`,
-    authUserId: `auth-local-${Date.now()}`,
+    id: input.studentNumber?.trim() ? `local-${input.studentNumber.trim()}` : `local-${timestamp}`,
+    authUserId: `auth-local-${timestamp}`,
     email: input.email,
     name: input.name,
     nickname: input.name,

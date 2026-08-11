@@ -638,7 +638,6 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   const [selectedMajorGrade, setSelectedMajorGrade] = useState(String(grade));
   const [majorDepartmentToAdd, setMajorDepartmentToAdd] = useState("");
   const [sungshinCourses, setSungshinCourses] = useState<SungshinCourse[]>([]);
-  const [sungshinCourseCount, setSungshinCourseCount] = useState(0);
   const [isCourseLoading, setIsCourseLoading] = useState(false);
   const [electiveCourses, setElectiveCourses] = useState<SungshinCourse[]>([]);
   const [selectedElectiveAreas, setSelectedElectiveAreas] = useState<string[]>([...electiveAreaOptions]);
@@ -680,17 +679,16 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   );
   const visibleElectiveCourses = useMemo(
     () => electiveCourses
+      .filter((course) => !isOwnDepartmentGemCourse(course))
+      .filter((course) => !isSungshinCourseSelected(course))
       .filter((course) => {
-        const isSelected = isSungshinCourseSelected(course);
-        return isSelected || selectedElectiveAreas.length === electiveAreaOptions.length || selectedElectiveAreas.includes(getElectiveAreaName(course));
+        return selectedElectiveAreas.length === electiveAreaOptions.length || selectedElectiveAreas.includes(getElectiveAreaName(course));
       })
       .filter((course) => {
-        const isSelected = isSungshinCourseSelected(course);
-        return isSelected || matchesElectivePreferences(course, selectedElectivePreferences, classes, personalSchedules);
+        return matchesElectivePreferences(course, selectedElectivePreferences, classes, personalSchedules);
       })
-      .filter((course) => isSungshinCourseSelected(course) || !sungshinCourseConflictsWithSchedule(course))
-      .sort((left, right) => Number(isSungshinCourseSelected(right)) - Number(isSungshinCourseSelected(left))),
-    [classes, electiveCourses, personalSchedules, selectedElectiveAreas, selectedElectivePreferences]
+      .filter((course) => !sungshinCourseConflictsWithSchedule(course)),
+    [classes, department, electiveCourses, personalSchedules, selectedElectiveAreas, selectedElectivePreferences]
   );
   const recommendedElectiveCourses = useMemo(
     () => {
@@ -1240,6 +1238,13 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     return [option.professorName, option.scheduleText, option.campusName, option.roomLabel, sectionCountLabel].filter(Boolean).join(" · ");
   }
 
+  function getSelectedRequiredTimeLabel(courseName: string) {
+    const classId = getRequiredClassId(courseName);
+    const selectedClasses = classes.filter((item) => item.id.startsWith(classId) || classMatchesRequiredCourseName(item, courseName, requiredCourses));
+
+    return Array.from(new Set(selectedClasses.map(getClassScheduleLabel))).join(" / ");
+  }
+
   function getSelectedRequiredOptionId(courseName: string) {
     const selectedClass = classes.find((item) => item.id.startsWith(getRequiredClassId(courseName)));
     const selectedOption = selectedClass
@@ -1297,7 +1302,6 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     setMajorDepartmentToAdd("");
     setSelectedMajorDepartments(nextTrack === "primary" ? [department] : []);
     setSungshinCourses([]);
-    setSungshinCourseCount(0);
     setError("");
   }
 
@@ -1305,14 +1309,12 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     setMajorDepartmentToAdd(nextDepartment);
     setSelectedMajorDepartments(nextDepartment ? [nextDepartment] : []);
     setSungshinCourses([]);
-    setSungshinCourseCount(0);
     setError("");
   }
 
   function changeSelectedMajorGrade(nextGrade: string) {
     setSelectedMajorGrade(nextGrade);
     setSungshinCourses([]);
-    setSungshinCourseCount(0);
     setError("");
   }
 
@@ -1353,14 +1355,12 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       ));
 
       setSungshinCourses(nextCourses);
-      setSungshinCourseCount(nextCourses.length);
 
       if (!nextCourses.length) {
         setError("선택한 전공 학과의 강좌를 현재 학기 로컬 DB에서 찾지 못했습니다.");
       }
     } catch {
       setSungshinCourses([]);
-      setSungshinCourseCount(0);
       setError("로컬 강의 DB를 불러오지 못했습니다. 개발 서버를 새로고침한 뒤 다시 시도해주세요.");
     } finally {
       setIsCourseLoading(false);
@@ -1451,6 +1451,10 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     ));
   }
 
+  function isOwnDepartmentGemCourse(course: SungshinCourse) {
+    return Boolean(course.isGem) && course.departmentName === department;
+  }
+
   function toggleSungshinCourse(course: SungshinCourse, checked: boolean) {
     const classIdPrefix = getSungshinClassIdPrefix(course);
     const parsedClasses = parseSungshinCourse(course, 0);
@@ -1511,7 +1515,6 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     setSelectedRequiredCourseIds([]);
     setRequiredCourseOptions([]);
     setSungshinCourses([]);
-    setSungshinCourseCount(0);
     setElectiveCourses([]);
     setSelectedElectiveAreas([...electiveAreaOptions]);
     setSelectedElectivePreferences([]);
@@ -1584,9 +1587,19 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                     </div>
                   ) : requiredCourseOptionsByName.map(({ courseName, options }) => {
                     const selectedOptionId = getSelectedRequiredOptionId(courseName);
-                    const isSelected = selectedRequiredCourseIds.includes(courseName);
+                    const selectedTimeFallbackLabel = selectedOptionId ? "" : getSelectedRequiredTimeLabel(courseName);
+                    const isSelected = selectedRequiredCourseIds.includes(courseName) || Boolean(selectedOptionId || selectedTimeFallbackLabel);
                     const isSelectionLocked = professorMergedRequiredCourses.includes(courseName);
                     const fixedOption = options.length === 1 ? options[0] : null;
+                    const selectedTimeFallbackValue = `selected-${courseName}`;
+                    const requiredTimeOptions = [
+                      ...(selectedTimeFallbackLabel ? [{ value: selectedTimeFallbackValue, label: `현재 선택됨 · ${selectedTimeFallbackLabel}` }] : []),
+                      { value: "", label: "시간 선택" },
+                      ...options.map((option) => ({
+                        value: option.id,
+                        label: getRequiredOptionLabel(option)
+                      }))
+                    ];
 
                     return (
                       <label className="checkbox-card" key={courseName}>
@@ -1604,16 +1617,16 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                             <TimetableSelect
                               ariaLabel={`${courseName} 수업 시간`}
                               disabled={!isSelected || !options.length}
-                              value={selectedOptionId}
+                              value={selectedOptionId || (selectedTimeFallbackLabel ? selectedTimeFallbackValue : "")}
                               placeholder={options.length ? "시간 선택" : "선택 학기 데이터 없음"}
-                              options={[
-                                { value: "", label: "시간 선택" },
-                                ...options.map((option) => ({
-                                  value: option.id,
-                                  label: getRequiredOptionLabel(option)
-                                }))
-                              ]}
-                              onChange={(nextOptionId) => chooseRequiredCommonCourseTime(courseName, nextOptionId)}
+                              options={requiredTimeOptions}
+                              onChange={(nextOptionId) => {
+                                if (nextOptionId === selectedTimeFallbackValue) {
+                                  return;
+                                }
+
+                                chooseRequiredCommonCourseTime(courseName, nextOptionId);
+                              }}
                             />
                           )}
                         </span>
@@ -1668,7 +1681,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                 ) : sungshinCourses.length ? (
                   <div className="major-course-list">
                     <div className="dropdown-summary">
-                      {selectedMajorGrade}학년 전공 강좌 {sungshinCourseCount.toLocaleString("ko-KR")}개
+                      {selectedMajorGrade}학년 전공 강좌 {sungshinCourses.length.toLocaleString("ko-KR")}개
                     </div>
                     {sungshinCourses.map((course) => {
                       const isSelected = isSungshinCourseSelected(course);

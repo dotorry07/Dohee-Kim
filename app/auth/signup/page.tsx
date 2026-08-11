@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { signUp } from "@/lib/auth/client";
-import { grades } from "@/lib/data";
 import { validateSignup } from "@/lib/validators/auth";
 
 interface DepartmentResponse {
@@ -34,7 +33,8 @@ export default function SignupPage() {
   const [secondaryDepartment, setSecondaryDepartment] = useState("");
   const [secondaryDepartmentQuery, setSecondaryDepartmentQuery] = useState("");
   const [departments, setDepartments] = useState<string[]>([]);
-  const [grade, setGrade] = useState("");
+  const [studentNumber, setStudentNumber] = useState("");
+  const [studentNumberError, setStudentNumberError] = useState("");
   const [isDepartmentLoading, setIsDepartmentLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -85,6 +85,15 @@ export default function SignupPage() {
       return;
     }
 
+    if (!/^\d{8}$/.test(studentNumber)) {
+      setStudentNumberError("학번의 양식이 틀렸습니다");
+      setError("");
+      setSuccess("");
+      return;
+    }
+
+    setStudentNumberError("");
+
     const validationError = validateSignup({
       email,
       password,
@@ -92,7 +101,7 @@ export default function SignupPage() {
       name,
       department,
       secondaryDepartment,
-      grade,
+      grade: String(getGradeFromStudentNumber(studentNumber)),
       availableDepartments: departments
     });
     if (validationError) {
@@ -101,7 +110,7 @@ export default function SignupPage() {
       return;
     }
 
-    signUp({ email, name, department, secondaryDepartment, grade: Number(grade) });
+    signUp({ email, name, department, secondaryDepartment, grade: getGradeFromStudentNumber(studentNumber), studentNumber });
     setError("");
     setSuccess("회원가입이 완료되었습니다. 대시보드로 이동합니다.");
     window.setTimeout(() => {
@@ -111,21 +120,21 @@ export default function SignupPage() {
 
   return (
     <main className="signup-page">
-      <section className="signup-hero">
-        <div className="signup-hero-inner">
-          <div>
-            <span className="signup-eyebrow">회원가입</span>
-            <h1>새내기 ON에 오신 것을 환영해요!</h1>
-            <p>정확한 정보로 더 편리한 캠퍼스 생활을 시작해보세요.</p>
-          </div>
-          <img src="/images/timetable-banner-icon.png" alt="" aria-hidden="true" />
+      <section className="signup-visual" aria-label="새내기 ON 소개">
+        <div className="signup-visual-copy">
+          <h1>
+            새내기 <strong>ON</strong>에
+            <span>오신 것을 환영해요!</span>
+          </h1>
+          <p>회원가입하고, 시간표 관리부터 캠퍼스 정보까지<br />한 곳에서 편리하게 이용해보세요.</p>
         </div>
+        <img src="/images/signup-banner.png" alt="" aria-hidden="true" />
       </section>
 
       <section className="signup-card" aria-labelledby="signup-title">
         <div className="signup-card-header">
-          <h2 id="signup-title">필수 정보 입력</h2>
-          <p>계정을 만들기 위한 정보를 입력해주세요.</p>
+          <h2 id="signup-title">회원가입</h2>
+          <p>필수 정보를 입력해주세요.</p>
         </div>
 
         <form className="signup-form" onSubmit={handleSubmit}>
@@ -160,11 +169,25 @@ export default function SignupPage() {
               onQueryChange={setDepartmentQuery}
             />
             <div className="signup-field">
-              <label htmlFor="grade"><FieldIcon icon={fieldIcons.grade} />학년도</label>
-              <select id="grade" value={grade} onChange={(event) => setGrade(event.target.value)} required>
-                <option value="">학년을 선택해주세요</option>
-                {grades.map((item) => <option key={item} value={item}>{item}학년</option>)}
-              </select>
+              <label htmlFor="student-number"><FieldIcon icon={fieldIcons.grade} />학번</label>
+              <input
+                id="student-number"
+                className={studentNumberError ? "invalid" : ""}
+                value={studentNumber}
+                onChange={(event) => {
+                  setStudentNumber(event.target.value);
+                  if (studentNumberError) {
+                    setStudentNumberError("");
+                  }
+                }}
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder={studentNumberError || "학번을 입력해주세요"}
+                required
+              />
+              <small className={studentNumberError ? "signup-field-help error-text" : "signup-field-help"}>
+                {studentNumberError || "학번의 양식 (학번 전체를 작성해주세요)"}
+              </small>
             </div>
             <DepartmentCombobox
               id="secondary-department"
@@ -365,4 +388,15 @@ function DepartmentCombobox({
 
 function normalize(value: string) {
   return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function getGradeFromStudentNumber(studentNumber: string) {
+  const admissionYear = Number(studentNumber.slice(0, 4));
+  const currentYear = new Date().getFullYear();
+
+  if (!Number.isFinite(admissionYear) || admissionYear < 1900) {
+    return 1;
+  }
+
+  return Math.min(4, Math.max(1, currentYear - admissionYear + 1));
 }

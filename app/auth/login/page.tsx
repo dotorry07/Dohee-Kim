@@ -5,7 +5,48 @@ import { FormEvent, useState } from "react";
 import { signIn } from "@/lib/auth/client";
 import { validateLogin } from "@/lib/validators/auth";
 
-const benefits = ["맞춤 시간표", "필독 공지", "캠퍼스 지도", "익명 게시판"];
+const benefits = [
+  { icon: "calendar", title: "맞춤 시간표", description: "나에게 딱 맞는 시간표를 추천받아요" },
+  { icon: "notice", title: "필독 공지", description: "놓치면 안 되는 공지를 확인해요" },
+  { icon: "map", title: "캠퍼스 지도", description: "건물 정보와 길찾기를 한 눈에" },
+  { icon: "board", title: "익명 게시판", description: "익명으로 자유롭게 소통해요" }
+];
+
+function BenefitIcon({ type }: { type: string }) {
+  if (type === "calendar") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="4" y="5" width="16" height="15" rx="3" />
+        <path d="M8 3v4M16 3v4M4 10h16M8 14h3M13 14h3" />
+      </svg>
+    );
+  }
+
+  if (type === "notice") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+        <path d="M10 21h4" />
+      </svg>
+    );
+  }
+
+  if (type === "map") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 21s7-5.4 7-12a7 7 0 0 0-14 0c0 6.6 7 12 7 12Z" />
+        <circle cx="12" cy="9" r="2.5" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 6h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-8l-5 4v-4H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
+      <path d="M8 10h8M8 14h5" />
+    </svg>
+  );
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("freshman@sungshin.ac.kr");
@@ -36,11 +77,21 @@ export default function LoginPage() {
             새내기를 위한
             <strong>캠퍼스 도우미</strong>
           </h1>
-          <p>시간표 추천, 필독 공지, 캠퍼스 지도와 커뮤니티까지 신입생에게 필요한 흐름을 한 곳에서 이어갑니다.</p>
+          <p>시간표 추천, 필독 공지, 캠퍼스 지도와 커뮤니티까지<br />신입생에게 필요한 흐름을 한 곳에서 이어갑니다.</p>
         </div>
 
         <ul className="login-benefits" aria-label="주요 기능">
-          {benefits.map((item) => <li key={item}>{item}</li>)}
+          {benefits.map((item) => (
+            <li key={item.title}>
+              <span className="login-benefit-icon">
+                <BenefitIcon type={item.icon} />
+              </span>
+              <span className="login-benefit-copy">
+                <strong>{item.title}</strong>
+                <span>{item.description}</span>
+              </span>
+            </li>
+          ))}
         </ul>
       </section>
 

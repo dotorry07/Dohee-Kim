@@ -1,17 +1,28 @@
 import { NextResponse } from "next/server";
-import { getBoardPostStore } from "@/lib/server/board-store";
+import { readBoardPosts, writeBoardPosts } from "@/lib/server/board-database";
 import type { BoardPost } from "@/lib/types";
 
-export function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const query = searchParams.get("q")?.toLowerCase() ?? "";
-  const category = searchParams.get("category");
-  const items = getBoardPostStore()
-    .filter((post) => !category || category === "all" || post.category === category)
-    .filter((post) => !query || `${post.title} ${post.content}`.toLowerCase().includes(query))
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+export const dynamic = "force-dynamic";
 
-  return NextResponse.json({ posts: items });
+function getBoardApiErrorResponse(error: unknown) {
+  console.error("Failed to access board posts in Supabase.", error);
+  return NextResponse.json({ message: "게시판 DB 처리 중 오류가 발생했습니다." }, { status: 500 });
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get("q")?.toLowerCase() ?? "";
+    const category = searchParams.get("category");
+    const items = (await readBoardPosts())
+      .filter((post) => !category || category === "all" || post.category === category)
+      .filter((post) => !query || `${post.title} ${post.content}`.toLowerCase().includes(query))
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+
+    return NextResponse.json({ posts: items });
+  } catch (error) {
+    return getBoardApiErrorResponse(error);
+  }
 }
 
 export async function POST(request: Request) {
@@ -37,6 +48,11 @@ export async function POST(request: Request) {
     updatedAt: now
   };
 
-  getBoardPostStore().unshift(post);
-  return NextResponse.json({ post }, { status: 201 });
+  try {
+    const posts = await readBoardPosts();
+    await writeBoardPosts([post, ...posts]);
+    return NextResponse.json({ post }, { status: 201 });
+  } catch (error) {
+    return getBoardApiErrorResponse(error);
+  }
 }

@@ -1,60 +1,89 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { posts as seedPosts } from "@/lib/data";
+import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { createClient } from "@supabase/supabase-js";
 import type { BoardPost } from "@/lib/types";
 
-type SQLiteStatement = {
-  get(...values: unknown[]): unknown;
-  run(...values: unknown[]): unknown;
+type BoardStateRow = {
+  id: string;
+  posts: BoardPost[];
 };
 
-type SQLiteDatabase = {
-  exec(sql: string): void;
-  prepare(sql: string): SQLiteStatement;
+type SupabaseRestError = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
 };
 
-type DatabaseSyncConstructor = new (path: string) => SQLiteDatabase;
+const BOARD_STATE_ID = "default";
 
-const databaseDirectory = join(process.cwd(), ".data");
-const databasePath = join(databaseDirectory, "board.sqlite");
+function createBoardSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const globalBoardDatabase = globalThis as typeof globalThis & {
-  __newbieOnBoardDatabase?: SQLiteDatabase;
-};
+  if (!supabaseUrl) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL is missing.");
+  }
 
-function getDatabase() {
-  if (globalBoardDatabase.__newbieOnBoardDatabase) return globalBoardDatabase.__newbieOnBoardDatabase;
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return createSupabaseAdminClient();
+  }
 
-  mkdirSync(databaseDirectory, { recursive: true });
-  // Node 22.5+ provides SQLite as a built-in server-only module.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { DatabaseSync } = require("node:sqlite") as { DatabaseSync: DatabaseSyncConstructor };
-  const database = new DatabaseSync(databasePath);
-  database.exec(`
-    create table if not exists board_state (
-      id text primary key,
-      posts text not null,
-      updated_at text not null
-    )
-  `);
-  globalBoardDatabase.__newbieOnBoardDatabase = database;
-  return database;
+  if (!anonKey) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.");
+  }
+
+  return createClient(supabaseUrl, anonKey, {
+    auth: {
+      persistSession: false
+    }
+  });
 }
 
-export function readBoardPosts(): BoardPost[] {
-  const database = getDatabase();
-  const row = database.prepare("select posts from board_state where id = ?").get("default") as { posts: string } | undefined;
-  if (row) return JSON.parse(row.posts) as BoardPost[];
-
-  writeBoardPosts(seedPosts);
-  return structuredClone(seedPosts);
+function normalizeBoardPosts(posts: BoardPost[]) {
+  return posts.map((post) => ({
+    ...post,
+    recommendCount: post.recommendCount ?? post.recommendedUserIds?.length ?? 0,
+    recommendedUserIds: post.recommendedUserIds ?? [],
+    comments: post.comments ?? []
+  }));
 }
 
-export function writeBoardPosts(posts: BoardPost[]) {
-  const database = getDatabase();
-  database.prepare(`
-    insert into board_state (id, posts, updated_at)
-    values (?, ?, ?)
-    on conflict(id) do update set posts = excluded.posts, updated_at = excluded.updated_at
-  `).run("default", JSON.stringify(posts), new Date().toISOString());
+export async function readBoardPosts(): Promise<BoardPost[]> {
+  const supabase = createBoardSupabaseClient();
+  const { data, error } = await supabase
+    .from("board_state")
+    .select("id, posts")
+    .eq("id", BOARD_STATE_ID)
+    .maybeSingle<BoardStateRow>();
+
+  if (error) {
+    throw error as Error & SupabaseRestError;
+  }
+
+  if (data) {
+    return normalizeBoardPosts(data.posts);
+  }
+
+  const posts = normalizeBoardPosts(structuredClone(seedPosts));
+  await writeBoardPosts(posts);
+  return posts;
+}
+
+export async function writeBoardPosts(posts: BoardPost[]) {
+  const supabase = createBoardSupabaseClient();
+  const { error } = await supabase
+    .from("board_state")
+    .upsert(
+      {
+        id: BOARD_STATE_ID,
+        posts: normalizeBoardPosts(posts),
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: "id" }
+    );
+
+  if (error) {
+    throw error as Error & SupabaseRestError;
+  }
 }

@@ -224,6 +224,7 @@ async function ensureUserId(user: UserProfile) {
       name: user.name,
       nickname: user.nickname,
       department: user.department,
+      secondary_department: user.secondaryDepartment || null,
       grade: user.grade,
       role: user.role
     })

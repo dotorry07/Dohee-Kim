@@ -9,6 +9,7 @@ export interface UserProfile {
   name: string;
   nickname: string;
   department: string;
+  secondaryDepartment?: string;
   grade: 1 | 2 | 3 | 4;
   role: Role;
   createdAt: string;
@@ -81,6 +82,19 @@ export interface CampusPlace {
   latitude: number;
   longitude: number;
   tags: string[];
+}
+
+export interface CampusShortcutEndpoint {
+  label: string;
+  placeId?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+export interface CampusShortcut {
+  id: string;
+  campus: CampusPlace["campus"];
+  endpoints: [CampusShortcutEndpoint, CampusShortcutEndpoint];
 }
 
 export interface Comment {

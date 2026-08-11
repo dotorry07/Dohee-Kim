@@ -1,4 +1,5 @@
-import type { PersonalSchedule, UserProfile } from "@/lib/types";
+import type { UserProfile } from "@/lib/types";
+import { loadRemoteTimetables } from "@/lib/timetable-storage";
 import type { ChecklistItem, DashboardData } from "@/types/dashboard";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -9,36 +10,38 @@ type DashboardSupabaseResult = {
   databaseUserId: string | null;
 };
 
-type DashboardPersonalScheduleRow = {
-  id: string;
-  user_id: string;
-  timetable_id: string | null;
-  title: string;
-  day_of_week: PersonalSchedule["dayOfWeek"];
-  start_time: string;
-  end_time: string;
-  memo: string | null;
-};
-
 export async function loadDashboardFromSupabase(
   fallbackUser: UserProfile,
   fallbackData: DashboardData,
   fallbackChecklist: ChecklistItem[]
 ): Promise<DashboardSupabaseResult> {
+  const remoteTimetables = await loadDashboardTimetables(fallbackUser, fallbackData);
+  const remoteDatabaseUserId = remoteTimetables.find((timetable) => timetable.userId)?.userId ?? null;
   const supabase = createSupabaseBrowserClient();
+
   if (!supabase) {
-    return { user: fallbackUser, data: fallbackData, checklistItems: fallbackChecklist, databaseUserId: null };
+    return {
+      user: fallbackUser,
+      data: { ...fallbackData, timetables: remoteTimetables, personalTodaySchedules: [] },
+      checklistItems: fallbackChecklist,
+      databaseUserId: remoteDatabaseUserId
+    };
   }
 
   try {
-    const { data: profile, error } = await supabase
+      const { data: profile, error } = await supabase
       .from("users")
-      .select("id, auth_user_id, email, name, nickname, department, grade, role, created_at")
+      .select("id, auth_user_id, email, name, nickname, department, secondary_department, grade, role, created_at")
       .eq("email", fallbackUser.email)
       .maybeSingle();
 
     if (error || !profile) {
-      return { user: fallbackUser, data: fallbackData, checklistItems: fallbackChecklist, databaseUserId: null };
+      return {
+        user: fallbackUser,
+        data: { ...fallbackData, timetables: remoteTimetables, personalTodaySchedules: [] },
+        checklistItems: fallbackChecklist,
+        databaseUserId: remoteDatabaseUserId
+      };
     }
 
     const databaseUser: UserProfile = {
@@ -48,76 +51,17 @@ export async function loadDashboardFromSupabase(
       name: profile.name,
       nickname: profile.nickname,
       department: profile.department,
+      secondaryDepartment: profile.secondary_department ?? "",
       grade: profile.grade as UserProfile["grade"],
       role: profile.role as UserProfile["role"],
       createdAt: profile.created_at
     };
 
-    const [timetableResult, checklistResult] = await Promise.all([
-      supabase
-        .from("timetables")
-        .select("id, user_id, semester, title, is_selected, score, created_at, class_schedules(id, timetable_id, course_id, course_name, professor_name, day_of_week, start_time, end_time, building_name, room_name, color, memo)")
-        .eq("user_id", profile.id)
-        .eq("is_selected", true),
-      supabase
+    const checklistResult = await supabase
         .from("freshman_checklist_items")
         .select("item_key, label, completed")
         .eq("user_id", profile.id)
-        .order("sort_order")
-    ]);
-
-    const timetableRows = !timetableResult.error && timetableResult.data?.length ? timetableResult.data : [];
-    const timetableIds = timetableRows.map((row) => row.id);
-    const personalResult = timetableIds.length
-      ? await supabase
-          .from("personal_schedules")
-          .select("id, user_id, timetable_id, title, day_of_week, start_time, end_time, memo")
-          .in("timetable_id", timetableIds)
-      : { data: [], error: null };
-    const personalRows = !personalResult.error ? (personalResult.data ?? []) as DashboardPersonalScheduleRow[] : [];
-    const personalSchedulesByTimetableId = personalRows.reduce<Map<string, DashboardPersonalScheduleRow[]>>((grouped, row) => {
-      if (!row.timetable_id) {
-        return grouped;
-      }
-
-      grouped.set(row.timetable_id, [...(grouped.get(row.timetable_id) ?? []), row]);
-      return grouped;
-    }, new Map());
-
-    const timetables = timetableRows.length
-      ? timetableRows.map((row) => ({
-          id: row.id,
-          userId: row.user_id,
-          semester: row.semester,
-          title: row.title,
-          isSelected: row.is_selected,
-          score: Number(row.score),
-          createdAt: row.created_at,
-          classes: (row.class_schedules ?? []).map((item) => ({
-            id: item.id,
-            timetableId: item.timetable_id,
-            courseId: item.course_id ?? undefined,
-            courseName: item.course_name,
-            professorName: item.professor_name,
-            dayOfWeek: item.day_of_week,
-            startTime: item.start_time,
-            endTime: item.end_time,
-            buildingName: item.building_name,
-            roomName: item.room_name,
-            color: item.color,
-            memo: item.memo ?? undefined
-          })),
-          personalSchedules: (personalSchedulesByTimetableId.get(row.id) ?? []).map((item) => ({
-            id: item.id,
-            userId: item.user_id,
-            title: item.title,
-            dayOfWeek: item.day_of_week,
-            startTime: item.start_time,
-            endTime: item.end_time,
-            memo: item.memo ?? undefined
-          }))
-        })) as DashboardData["timetables"]
-      : fallbackData.timetables;
+        .order("sort_order");
 
     const checklistItems: ChecklistItem[] = !checklistResult.error && checklistResult.data?.length
       ? checklistResult.data.map((row) => ({ id: row.item_key, label: row.label, completed: row.completed }))
@@ -125,12 +69,25 @@ export async function loadDashboardFromSupabase(
 
     return {
       user: databaseUser,
-      data: { ...fallbackData, timetables, personalTodaySchedules: [] },
+      data: { ...fallbackData, timetables: remoteTimetables, personalTodaySchedules: [] },
       checklistItems,
       databaseUserId: profile.id
     };
   } catch {
-    return { user: fallbackUser, data: fallbackData, checklistItems: fallbackChecklist, databaseUserId: null };
+    return {
+      user: fallbackUser,
+      data: { ...fallbackData, timetables: remoteTimetables, personalTodaySchedules: [] },
+      checklistItems: fallbackChecklist,
+      databaseUserId: remoteDatabaseUserId
+    };
+  }
+}
+
+async function loadDashboardTimetables(fallbackUser: UserProfile, fallbackData: DashboardData) {
+  try {
+    return await loadRemoteTimetables(fallbackUser);
+  } catch {
+    return fallbackData.timetables;
   }
 }
 

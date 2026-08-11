@@ -11,8 +11,8 @@ const links = [
   ["시간표", "/timetable"],
   ["지도", "/map"],
   ["게시판", "/board"],
-  ["강의평", "/reviews"],
-  ["공지", "/notices"]
+  ["공지", "/notices"],
+  ["마이페이지", "/mypage"]
 ] as const;
 
 export function AppHeader() {

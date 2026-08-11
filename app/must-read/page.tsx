@@ -42,6 +42,22 @@ const freshmanNotes = [
   "필수 공통교양은 대면수업으로 진행됩니다."
 ];
 
+const requiredApps = [
+  "성신 알리미",
+  "수강신청 앱",
+  "스마트캠퍼스",
+  "성신 모바일 신분증",
+  "도서관 시설 예약",
+  "코스모스"
+];
+
+const helpfulApps = [
+  "에브리타임",
+  "노크",
+  "링커리어",
+  "캠퍼스픽"
+];
+
 export default function MustReadPage() {
   return (
     <main className="page">
@@ -102,6 +118,40 @@ export default function MustReadPage() {
               <span>{check}</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="grid two" style={{ marginTop: 16 }}>
+        <div className="panel">
+          <div className="section-title">
+            <div>
+              <span className="badge">필수 어플</span>
+              <h2>학교 공식 시스템 및 필수 앱</h2>
+            </div>
+          </div>
+          <div className="list">
+            {requiredApps.map((app) => (
+              <div className="list-item" key={app}>
+                <strong>{app}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="section-title">
+            <div>
+              <span className="badge">도움 어플</span>
+              <h2>대학생활 유용 앱</h2>
+            </div>
+          </div>
+          <div className="list">
+            {helpfulApps.map((app) => (
+              <div className="list-item" key={app}>
+                <strong>{app}</strong>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

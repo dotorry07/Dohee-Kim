@@ -1,4 +1,4 @@
-import type { BoardPost, CampusPlace, Course, CourseReview, Notice, PersonalSchedule, UserProfile } from "@/lib/types";
+import type { BoardPost, CampusPlace, CampusShortcut, Course, CourseReview, Notice, PersonalSchedule, UserProfile } from "@/lib/types";
 
 export const departments = ["컴퓨터공학과", "AI융합학부", "경영학과", "미디어커뮤니케이션학과", "간호학과"];
 export const grades = [1, 2, 3, 4] as const;
@@ -10,6 +10,7 @@ export const demoUser: UserProfile = {
   name: "김새내",
   nickname: "새내기",
   department: "컴퓨터공학과",
+  secondaryDepartment: "",
   grade: 1,
   role: "user",
   createdAt: "2026-03-01T09:00:00.000Z"
@@ -236,6 +237,49 @@ export const campusPlaces: CampusPlace[] = [
     latitude: 37.63246,
     longitude: 127.027516,
     tags: ["강의동", "연결통로"]
+  }
+];
+
+export const campusShortcuts: CampusShortcut[] = [
+  {
+    id: "student-nanhyang",
+    campus: "donam",
+    endpoints: [
+      { label: "학생회관 4층", placeId: "place-4" },
+      { label: "난향관", placeId: "place-5" }
+    ]
+  },
+  {
+    id: "nanhyang-sungshin",
+    campus: "donam",
+    endpoints: [
+      { label: "난향관 7층", placeId: "place-5" },
+      { label: "성신관 3층", placeId: "place-2" }
+    ]
+  },
+  {
+    id: "nanhyang-design",
+    campus: "donam",
+    endpoints: [
+      { label: "난향관 7층", placeId: "place-5" },
+      { label: "조형관", latitude: 37.59285, longitude: 127.02165 }
+    ]
+  },
+  {
+    id: "nanhyang-music",
+    campus: "donam",
+    endpoints: [
+      { label: "난향관 7층", placeId: "place-5" },
+      { label: "음악관", latitude: 37.5922, longitude: 127.02228 }
+    ]
+  },
+  {
+    id: "sungshin-sujeong-c",
+    campus: "donam",
+    endpoints: [
+      { label: "성신관 4층", placeId: "place-2" },
+      { label: "수정관 C동 4층", latitude: 37.5915, longitude: 127.02291 }
+    ]
   }
 ];
 

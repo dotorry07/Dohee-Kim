@@ -36,6 +36,7 @@ export function signUp(input: {
   email: string;
   name: string;
   department: string;
+  secondaryDepartment?: string;
   grade: number;
 }) {
   const user: UserProfile = {
@@ -46,6 +47,7 @@ export function signUp(input: {
     name: input.name,
     nickname: input.name,
     department: input.department,
+    secondaryDepartment: input.secondaryDepartment?.trim() ?? "",
     grade: input.grade as UserProfile["grade"],
     createdAt: new Date().toISOString()
   };

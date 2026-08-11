@@ -19,6 +19,36 @@ const officialNoticeSources: { label: string; category: Notice["category"]; url:
   { label: "장학공지", category: "scholarship", url: `${sungshinBaseUrl}/bbs/main_kor/4719/artclList.do` },
   { label: "성신이벤트", category: "event", url: `${sungshinBaseUrl}/bbs/main_kor/5316/artclList.do` }
 ];
+const explicitDepartmentTargets: { name: string; url: string }[] = [
+  { name: "화학·에너지융합학부", url: `${sungshinBaseUrl}/chem-energy/index..do` },
+  { name: "바이오헬스융합학부", url: `${sungshinBaseUrl}/biohealth/index..do` },
+  { name: "청정신소재공학과", url: `${sungshinBaseUrl}/dmse/index` },
+  { name: "바이오식품공학과", url: `${sungshinBaseUrl}/bif/index..do` },
+  { name: "바이오신약의과학부", url: `${sungshinBaseUrl}/biopharm/index..do` },
+  { name: "AI융합학부", url: `${sungshinBaseUrl}/aiot/index..do` },
+  { name: "컴퓨터공학과", url: `${sungshinBaseUrl}/ce/index..do` },
+  { name: "융합보안공학과", url: `${sungshinBaseUrl}/cse/index.do` },
+  { name: "서비스디자인공학과", url: `${sungshinBaseUrl}/serdesign/index..do` },
+  { name: "간호학과", url: `${sungshinBaseUrl}/sites/nurse/index.do` },
+  { name: "의류산업학과", url: `${sungshinBaseUrl}/cloth/index.do` },
+  { name: "소비자산업학과", url: `${sungshinBaseUrl}/family/index.do` },
+  { name: "뷰티산업학과", url: `${sungshinBaseUrl}/insbeauty/index..do` },
+  { name: "스포츠과학부", url: `${sungshinBaseUrl}/sportsscience/index..do` },
+  { name: "교육학과", url: `${sungshinBaseUrl}/education/index..do` },
+  { name: "사회교육과", url: `${sungshinBaseUrl}/edusociety/index..do` },
+  { name: "윤리교육과", url: `${sungshinBaseUrl}/eduethics/index..do` },
+  { name: "한문교육과", url: `${sungshinBaseUrl}/educhinese/index..do` },
+  { name: "유아교육과", url: `${sungshinBaseUrl}/sites/edukids/index.do` },
+  { name: "동양화과", url: `${sungshinBaseUrl}/orient/index..do` },
+  { name: "서양화과", url: `${sungshinBaseUrl}/western/index..do` },
+  { name: "디자인과", url: `${sungshinBaseUrl}/design/index..do` },
+  { name: "조소과", url: `${sungshinBaseUrl}/carving/index..do` },
+  { name: "공예과", url: `${sungshinBaseUrl}/crafts/index..do` },
+  { name: "성악과", url: `${sungshinBaseUrl}/vocal/index.do` },
+  { name: "기악과", url: `${sungshinBaseUrl}/instrumental/index.do` },
+  { name: "작곡과", url: `${sungshinBaseUrl}/composition/index.do` },
+  { name: "창의융합학부", url: `${sungshinBaseUrl}/generaledu` }
+];
 
 let competitionNoticeCache: { expiresAt: number; notices: Notice[] } | null = null;
 let officialNoticeCache: { expiresAt: number; notices: Notice[] } | null = null;
@@ -136,10 +166,10 @@ async function getDepartmentTargets() {
 
   const sourceHtmls = await mapWithConcurrency(sourcePageUrls, 2, fetchText);
   const targets = dedupeDepartmentTargets(
-    sourceHtmls.flatMap((sourceHtml) => [
+    explicitDepartmentTargets.concat(sourceHtmls.flatMap((sourceHtml) => [
       ...extractDepartmentLinks(sourceHtml),
       ...extractDepartmentNoticeLinks(sourceHtml)
-    ])
+    ]))
   );
   departmentTargetCache = { expiresAt: Date.now() + cacheTtlMs, targets };
   return targets;
@@ -150,7 +180,10 @@ async function scrapeDepartmentNotices(department: { name: string; url: string }
     const homeHtml = await fetchText(department.url);
     const noticeListUrls = await findNoticeListUrls(homeHtml, department.url);
     const listHtmls = await mapWithConcurrency(noticeListUrls.slice(0, 3), 2, fetchText);
-    const articles = dedupeArticles(listHtmls.flatMap((html) => extractArticles(html))).slice(0, 40);
+    const articles = dedupeArticles([
+      ...extractArticles(homeHtml),
+      ...listHtmls.flatMap((html) => extractArticles(html))
+    ]).slice(0, 40);
 
     return articles.map<Notice>((article) => ({
       id: `dept-notice-${department.name}-${article.url}`.replace(/\s+/g, "-"),
@@ -341,6 +374,28 @@ function extractArticles(html: string) {
       url: toAbsoluteUrl(linkMatch[1]),
       date: cleanText(dateMatch?.[1] ?? ""),
       isPinned: /_artclNotice|_artclNnotice|공지<!--|공지\s*<\/span>/.test(row)
+    });
+  }
+
+  const recentLinkPattern = /<a\b[^>]*href="([^"]*\/bbs\/[^"]+\/artclView\.do[^"]*)"[^>]*>([\s\S]*?)<\/a>/g;
+  let recentMatch: RegExpExecArray | null;
+
+  while ((recentMatch = recentLinkPattern.exec(html)) !== null) {
+    const href = recentMatch[1];
+    const nearbyHtml = html.slice(Math.max(0, recentMatch.index - 220), Math.min(html.length, recentMatch.index + 520));
+    const date =
+      cleanText(nearbyHtml).match(/\b20\d{2}[.-]\d{2}[.-]\d{2}\b/)?.[0].replace(/-/g, ".") ?? "";
+    const title = cleanText(recentMatch[2]).replace(/\s*새글$/, "").replace(/^\s*N\s+/, "");
+
+    if (!title) {
+      continue;
+    }
+
+    articles.push({
+      title,
+      url: toAbsoluteUrl(href),
+      date,
+      isPinned: /_artclNotice|_artclNnotice|공지<!--|공지\s*<\/span>/.test(nearbyHtml)
     });
   }
 
@@ -647,7 +702,7 @@ function getDepartmentCategoryLabel(category: DepartmentNoticeCategory) {
 
 function normalizeDepartmentName(value: string) {
   return value
-    .replace(/ㆍ/g, "·")
+    .replace(/[ㆍ·]/g, "")
     .replace(/\s+/g, "")
     .replace(/전공$/, "학과")
     .trim();

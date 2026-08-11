@@ -17,6 +17,7 @@ const importantTimetablesKey = "newbie-on:important-timetables";
 const selectedTimetablesBySemesterKey = "newbie-on:selected-timetables-by-semester";
 const legacyMonthlyTimetableKey = "newbie-on:monthly-timetable";
 const currentSemester = "2026-2";
+const dayCodes = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
 type ScheduleState = "current" | "next" | "ended";
 
 function Icon({ name }: { name: DashboardIconName }) {
@@ -38,6 +39,12 @@ function minutes(time: string) { const [h, m] = time.split(":").map(Number); ret
 
 function getNoticeHref(sourceUrl?: string) {
   return sourceUrl || "/notices";
+}
+
+function getTimetableSortValue(timetable: Timetable) {
+  const [year = "0", semesterPart = ""] = timetable.semester.split("-");
+  const semesterOrder: Record<string, number> = { "1": 1, summer: 2, "2": 3, winter: 4 };
+  return Number(year) * 10 + (semesterOrder[semesterPart] ?? 0);
 }
 
 function ScheduleItem({ item, state }: { item: TodayScheduleItem; state: ScheduleState }) {
@@ -99,22 +106,32 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
   }, [syncFavoriteTimetables]);
 
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentDayKey = dayCodes[now.getDay()];
+  const selectedTimetableIds = Object.values(selectedTimetableIdsBySemester);
   const selectedCurrentSemesterTimetableId = selectedTimetableIdsBySemester[currentSemester] ?? null;
   const userTimetables = dashboardTimetables.filter((item) => (
     item.userId === user.id
     || item.userId === databaseUserId
-    || item.id === selectedCurrentSemesterTimetableId
+    || selectedTimetableIds.includes(item.id)
   ));
   const currentSemesterTimetables = userTimetables.filter((item) => item.semester === currentSemester);
   const selectedCurrentSemesterTimetables = selectedCurrentSemesterTimetableId
     ? currentSemesterTimetables.filter((item) => item.id === selectedCurrentSemesterTimetableId)
     : [];
+  const selectedTimetables = selectedTimetableIds.length
+    ? userTimetables.filter((item) => selectedTimetableIds.includes(item.id)).sort((a, b) => getTimetableSortValue(b) - getTimetableSortValue(a))
+    : [];
   const selectedFlagCurrentSemesterTimetables = currentSemesterTimetables.filter((item) => item.isSelected);
+  const selectedFlagTimetables = userTimetables.filter((item) => item.isSelected).sort((a, b) => getTimetableSortValue(b) - getTimetableSortValue(a));
   const favoriteCurrentSemesterTimetables = currentSemesterTimetables.filter((item) => favoriteTimetableIds.has(item.id));
   const activeTimetables = selectedCurrentSemesterTimetables.length
     ? selectedCurrentSemesterTimetables
+    : selectedTimetables.length
+      ? [selectedTimetables[0]]
     : selectedFlagCurrentSemesterTimetables.length
       ? selectedFlagCurrentSemesterTimetables
+      : selectedFlagTimetables.length
+        ? [selectedFlagTimetables[0]]
       : favoriteCurrentSemesterTimetables.length
         ? favoriteCurrentSemesterTimetables
         : currentSemesterTimetables;
@@ -124,9 +141,9 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
   const displayName = user.nickname || user.name || "새내기";
   const studentNumber = user.id.replace(/\D/g, "").slice(-8) || "학번 미등록";
   const important = [...notices].sort((a, b) => Number(b.isPinned) - Number(a.isPinned)).slice(0, 4);
-  const recent = [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
+  const recent = [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 3);
   const timetablePersonalSchedules = activeTimetables.flatMap((timetable) => (timetable.personalSchedules ?? [])
-    .filter((item) => item.dayOfWeek === ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][now.getDay()])
+    .filter((item) => item.dayOfWeek === currentDayKey)
     .map((item) => ({ id: item.id, type: "PERSONAL" as const, title: item.title, startTime: item.startTime, endTime: item.endTime, subtitle: item.memo })));
   const todaySchedules: TodayScheduleItem[] = Array.from(new Map([
     ...classes.map((item) => ({ id: item.id, type: "CLASS" as const, title: item.courseName, startTime: item.startTime, endTime: item.endTime, location: `${item.buildingName} ${item.roomName}`, subtitle: `${item.professorName} 교수` })),
@@ -155,7 +172,21 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId }:
 
     <section className={styles.mainGrid}>
       <div className={styles.sideStack}>
-        <article className={styles.card}><Heading icon="user" title="학생 프로필"/><div className={styles.profileTop}><div className={styles.avatar} aria-label="기본 프로필 아바타"><Icon name="user"/></div><div><h3>{displayName}</h3><span className={styles.freshmanBadge}>신입생</span></div></div><dl className={styles.profileList}><div><dt>학번</dt><dd>{studentNumber}</dd></div><div><dt>소속</dt><dd>{user.department}</dd></div><div><dt>학년</dt><dd>{user.grade}학년</dd></div><div><dt>이메일</dt><dd title={user.email}>{user.email}</dd></div></dl><Link className={styles.profileButton} href="/timetable">내 시간표 관리</Link></article>
+        <article className={styles.card}>
+          <Heading icon="user" title="학생 프로필"/>
+          <div className={styles.profileTop}>
+            <div className={styles.avatar} aria-label="기본 프로필 아바타"><Icon name="user"/></div>
+            <div><h3>{displayName}</h3><span className={styles.freshmanBadge}>신입생</span></div>
+          </div>
+          <dl className={styles.profileList}>
+            <div><dt>학번</dt><dd>{studentNumber}</dd></div>
+            <div><dt>소속</dt><dd>{user.department}</dd></div>
+            {user.secondaryDepartment ? <div><dt>부/복수전공</dt><dd>{user.secondaryDepartment}</dd></div> : null}
+            <div><dt>학년</dt><dd>{user.grade}학년</dd></div>
+            <div><dt>이메일</dt><dd title={user.email}>{user.email}</dd></div>
+          </dl>
+          <Link className={styles.profileButton} href="/timetable">내 시간표 관리</Link>
+        </article>
       </div>
       <article className={styles.card}><Heading icon="clock" title="D-DAY 학사일정" href="/notices"/><div className={styles.eventList}>{academicEvents.map((event) => { const isCompleted = normalizeDate(event.startDate).getTime() < normalizeDate(now).getTime(); return <div className={`${styles.event} ${isCompleted ? styles.eventCompleted : ""}`} key={event.id}><span className={styles.iconBox}><Icon name="calendar"/></span><div><h3>{event.title}</h3><p>{event.displayDate}</p></div><strong>{isCompleted ? "완료" : getDdayLabel(now, event.startDate)}</strong></div>; })}</div></article>
       <article className={styles.card}><Heading icon="chat" title="최근 게시글" href="/board"/><div className={styles.postList}>{recent.length ? recent.map((post) => { const isNew = now.getTime() - new Date(post.createdAt).getTime() <= 86_400_000; return <Link href={`/board/${post.id}`} className={styles.post} key={post.id}><div><span className={styles.postCategory}>{postLabels[post.category]}</span>{isNew && <span className={styles.newBadge}>NEW</span>}{post.viewCount >= 100 && <span className={styles.hotBadge}>HOT</span>}</div><h3>{post.title}</h3><p>댓글 {post.comments.length} · 조회 {post.viewCount} · {getRelativeTime(post.createdAt, now)}</p></Link>; }) : <div className={styles.empty}>최근 게시글이 없습니다.</div>}</div></article>

@@ -7,7 +7,8 @@ import { BoardAuthorMenu } from "@/components/board-author-menu";
 import { BOARD_RANKS, BoardRankIcon, BoardUserRank } from "@/components/board-user-rank";
 import { getStoredUser, updateStoredNickname } from "@/lib/auth/client";
 import { getBoardPosts, loadPersistentBoardPosts, saveBoardPosts, subscribeToBoardPosts } from "@/lib/board-storage";
-import type { BoardPost, Comment } from "@/lib/types";
+import type { BoardPost } from "@/lib/types";
+import { TimetableSelect } from "../timetable/TimetableSelect";
 
 const categoryLabels: Record<BoardPost["category"], string> = {
   freshman: "자유게시판",
@@ -18,13 +19,7 @@ const categoryLabels: Record<BoardPost["category"], string> = {
 
 const availableCategories: BoardPost["category"][] = ["free", "department", "info"];
 
-type ActivityFilter = "all" | "my-posts" | "my-comments" | "recommended";
 type SortOrder = "latest" | "recommended" | "views" | "oldest";
-
-type MyCommentEntry = {
-  post: BoardPost;
-  comment: Comment;
-};
 
 type BoardImage = {
   dataUrl: string;
@@ -51,19 +46,17 @@ const MAX_IMAGE_SIZE = 750 * 1024;
 const POSTS_PER_PAGE = 10;
 const POPULAR_POSTS_LIMIT = 5;
 
-const activityLabels: Record<ActivityFilter, string> = {
-  all: "전체 글",
-  "my-posts": "내가 쓴 글",
-  "my-comments": "내가 쓴 댓글",
-  recommended: "추천한 글"
-};
-
 const sortLabels: Record<SortOrder, string> = {
   latest: "최신순",
   recommended: "추천순",
   views: "조회순",
   oldest: "오래된 순"
 };
+
+const sortOptions = (Object.keys(sortLabels) as SortOrder[]).map((key) => ({
+  value: key,
+  label: sortLabels[key]
+}));
 
 function comparePosts(a: BoardPost, b: BoardPost, sortOrder: SortOrder) {
   if (sortOrder === "recommended") {
@@ -109,7 +102,6 @@ export default function BoardPage() {
   const router = useRouter();
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [category, setCategory] = useState<BoardPost["category"] | "all">("all");
-  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("latest");
   const [currentPage, setCurrentPage] = useState(1);
   const [query, setQuery] = useState("");
@@ -134,11 +126,6 @@ export default function BoardPage() {
     setUser(getStoredUser());
     setDrafts(getBoardDrafts());
 
-    const view = new URLSearchParams(window.location.search).get("view");
-    if (view === "my-posts" || view === "my-comments" || view === "recommended") {
-      setActivityFilter(view);
-    }
-
     return subscribeToBoardPosts(setPosts);
   }, []);
 
@@ -146,58 +133,19 @@ export default function BoardPage() {
     const normalized = query.trim().toLowerCase();
     return posts
       .filter((post) => category === "all" || post.category === category || (category === "free" && post.category === "freshman"))
-      .filter((post) => {
-        if (activityFilter === "all") {
-          return true;
-        }
-
-        if (!user) {
-          return false;
-        }
-
-        if (activityFilter === "my-posts") {
-          return post.userId === user.id;
-        }
-
-        if (activityFilter === "my-comments") {
-          return post.comments.some((item) => item.userId === user.id);
-        }
-
-        return post.recommendedUserIds.includes(user.id);
-      })
       .filter((post) => !normalized || `${post.title} ${post.content}`.toLowerCase().includes(normalized))
       .sort((a, b) => comparePosts(a, b, sortOrder));
-  }, [activityFilter, category, posts, query, sortOrder, user]);
+  }, [category, posts, query, sortOrder]);
 
-  const myCommentEntries = useMemo(() => {
-    if (!user || activityFilter !== "my-comments") {
-      return [];
-    }
-
-    const normalized = query.trim().toLowerCase();
-    return posts
-      .filter((post) => category === "all" || post.category === category || (category === "free" && post.category === "freshman"))
-      .flatMap((post) => post.comments
-        .filter((item) => item.userId === user.id)
-        .map((comment): MyCommentEntry => ({ post, comment })))
-      .filter(({ post, comment }) => !normalized || `${post.title} ${post.content} ${comment.content}`.toLowerCase().includes(normalized))
-      .sort((a, b) => sortOrder === "latest"
-        ? Date.parse(b.comment.createdAt) - Date.parse(a.comment.createdAt)
-        : sortOrder === "oldest"
-          ? Date.parse(a.comment.createdAt) - Date.parse(b.comment.createdAt)
-          : comparePosts(a.post, b.post, sortOrder));
-  }, [activityFilter, category, posts, query, sortOrder, user]);
-
-  const totalItems = activityFilter === "my-comments" ? myCommentEntries.length : filteredPosts.length;
+  const totalItems = filteredPosts.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / POSTS_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const pageStart = (safeCurrentPage - 1) * POSTS_PER_PAGE;
   const paginatedPosts = filteredPosts.slice(pageStart, pageStart + POSTS_PER_PAGE);
-  const paginatedCommentEntries = myCommentEntries.slice(pageStart, pageStart + POSTS_PER_PAGE);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activityFilter, category, query, sortOrder]);
+  }, [category, query, sortOrder]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -214,24 +162,6 @@ export default function BoardPage() {
       || b.post.comments.length - a.post.comments.length
       || Date.parse(b.post.createdAt) - Date.parse(a.post.createdAt))
     .slice(0, POPULAR_POSTS_LIMIT), [posts]);
-
-  function selectActivityFilter(nextFilter: ActivityFilter) {
-    if (nextFilter !== "all" && !getStoredUser()) {
-      window.location.href = "/auth/login";
-      return;
-    }
-
-    setActivityFilter(nextFilter);
-    const params = new URLSearchParams(window.location.search);
-    if (nextFilter === "all") {
-      params.delete("view");
-    } else {
-      params.set("view", nextFilter);
-    }
-
-    const queryString = params.toString();
-    router.replace(queryString ? `/board?${queryString}` : "/board", { scroll: false });
-  }
 
   async function createPost(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -277,11 +207,11 @@ export default function BoardPage() {
     try {
       const nextPosts = [newPost, ...getBoardPosts()];
       const saved = await saveBoardPosts(nextPosts);
+      setPosts(nextPosts);
       if (!saved) {
-        setError("게시글을 DB에 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        setError("Supabase DB에는 저장하지 못했습니다. 이 브라우저에는 임시 저장했습니다. Supabase SQL 적용 상태를 확인해 주세요.");
         return;
       }
-      setPosts(nextPosts);
     } catch {
       setError("저장 공간이 부족해 사진을 저장하지 못했습니다. 더 작은 사진을 선택해 주세요.");
       return;
@@ -463,71 +393,43 @@ export default function BoardPage() {
         </div>
       </section>
 
-      <section className="board-activity-tabs" aria-label="내 게시판 활동 필터">
-        {(Object.keys(activityLabels) as ActivityFilter[]).map((key) => (
-          <button className={activityFilter === key ? "activity-tab active" : "activity-tab"} key={key} type="button" onClick={() => selectActivityFilter(key)}>
-            {activityLabels[key]}
-          </button>
-        ))}
-        <label className="board-sort-control">
-          <span className="sr-only">게시글 정렬</span>
-          <select aria-label="게시글 정렬" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as SortOrder)}>
-            {(Object.keys(sortLabels) as SortOrder[]).map((key) => <option key={key} value={key}>{sortLabels[key]}</option>)}
-          </select>
-        </label>
-      </section>
-
       <section className="board-page-layout">
         <article className="panel board-list-panel">
           <div className="form">
             <input className="search" placeholder="제목 또는 내용 검색" value={query} onChange={(event) => setQuery(event.target.value)} />
-            <div className="tabs">
-              <button className={category === "all" ? "tab active" : "tab"} type="button" onClick={() => setCategory("all")}>전체</button>
-              {availableCategories.map((key) => (
-                <button className={category === key ? "tab active" : "tab"} key={key} type="button" onClick={() => setCategory(key)}>
-                  {categoryLabels[key]}
-                </button>
-              ))}
+            <div className="board-filter-row">
+              <div className="tabs">
+                <button className={category === "all" ? "tab active" : "tab"} type="button" onClick={() => setCategory("all")}>전체</button>
+                {availableCategories.map((key) => (
+                  <button className={category === key ? "tab active" : "tab"} key={key} type="button" onClick={() => setCategory(key)}>
+                    {categoryLabels[key]}
+                  </button>
+                ))}
+              </div>
+              <div className="board-sort-control">
+                <TimetableSelect
+                  ariaLabel="게시글 정렬"
+                  value={sortOrder}
+                  options={sortOptions}
+                  onChange={(nextOrder) => setSortOrder(nextOrder as SortOrder)}
+                />
+              </div>
             </div>
           </div>
           <div className="list" style={{ marginTop: 16 }}>
-            {activityFilter === "my-comments" ? (
-              <>
-                {paginatedCommentEntries.map(({ post, comment }) => (
-                  <div className="list-item board-list-link my-comment-list-link" key={comment.id}>
-                    <div className="meta">
-                      <span className="badge">{categoryLabels[post.category]}</span>
-                      <BoardAuthorMenu userId={post.userId} authorName={post.authorName} currentUserId={user?.id} posts={posts} />
-                      <span>조회 {post.viewCount}</span>
-                      <span className="board-stat" aria-label={`댓글 ${post.comments.length}개`}><CommentIcon />{post.comments.length}</span>
-                      <span className="recommend-meta board-stat" aria-label={`추천 ${post.recommendCount}개`}><RecommendIcon />{post.recommendCount}</span>
-                    </div>
-                    <Link className="board-entry-title" href={`/board/${post.id}?commentId=${comment.id}#comment-${comment.id}`}><strong>{post.title}</strong></Link>
-                    <Link className="my-comment-preview" href={`/board/${post.id}?commentId=${comment.id}#comment-${comment.id}`}>
-                      <span className="badge">내 댓글</span>
-                      <p>{comment.content}</p>
-                    </Link>
-                  </div>
-                ))}
-                {myCommentEntries.length === 0 ? <div className="list-item">내가 쓴 댓글 목록이 없습니다.</div> : null}
-              </>
-            ) : (
-              <>
-                {paginatedPosts.map((post) => (
-                  <div className="list-item board-list-link" key={post.id}>
-                    <div className="meta">
-                      <span className="badge">{categoryLabels[post.category]}</span>
-                      <BoardAuthorMenu userId={post.userId} authorName={post.authorName} currentUserId={user?.id} posts={posts} />
-                      <span>조회 {post.viewCount}</span>
-                      <span className="board-stat" aria-label={`댓글 ${post.comments.length}개`}><CommentIcon />{post.comments.length}</span>
-                      <span className="recommend-meta board-stat" aria-label={`추천 ${post.recommendCount}개`}><RecommendIcon />{post.recommendCount}</span>
-                    </div>
-                    <Link className="board-entry-title" href={`/board/${post.id}`}><strong>{post.title}</strong></Link>
-                  </div>
-                ))}
-                {filteredPosts.length === 0 ? <div className="list-item">{activityFilter === "all" ? "아직 작성된 글이 없습니다." : `${activityLabels[activityFilter]} 목록이 없습니다.`}</div> : null}
-              </>
-            )}
+            {paginatedPosts.map((post) => (
+              <div className="list-item board-list-link" key={post.id}>
+                <div className="meta">
+                  <span className="badge">{categoryLabels[post.category]}</span>
+                  <BoardAuthorMenu userId={post.userId} authorName={post.authorName} currentUserId={user?.id} posts={posts} />
+                  <span>조회 {post.viewCount}</span>
+                  <span className="board-stat" aria-label={`댓글 ${post.comments.length}개`}><CommentIcon />{post.comments.length}</span>
+                  <span className="recommend-meta board-stat" aria-label={`추천 ${post.recommendCount}개`}><RecommendIcon />{post.recommendCount}</span>
+                </div>
+                <Link className="board-entry-title" href={`/board/${post.id}`}><strong>{post.title}</strong></Link>
+              </div>
+            ))}
+            {filteredPosts.length === 0 ? <div className="list-item">아직 작성된 글이 없습니다.</div> : null}
           </div>
           <nav className="board-pagination" aria-label="게시글 페이지">
             <button className="board-page-button" type="button" disabled={safeCurrentPage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}>이전</button>
@@ -547,6 +449,47 @@ export default function BoardPage() {
         </article>
 
         <div className="board-sidebar-column">
+          <section className="panel board-my-profile" aria-labelledby="board-my-profile-title">
+            {user ? (
+              <>
+                <div className="board-profile-card">
+                  <Link className="board-profile-avatar" href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`} aria-label={`${user.nickname} 게시판 활동 보기`}>
+                    <BoardUserRank posts={posts} userId={user.id} />
+                  </Link>
+                  <div className="board-profile-copy">
+                    <span id="board-my-profile-title">내 프로필</span>
+                    <div className="board-profile-name-row">
+                      <Link href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`}>
+                        <strong>{user.nickname}</strong>
+                      </Link>
+                      <button className="board-profile-edit-button" type="button" aria-label="닉네임 수정" onClick={startNicknameEditing}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 3.7-.8L19 7.9a1.7 1.7 0 0 0 0-2.4l-.5-.5a1.7 1.7 0 0 0-2.4 0L5.8 15.3 5 19Z" /><path d="m14.8 6.3 2.9 2.9" /></svg>
+                      </button>
+                    </div>
+                    <Link className="board-profile-activity-button" href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`}>
+                      게시판 활동 보기
+                    </Link>
+                  </div>
+                </div>
+                {isNicknameEditing ? (
+                  <form className="board-nickname-form" onSubmit={updateNickname}>
+                    <input aria-label="새 닉네임" autoFocus maxLength={12} value={nicknameDraft} onChange={(event) => setNicknameDraft(event.target.value)} />
+                    <div>
+                      <button className="button" type="submit">저장</button>
+                      <button className="ghost-button" type="button" onClick={() => setIsNicknameEditing(false)}>취소</button>
+                    </div>
+                    {nicknameError ? <small className="error">{nicknameError}</small> : null}
+                  </form>
+                ) : null}
+              </>
+            ) : (
+              <Link className="board-profile-login" href="/auth/login">
+                <strong id="board-my-profile-title">내 프로필</strong>
+                <small>로그인하고 수정 등급을 확인해 보세요.</small>
+              </Link>
+            )}
+          </section>
+
           <aside className="panel board-popular-sidebar" aria-labelledby="board-popular-title">
             <div className="board-popular-header">
               <h2 id="board-popular-title">인기 게시글</h2>
@@ -570,39 +513,6 @@ export default function BoardPage() {
               ) : null}
             </div>
           </aside>
-
-          <section className="panel board-my-profile" aria-labelledby="board-my-profile-title">
-            {user ? (
-              <>
-                <div className="board-profile-row">
-                  <span className="board-profile-avatar"><BoardUserRank posts={posts} userId={user.id} /></span>
-                  <Link className="board-profile-copy" href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`}>
-                    <span id="board-my-profile-title">내 프로필</span>
-                    <strong>{user.nickname}</strong>
-                    <small>게시판 활동 보기</small>
-                  </Link>
-                  <button className="board-profile-edit-button" type="button" aria-label="닉네임 수정" onClick={startNicknameEditing}>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 19 3.7-.8L19 7.9a1.7 1.7 0 0 0 0-2.4l-.5-.5a1.7 1.7 0 0 0-2.4 0L5.8 15.3 5 19Z" /><path d="m14.8 6.3 2.9 2.9" /></svg>
-                  </button>
-                </div>
-                {isNicknameEditing ? (
-                  <form className="board-nickname-form" onSubmit={updateNickname}>
-                    <input aria-label="새 닉네임" autoFocus maxLength={12} value={nicknameDraft} onChange={(event) => setNicknameDraft(event.target.value)} />
-                    <div>
-                      <button className="button" type="submit">저장</button>
-                      <button className="ghost-button" type="button" onClick={() => setIsNicknameEditing(false)}>취소</button>
-                    </div>
-                    {nicknameError ? <small className="error">{nicknameError}</small> : null}
-                  </form>
-                ) : null}
-              </>
-            ) : (
-              <Link className="board-profile-login" href="/auth/login">
-                <strong id="board-my-profile-title">내 프로필</strong>
-                <small>로그인하고 수정 등급을 확인해 보세요.</small>
-              </Link>
-            )}
-          </section>
 
           <button className="panel board-sidebar-rank-button" type="button" onClick={() => setIsRankGuideOpen(true)}>
             <BoardRankIcon className="violet" name="수정 등급" />

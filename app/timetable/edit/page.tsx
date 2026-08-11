@@ -680,17 +680,35 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   );
   const visibleElectiveCourses = useMemo(
     () => electiveCourses
-      .filter((course) => selectedElectiveAreas.length === electiveAreaOptions.length || selectedElectiveAreas.includes(getElectiveAreaName(course)))
-      .filter((course) => matchesElectivePreferences(course, selectedElectivePreferences, classes, personalSchedules))
-      .filter((course) => !sungshinCourseConflictsWithSchedule(course)),
+      .filter((course) => {
+        const isSelected = isSungshinCourseSelected(course);
+        return isSelected || selectedElectiveAreas.length === electiveAreaOptions.length || selectedElectiveAreas.includes(getElectiveAreaName(course));
+      })
+      .filter((course) => {
+        const isSelected = isSungshinCourseSelected(course);
+        return isSelected || matchesElectivePreferences(course, selectedElectivePreferences, classes, personalSchedules);
+      })
+      .filter((course) => isSungshinCourseSelected(course) || !sungshinCourseConflictsWithSchedule(course))
+      .sort((left, right) => Number(isSungshinCourseSelected(right)) - Number(isSungshinCourseSelected(left))),
     [classes, electiveCourses, personalSchedules, selectedElectiveAreas, selectedElectivePreferences]
   );
   const recommendedElectiveCourses = useMemo(
-    () => courses
-      .filter((course) => course.requiredType === "elective")
-      .filter((course) => !courseConflictsWithSchedule(course))
-      .sort((left, right) => right.reviewAverage - left.reviewAverage)
-      .slice(0, 6),
+    () => {
+      const selectableCourses = courses
+        .filter((course) => course.requiredType === "elective")
+        .filter((course) => isRecommendedCourseSelected(course) || !courseConflictsWithSchedule(course))
+        .sort((left, right) => (
+          Number(isRecommendedCourseSelected(right)) - Number(isRecommendedCourseSelected(left))
+          || right.reviewAverage - left.reviewAverage
+        ));
+      const selectedCourses = selectableCourses.filter(isRecommendedCourseSelected);
+      const unselectedCourses = selectableCourses.filter((course) => !isRecommendedCourseSelected(course));
+
+      return [
+        ...selectedCourses,
+        ...unselectedCourses.slice(0, Math.max(0, 6 - selectedCourses.length))
+      ];
+    },
     [classes, personalSchedules]
   );
 
@@ -1739,28 +1757,32 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       {activeStep === "recommendations" ? (
         <>
           <section>
-            <article className="panel">
+            <article className="panel timetable-recommend-panel">
               <div className="section-title">
-                <h2>추천 교양 목록</h2>
+                <div className="timetable-recommend-title">
+                  <span aria-hidden="true" />
+                  <h2>추천 교양 목록</h2>
+                </div>
                 <span className="badge">{visibleElectiveCourses.length || recommendedElectiveCourses.length}개 표시</span>
               </div>
-              <div className="checkbox-list elective-type-filter" aria-label="교양 및 GEM 영역 필터">
+              <div className="timetable-recommend-filter-row timetable-recommend-area-row" aria-label="교양 및 GEM 영역 필터">
                 {electiveAreaOptions.map((area) => (
-                  <label className="checkbox-card" key={area}>
+                  <label className="timetable-recommend-chip" key={area}>
                     <input
                       type="checkbox"
                       checked={selectedElectiveAreas.includes(area)}
                       onChange={(event) => toggleElectiveArea(area, event.target.checked)}
                     />
+                    <i aria-hidden="true" />
                     <span>
                       <strong>{area}</strong>
                     </span>
                   </label>
                 ))}
               </div>
-              <div className="checkbox-list elective-type-filter elective-preference-filter" aria-label="교양 추천 선호 조건">
+              <div className="timetable-recommend-filter-row timetable-recommend-preference-row" aria-label="교양 추천 선호 조건">
                 {electivePreferenceOptions.map((option) => (
-                  <label className="checkbox-card" key={option.value}>
+                  <label className="timetable-recommend-chip timetable-recommend-preference-chip" key={option.value}>
                     <input
                       type="checkbox"
                       checked={selectedElectivePreferences.includes(option.value)}
@@ -1772,28 +1794,26 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                   </label>
                 ))}
               </div>
-              <div className="list">
+              <div className="timetable-recommend-course-list">
                 {isElectiveCourseLoading ? (
-                  <div className="list-item">
+                  <div className="timetable-recommend-course-row">
                     <strong>교양 강좌를 불러오는 중입니다.</strong>
                   </div>
                 ) : visibleElectiveCourses.length ? (
-                  <div className="checkbox-list">
+                  <>
                     {visibleElectiveCourses.map((course) => {
                       const isSelected = isSungshinCourseSelected(course);
 
                       return (
-                        <label className="checkbox-card" key={course.id}>
+                        <label className="timetable-recommend-course-row" key={course.id}>
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={(event) => toggleSungshinCourse(course, event.target.checked)}
                           />
                           <span>
-                            <strong>
-                              {course.courseName}
-                              {course.classNumber && course.classNumber !== "001" ? ` (${course.classNumber})` : ""}
-                            </strong>
+                            <strong>{course.courseName}{course.classNumber && course.classNumber !== "001" ? ` (${course.classNumber})` : ""}</strong>
+                            <em>교양</em>
                             <small>
                               {[course.isGem ? "GEM" : "", course.completionType, course.subjectAreaName, course.departmentName, course.professorName, course.scheduleText || "시간 미정", getCourseRoomLabel(course)].filter(Boolean).join(" · ")}
                             </small>
@@ -1801,19 +1821,19 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                         </label>
                       );
                     })}
-                  </div>
+                  </>
                 ) : electiveCourses.length ? (
-                  <div className="list-item">
+                  <div className="timetable-recommend-course-row">
                     <strong>조건에 맞는 교양 강좌가 없습니다.</strong>
                     <span className="muted">교양 종류 선택을 늘리거나 앞 단계의 시간표를 조정해보세요.</span>
                   </div>
                 ) : (
-                  <div className="checkbox-list">
+                  <>
                     {recommendedElectiveCourses.map((course) => {
                       const isSelected = isRecommendedCourseSelected(course);
 
                       return (
-                        <label className="checkbox-card" key={course.id}>
+                        <label className="timetable-recommend-course-row" key={course.id}>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -1821,18 +1841,19 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                           />
                           <span>
                             <strong>{course.courseName}</strong>
+                            <em>교양</em>
                             <small>{course.professorName} · {dayLabels[course.dayOfWeek]} {course.startTime}-{course.endTime} · 평균 {course.reviewAverage.toFixed(1)}점</small>
                           </span>
                         </label>
                       );
                     })}
                     {!recommendedElectiveCourses.length ? (
-                      <div className="list-item">
+                      <div className="timetable-recommend-course-row">
                         <strong>조건에 맞는 교양 강좌가 없습니다.</strong>
                         <span className="muted">앞 단계의 시간표나 개인 일정을 조정해보세요.</span>
                       </div>
                     ) : null}
-                  </div>
+                  </>
                 )}
               </div>
             </article>

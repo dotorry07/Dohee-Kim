@@ -4,8 +4,8 @@ import { Suspense, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { campusBuildingDetails, unjeongCampusBuildingDetails } from "@/lib/campus-place-details";
-import { campusPlaces } from "@/lib/data";
-import type { CampusPlace } from "@/lib/types";
+import { campusPlaces, campusShortcuts } from "@/lib/data";
+import type { CampusPlace, CampusShortcut } from "@/lib/types";
 import type { CampusBuildingDetail, CampusFacilityDetail, CampusFloorDetail } from "@/lib/campus-place-details";
 
 const CampusMap = dynamic(() => import("@/components/CampusMap"), {
@@ -23,6 +23,7 @@ const categoryLabels: Record<CampusPlace["category"], string> = {
 };
 
 type CampusKey = CampusPlace["campus"];
+type MapViewTab = "map" | "shortcuts";
 type PlaceFilterKey = "all" | "student" | "nanhyang" | "sujeong" | "sungshin" | "p" | "a" | "b" | "c" | "food" | "library" | "admin" | "facility";
 type SujeongBuildingGroup = "공통" | "A동" | "B동" | "C동";
 
@@ -119,6 +120,10 @@ function getDetailLocationText(detailOptions: CampusBuildingDetail, item: Campus
   return `${detailOptions.parentName} ${item.label}`;
 }
 
+function getShortcutLabel(shortcut: CampusShortcut) {
+  return shortcut.endpoints.map((endpoint) => endpoint.label).join(" ↔ ");
+}
+
 export default function MapPage() {
   return (
     <Suspense fallback={<main className="page"><div className="panel">지도를 불러오는 중입니다.</div></main>}>
@@ -139,6 +144,7 @@ function MapContent() {
   const [activeCampus, setActiveCampus] = useState<CampusKey>(initialCampus);
   const [query, setQuery] = useState(initialQuery);
   const [placeFilter, setPlaceFilter] = useState<PlaceFilterKey>(category === "food" || category === "식당" ? "food" : "all");
+  const [activeTab, setActiveTab] = useState<MapViewTab>("map");
   const detailOptions = getDetailOptions(activeCampus, placeFilter);
   const [selectedDetailLabel, setSelectedDetailLabel] = useState(() => getInitialDetailLabel(detailOptions, target));
   const [selectedSujeongGroup, setSelectedSujeongGroup] = useState<SujeongBuildingGroup | null>(null);
@@ -167,6 +173,7 @@ function MapContent() {
     const initial = filteredPlaces[0] ?? campusPlaces.find((place) => place.campus === initialCampus) ?? null;
     return initial?.id ?? null;
   });
+  const [selectedShortcutId, setSelectedShortcutId] = useState<string | null>(null);
   const selected = campusPlaces.find((place) => place.id === selectedPlaceId && place.campus === activeCampus)
     ?? filteredPlaces[0]
     ?? campusPlaces.find((place) => place.campus === activeCampus)
@@ -214,6 +221,7 @@ function MapContent() {
     setPlaceFilter("all");
     setSelectedDetailLabel("");
     setSelectedSujeongGroup(null);
+    setSelectedShortcutId(null);
     setSelectedPlaceId(campusPlaces.find((place) => place.campus === nextCampus)?.id ?? null);
   }
 
@@ -222,6 +230,7 @@ function MapContent() {
     setPlaceFilter(nextFilter);
     setSelectedSujeongGroup(null);
     setSelectedDetailLabel(nextFilter === "sujeong" ? "" : getInitialDetailLabel(nextDetailOptions, target));
+    setSelectedShortcutId(null);
     const matchingPlace = campusPlaces.find((place) => place.campus === activeCampus && matchesPlaceFilter(place, nextFilter));
     setSelectedPlaceId(matchingPlace?.id ?? null);
   }
@@ -229,6 +238,7 @@ function MapContent() {
   function changeQuery(nextQuery: string) {
     setQuery(nextQuery);
     setSelectedDetailLabel("");
+    setSelectedShortcutId(null);
     if (nextQuery.trim()) {
       setSelectedSujeongGroup(null);
     }
@@ -236,8 +246,15 @@ function MapContent() {
 
   function selectSujeongGroup(group: SujeongBuildingGroup) {
     setSelectedSujeongGroup(group);
+    setSelectedShortcutId(null);
     const firstInGroup = detailOptions?.items.find((item) => item.label.startsWith(`${group} `));
     setSelectedDetailLabel(firstInGroup?.label ?? "");
+  }
+
+  function selectShortcut(shortcut: CampusShortcut) {
+    setActiveCampus(shortcut.campus);
+    setActiveTab("map");
+    setSelectedShortcutId(shortcut.id);
   }
 
   return (
@@ -247,128 +264,177 @@ function MapContent() {
         <p>건물명, 강의실명, 편의시설명으로 검색하고 시간표와 연결된 수업 장소를 확인합니다.</p>
       </section>
 
-      <section className="panel map-search-panel">
-        <div className="campus-switch-tabs" aria-label="캠퍼스 선택">
-          <button className={activeCampus === "donam" ? "campus-switch-tab active" : "campus-switch-tab"} type="button" onClick={() => changeCampus("donam")}>돈암수정캠퍼스</button>
-          <button className={activeCampus === "unjeong" ? "campus-switch-tab active" : "campus-switch-tab"} type="button" onClick={() => changeCampus("unjeong")}>운정그린캠퍼스</button>
-        </div>
-        <div className="map-image-area">
-          <CampusMap
-            campus={activeCampus}
-            places={campusPlaces}
-            selectedPlaceId={selected?.id ?? null}
-            onSelectPlace={(place) => setSelectedPlaceId(place.id)}
-          />
-        </div>
-        <div className="map-search-area">
-          <div className="section-title">
-            <h2>장소 검색</h2>
-            <span className="badge">{detailOptions ? `${resultCount}개 구역` : `${resultCount}곳`}</span>
-          </div>
-          <div className="form">
-            <input className="search" placeholder="건물, 시설, 태그 검색" value={query} onChange={(event) => changeQuery(event.target.value)} />
-            <div className="tabs">
-              {visiblePlaceFilters.map((filter) => (
-                <button
-                  className={placeFilter === filter.key ? "tab active" : "tab"}
-                  key={filter.key}
-                  type="button"
-                  onClick={() => changePlaceFilter(filter.key)}
-                >
-                  {filter.label}
-                </button>
-              ))}
+      <div className="map-view-tabs" aria-label="지도 보기 선택">
+        <button className={activeTab === "map" ? "map-view-tab active" : "map-view-tab"} type="button" onClick={() => setActiveTab("map")}>지도</button>
+        <button className={activeTab === "shortcuts" ? "map-view-tab active" : "map-view-tab"} type="button" onClick={() => setActiveTab("shortcuts")}>지름길</button>
+      </div>
+
+      {activeTab === "map" ? (
+        <>
+          <section className="panel map-search-panel">
+            <div className="campus-switch-tabs" aria-label="캠퍼스 선택">
+              <button className={activeCampus === "donam" ? "campus-switch-tab active" : "campus-switch-tab"} type="button" onClick={() => changeCampus("donam")}>돈암수정캠퍼스</button>
+              <button className={activeCampus === "unjeong" ? "campus-switch-tab active" : "campus-switch-tab"} type="button" onClick={() => changeCampus("unjeong")}>운정그린캠퍼스</button>
             </div>
-            <div className="list">
-              {detailOptions ? (
-                showSujeongGroupList ? (
-                  sujeongBuildingGroups.map((group) => (
+            <div className="map-image-area">
+              <CampusMap
+                campus={activeCampus}
+                places={campusPlaces}
+                selectedPlaceId={selectedShortcutId ? null : selected?.id ?? null}
+                onSelectPlace={(place) => {
+                  setSelectedShortcutId(null);
+                  setSelectedPlaceId(place.id);
+                }}
+                shortcuts={campusShortcuts}
+                selectedShortcutId={selectedShortcutId}
+              />
+            </div>
+            <div className="map-search-area">
+              <div className="section-title">
+                <h2>장소 검색</h2>
+                <span className="badge">{detailOptions ? `${resultCount}개 구역` : `${resultCount}곳`}</span>
+              </div>
+              <div className="form">
+                <input className="search" placeholder="건물, 시설, 태그 검색" value={query} onChange={(event) => changeQuery(event.target.value)} />
+                <div className="tabs">
+                  {visiblePlaceFilters.map((filter) => (
                     <button
-                      className="list-item"
+                      className={placeFilter === filter.key ? "tab active" : "tab"}
+                      key={filter.key}
                       type="button"
-                      key={`sujeong-${group}`}
-                      onClick={() => selectSujeongGroup(group)}
-                      style={{ textAlign: "left" }}
+                      onClick={() => changePlaceFilter(filter.key)}
                     >
-                      <strong>{group}</strong>
-                      <span className="muted">수정관 {group}</span>
-                    </button>
-                  ))
-                ) : (
-                  <>
-                    {placeFilter === "sujeong" && selectedSujeongGroup && !normalizedQuery ? (
-                      <button
-                        className="list-item"
-                        type="button"
-                        onClick={() => {
-                          setSelectedSujeongGroup(null);
-                          setSelectedDetailLabel("");
-                        }}
-                        style={{ textAlign: "left" }}
-                      >
-                        <strong>동 선택으로</strong>
-                      </button>
-                    ) : null}
-                    {visibleDetailItems.map((item) => (
-                      <button
-                        className={selectedDetail?.label === item.label ? "list-item active" : "list-item"}
-                        type="button"
-                        key={`${detailOptions.parentName}-${item.label}`}
-                        onClick={() => setSelectedDetailLabel(item.label)}
-                        style={{ textAlign: "left" }}
-                      >
-                        <strong>{item.label}</strong>
-                        <span className="muted">{getDetailLocationText(detailOptions, item)}</span>
-                      </button>
-                    ))}
-                    {visibleDetailItems.length === 0 ? <div className="list-item">검색 결과가 없습니다.</div> : null}
-                  </>
-                )
-              ) : (
-                <>
-                  {filteredPlaces.map((place) => (
-                    <button
-                      className={selected?.id === place.id ? "list-item active" : "list-item"}
-                      type="button"
-                      key={place.id}
-                      onClick={() => setSelectedPlaceId(place.id)}
-                      style={{ textAlign: "left" }}
-                    >
-                      <strong>{place.name}</strong>
-                      <span className="muted">{categoryLabels[place.category]} · {place.buildingName} {place.floor}</span>
+                      {filter.label}
                     </button>
                   ))}
-                  {filteredPlaces.length === 0 ? <div className="list-item">검색 결과가 없습니다.</div> : null}
-                </>
-              )}
+                </div>
+                <div className="list">
+                  {detailOptions ? (
+                    showSujeongGroupList ? (
+                      sujeongBuildingGroups.map((group) => (
+                        <button
+                          className="list-item"
+                          type="button"
+                          key={`sujeong-${group}`}
+                          onClick={() => selectSujeongGroup(group)}
+                          style={{ textAlign: "left" }}
+                        >
+                          <strong>{group}</strong>
+                          <span className="muted">수정관 {group}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <>
+                        {placeFilter === "sujeong" && selectedSujeongGroup && !normalizedQuery ? (
+                          <button
+                            className="list-item"
+                            type="button"
+                            onClick={() => {
+                              setSelectedSujeongGroup(null);
+                              setSelectedDetailLabel("");
+                            }}
+                            style={{ textAlign: "left" }}
+                          >
+                            <strong>동 선택으로</strong>
+                          </button>
+                        ) : null}
+                        {visibleDetailItems.map((item) => (
+                          <button
+                            className={selectedDetail?.label === item.label ? "list-item active" : "list-item"}
+                            type="button"
+                            key={`${detailOptions.parentName}-${item.label}`}
+                            onClick={() => {
+                              setSelectedShortcutId(null);
+                              setSelectedDetailLabel(item.label);
+                            }}
+                            style={{ textAlign: "left" }}
+                          >
+                            <strong>{item.label}</strong>
+                            <span className="muted">{getDetailLocationText(detailOptions, item)}</span>
+                          </button>
+                        ))}
+                        {visibleDetailItems.length === 0 ? <div className="list-item">검색 결과가 없습니다.</div> : null}
+                      </>
+                    )
+                  ) : (
+                    <>
+                      {filteredPlaces.map((place) => (
+                        <button
+                          className={selected?.id === place.id ? "list-item active" : "list-item"}
+                          type="button"
+                          key={place.id}
+                          onClick={() => {
+                            setSelectedShortcutId(null);
+                            setSelectedPlaceId(place.id);
+                          }}
+                          style={{ textAlign: "left" }}
+                        >
+                          <strong>{place.name}</strong>
+                          <span className="muted">{categoryLabels[place.category]} · {place.buildingName} {place.floor}</span>
+                        </button>
+                      ))}
+                      {filteredPlaces.length === 0 ? <div className="list-item">검색 결과가 없습니다.</div> : null}
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
 
-      {selectedDetail && detailOptions ? (
-        <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
-          <div className="section-title">
-            <h2>{detailOptions.parentName} {selectedDetail.label}</h2>
-            <span className="badge">시설 안내</span>
+          {selectedDetail && detailOptions ? (
+            <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
+              <div className="section-title">
+                <h2>{detailOptions.parentName} {selectedDetail.label}</h2>
+                <span className="badge">시설 안내</span>
+              </div>
+              <CampusFloorDetailView floor={selectedDetail} />
+            </section>
+          ) : selected ? (
+            <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
+              <div className="section-title">
+                <h2>{selected.name}</h2>
+                <span className="badge">{categoryLabels[selected.category]}</span>
+              </div>
+              <p>{selected.description}</p>
+              <div className="meta">
+                <span>{selected.buildingName}</span>
+                <span>{selected.floor}</span>
+                {selected.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
+              </div>
+            </section>
+          ) : null}
+        </>
+      ) : (
+        <section className="panel shortcut-tab-panel">
+          <div className="shortcut-tab-header">
+            <h2>지름길</h2>
           </div>
-          <CampusFloorDetailView floor={selectedDetail} />
+          <div className="shortcut-card-grid">
+            {campusShortcuts.map((shortcut) => (
+              <ShortcutCard
+                key={shortcut.id}
+                shortcut={shortcut}
+                isActive={selectedShortcutId === shortcut.id}
+                onSelect={() => selectShortcut(shortcut)}
+              />
+            ))}
+          </div>
         </section>
-      ) : selected ? (
-        <section className="panel map-detail-panel" style={{ marginTop: 16 }}>
-          <div className="section-title">
-            <h2>{selected.name}</h2>
-            <span className="badge">{categoryLabels[selected.category]}</span>
-          </div>
-          <p>{selected.description}</p>
-          <div className="meta">
-            <span>{selected.buildingName}</span>
-            <span>{selected.floor}</span>
-            {selected.tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}
-          </div>
-        </section>
-      ) : null}
+      )}
     </main>
+  );
+}
+
+function ShortcutCard({ shortcut, isActive, onSelect }: { shortcut: CampusShortcut; isActive: boolean; onSelect: () => void }) {
+  return (
+    <button className={isActive ? "shortcut-card active" : "shortcut-card"} type="button" onClick={onSelect}>
+      <span className="shortcut-card-route">
+        <strong>{shortcut.endpoints[0].label}</strong>
+        <span aria-hidden="true">↔</span>
+        <strong>{shortcut.endpoints[1].label}</strong>
+      </span>
+      <span className="sr-only">{getShortcutLabel(shortcut)} 지도에서 보기</span>
+    </button>
   );
 }
 

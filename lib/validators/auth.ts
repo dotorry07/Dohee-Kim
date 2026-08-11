@@ -6,6 +6,7 @@ export interface AuthFormInput {
   passwordConfirm?: string;
   name?: string;
   department?: string;
+  secondaryDepartment?: string;
   grade?: string;
   availableDepartments?: readonly string[];
 }
@@ -46,6 +47,10 @@ export function validateSignup(input: AuthFormInput) {
 
   if (input.availableDepartments?.length && !input.availableDepartments.includes(input.department)) {
     return "검색 결과에서 학과를 선택해주세요.";
+  }
+
+  if (input.secondaryDepartment?.trim() && input.availableDepartments?.length && !input.availableDepartments.includes(input.secondaryDepartment)) {
+    return "검색 결과에서 부/복수전공을 선택해주세요.";
   }
 
   const grade = Number(input.grade);

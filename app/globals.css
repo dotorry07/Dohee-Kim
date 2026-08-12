@@ -992,23 +992,6 @@ button {
   outline: 3px solid rgba(137, 91, 210, 0.18);
 }
 
-.login-remember {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  width: fit-content;
-  color: #8c7aa0;
-  font-size: 16px;
-  font-weight: 800;
-}
-
-.login-remember input {
-  width: 24px;
-  height: 24px;
-  margin: 0;
-  accent-color: #7c3df0;
-}
-
 .login-submit {
   display: inline-flex;
   align-items: center;

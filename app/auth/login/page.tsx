@@ -114,10 +114,6 @@ export default function LoginPage() {
               </div>
               <input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
             </div>
-            <label className="login-remember">
-              <input type="checkbox" />
-              <span>30일 동안 로그인 상태 유지</span>
-            </label>
             {error ? <div className="error">{error}</div> : null}
             <button className="login-submit" type="submit">
               로그인

@@ -8,10 +8,10 @@ import { getStoredUser, signOut } from "@/lib/auth/client";
 const links = [
   ["새내기 필독", "/must-read"],
   ["대시보드", "/dashboard"],
+  ["공지", "/notices"],
   ["시간표", "/timetable"],
   ["지도", "/map"],
-  ["게시판", "/board"],
-  ["공지", "/notices"]
+  ["게시판", "/board"]
 ] as const;
 
 export function AppHeader() {

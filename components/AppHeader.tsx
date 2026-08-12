@@ -11,8 +11,7 @@ const links = [
   ["시간표", "/timetable"],
   ["지도", "/map"],
   ["게시판", "/board"],
-  ["공지", "/notices"],
-  ["마이페이지", "/mypage"]
+  ["공지", "/notices"]
 ] as const;
 
 export function AppHeader() {
@@ -103,11 +102,18 @@ export function AppHeader() {
               );
             })}
             {userName ? (
-              <button className="logout-button" type="button" onClick={() => setIsLogoutConfirmOpen(true)}>
-                로그아웃
-              </button>
+              <span className="nav-auth-actions">
+                <button className="auth-button logout-auth-button" type="button" onClick={() => setIsLogoutConfirmOpen(true)}>
+                  로그아웃
+                </button>
+                <Link className={pathname.startsWith("/mypage") ? "auth-button active" : "auth-button"} href="/mypage">
+                  마이페이지
+                </Link>
+              </span>
             ) : (
-              <Link href="/auth/login">로그인</Link>
+              <span className="nav-auth-actions">
+                <Link className="auth-button" href="/auth/login">로그인</Link>
+              </span>
             )}
           </nav>
         </div>

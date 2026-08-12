@@ -249,8 +249,21 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
 
         const remoteIds = new Set(remoteTimetables.map((item) => item.id));
         setTimetableList((current) => {
+          const localById = new Map(current.map((item) => [item.id, item]));
+          const mergedRemoteTimetables = remoteTimetables.map((remoteTimetable) => {
+            const localTimetable = localById.get(remoteTimetable.id);
+
+            if (remoteTimetable.personalSchedules?.length || !localTimetable?.personalSchedules?.length) {
+              return remoteTimetable;
+            }
+
+            return {
+              ...remoteTimetable,
+              personalSchedules: localTimetable.personalSchedules
+            };
+          });
           const localOnlyTimetables = current.filter((item) => !remoteIds.has(item.id));
-          return [...remoteTimetables, ...localOnlyTimetables];
+          return [...mergedRemoteTimetables, ...localOnlyTimetables];
         });
         setSyncError("");
 

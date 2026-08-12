@@ -89,7 +89,7 @@ button {
   width: 36px;
   height: 36px;
   place-items: center;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .brand-mark img {
@@ -174,21 +174,48 @@ button {
   background: transparent;
 }
 
-.nav .logout-button {
+.nav-auth-actions {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
   flex: 0 0 auto;
-  min-height: 34px;
-  margin-left: 30px;
-  border-color: var(--primary);
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--accent), var(--primary));
-  color: #fff;
-  padding: 7px 15px;
-  font-size: 13px;
-  box-shadow: 0 8px 18px rgba(88, 47, 130, 0.18);
+  align-items: center;
+  gap: 8px;
+  margin-left: 18px;
   transform: translateX(12px);
 }
 
-.nav .logout-button:hover {
+.nav .auth-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-color: rgba(88, 47, 130, 0.2);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--primary-strong);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 850;
+  box-shadow: 0 7px 16px rgba(88, 47, 130, 0.1);
+}
+
+.nav .auth-button:hover,
+.nav .auth-button.active {
+  border-color: rgba(88, 47, 130, 0.34);
+  background: #f7f1ff;
+  color: var(--primary-strong);
+}
+
+.nav .auth-button.logout-auth-button {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, var(--accent), var(--primary));
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(88, 47, 130, 0.18);
+}
+
+.nav .auth-button.logout-auth-button:hover {
   border-color: var(--primary-strong);
   background: linear-gradient(135deg, var(--primary), var(--primary-strong));
   color: #fff;
@@ -1373,6 +1400,12 @@ button {
   gap: 4px;
 }
 
+.board-author-button .board-rank-badge,
+.board-author-name .board-rank-badge,
+.board-user-title .board-rank-badge {
+  transform: translateY(-3px);
+}
+
 .board-rank-badge {
   position: relative;
   display: inline-grid;
@@ -1491,6 +1524,27 @@ button {
   border-top-left-radius: 8px;
 }
 
+.board-post-page {
+  max-width: 980px;
+}
+
+.board-post-header {
+  gap: 14px;
+  margin-bottom: 18px;
+  border: 1px solid #ece7fa;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fff 0%, #fbf8ff 58%, #f2ecff 100%);
+  box-shadow: 0 6px 18px rgba(61, 43, 103, 0.05);
+  padding: 18px;
+}
+
+.board-back-button {
+  justify-self: start;
+  border-color: #e7def6;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--primary-strong);
+}
+
 .board-comment-main {
   display: grid;
   min-width: 0;
@@ -1535,10 +1589,11 @@ button {
 
 .board-post-title {
   min-width: 0;
-  margin: 0;
-  font-size: clamp(30px, 4vw, 44px);
-  line-height: 1.15;
-  font-weight: 700;
+  margin: 10px 0 0;
+  color: #21192b;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.18;
+  font-weight: 900;
   overflow-wrap: anywhere;
 }
 
@@ -1556,10 +1611,41 @@ button {
   padding-top: 4px;
 }
 
+.board-post-panel {
+  padding: 24px;
+}
+
+.board-post-meta {
+  gap: 10px 12px;
+  border-bottom: 1px solid #ece7fa;
+  padding-bottom: 16px;
+}
+
+.board-post-meta .board-author-menu,
+.board-post-meta .board-author-name,
+.board-post-meta .board-author-button {
+  color: var(--text);
+  font-weight: 900;
+}
+
 .board-post-content {
-  margin: 20px 0 0;
+  min-height: 180px;
+  margin: 24px 0 0;
+  color: #2b2433;
   white-space: pre-wrap;
-  line-height: 1.7;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+.board-post-image {
+  display: block;
+  width: 100%;
+  max-height: 36rem;
+  margin-top: 24px;
+  border: 1px solid #ece7fa;
+  border-radius: 8px;
+  background: #faf9fd;
+  object-fit: contain;
 }
 
 .board-post-actions {
@@ -1580,6 +1666,49 @@ button {
 .board-edit-submit-button {
   justify-self: end;
   min-width: 96px;
+}
+
+.board-comments-panel {
+  margin-top: 16px;
+  padding: 20px;
+}
+
+.board-comments-panel > .section-title {
+  margin-bottom: 14px;
+  border-bottom: 1px solid #ece7fa;
+  padding-bottom: 12px;
+}
+
+.board-comments-panel > .section-title h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.board-comments-panel .list {
+  gap: 8px;
+}
+
+.board-comments-panel .board-comment-item {
+  border-color: #ece7fa;
+  background: #fff;
+  padding: 14px;
+}
+
+.board-comment-form {
+  margin-top: 16px;
+  border-top: 1px solid #ece7fa;
+  padding-top: 16px;
+}
+
+.board-comment-form input {
+  min-height: 46px;
+  border-color: #e3d9f4;
+  background: #fdfcff;
+}
+
+.board-comment-form .button {
+  justify-self: end;
 }
 
 .board-activity-tabs {
@@ -1695,11 +1824,13 @@ button {
   opacity: 0.45;
 }
 
-.board-page {
+.board-page,
+.must-read-page {
   padding-top: 0;
 }
 
-.board-page-header {
+.board-page-header,
+.must-read-page-header {
   position: relative;
   min-height: 218px;
   width: 100vw;
@@ -1732,6 +1863,7 @@ button {
 }
 
 .board-page-header h1,
+.must-read-page-header h1,
 .timetable-top-banner h1,
 .map-page-header h1 {
   margin: 0 0 10px;
@@ -1744,6 +1876,7 @@ button {
 }
 
 .board-page-header p,
+.must-read-page-header p,
 .timetable-top-banner p,
 .map-page-header p {
   max-width: 680px;
@@ -1775,6 +1908,25 @@ button {
   font-size: 12px;
   font-weight: 800;
   box-shadow: 0 5px 14px rgba(86, 44, 133, 0.05);
+}
+
+.must-read-app-item {
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+}
+
+.must-read-app-item img {
+  display: block;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 5px 12px rgba(35, 24, 45, 0.12);
+}
+
+.must-read-app-item strong {
+  min-width: 0;
 }
 
 .banner-tag-icon {
@@ -1810,7 +1962,8 @@ button {
 }
 
 .board-banner-art img,
-.timetable-banner-art img {
+.timetable-banner-art img,
+.must-read-banner-art img {
   transform: scale(1.08);
 }
 
@@ -3748,10 +3901,11 @@ button {
 .timetable-recommend-title > span {
   display: grid;
   width: 28px;
-  height: 28px;
+  height: 36px;
   place-items: center;
   border-radius: 8px;
   background: rgba(139, 95, 191, 0.11);
+  transform: translateY(-3px);
 }
 
 .timetable-recommend-title > span::before {
@@ -3850,17 +4004,30 @@ button {
 
 .timetable-recommend-chip i {
   display: grid;
-  width: 24px;
-  height: 24px;
+  position: relative;
+  width: 28px;
+  height: 28px;
   place-items: center;
-  border-radius: 50%;
-  background: #f1e8ff;
-  font-size: 15px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #7c3fe4;
   line-height: 1;
 }
 
-.timetable-recommend-chip i::before {
-  content: none;
+.timetable-recommend-chip i svg {
+  width: 25px;
+  height: 25px;
+  overflow: visible;
+}
+
+.timetable-recommend-chip i path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .timetable-recommend-chip:has(input:checked) {
@@ -3870,7 +4037,9 @@ button {
 }
 
 .timetable-recommend-chip:has(input:checked) i {
-  background: #eadcff;
+  border-color: transparent;
+  background: transparent;
+  color: #6e35dc;
 }
 
 .timetable-recommend-preference-chip {
@@ -3905,6 +4074,12 @@ button {
 .timetable-recommend-course-row:hover {
   border-color: #c9acef;
   box-shadow: 0 8px 20px rgba(88, 47, 130, 0.07);
+}
+
+.selected-recommend-course-row {
+  border-color: #b995ee;
+  background: linear-gradient(180deg, #fbf7ff 0%, #f4ecff 100%);
+  box-shadow: 0 8px 20px rgba(88, 47, 130, 0.08);
 }
 
 .timetable-recommend-course-row input[type="checkbox"] {
@@ -4570,6 +4745,7 @@ button {
 .preview-personal-class {
   border: 1px solid rgba(68, 75, 90, 0.24);
   background: #6b7280;
+  z-index: 3;
 }
 
 .preview-online-lane {
@@ -5676,6 +5852,29 @@ button {
 }
 
 @media (max-width: 840px) {
+  .board-post-header,
+  .board-post-panel,
+  .board-comments-panel {
+    padding: 16px;
+  }
+
+  .board-post-heading {
+    display: grid;
+  }
+
+  .board-post-heading .chip-row {
+    justify-content: flex-start;
+    padding-top: 0;
+  }
+
+  .board-comment-item {
+    grid-template-columns: 1fr;
+  }
+
+  .board-comment-actions {
+    justify-self: start;
+  }
+
   .auth-page {
     padding-bottom: 36px;
   }
@@ -6118,7 +6317,8 @@ button {
     padding-top: 0;
   }
 
-  .board-page-header {
+  .board-page-header,
+  .must-read-page-header {
     min-height: 210px;
     margin-bottom: 34px;
   }
@@ -6132,12 +6332,14 @@ button {
   }
 
   .board-page-header h1,
+  .must-read-page-header h1,
   .timetable-top-banner h1,
   .map-page-header h1 {
     font-size: 34px;
   }
 
   .board-page-header p,
+  .must-read-page-header p,
   .timetable-top-banner p,
   .map-page-header p {
     max-width: 100%;

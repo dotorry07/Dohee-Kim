@@ -331,11 +331,14 @@ export default function BoardPostPage() {
   }
 
   return (
-    <main className="page">
-      <section className="page-header">
-        <Link className="ghost-button" href="/board">목록으로</Link>
+    <main className="page board-post-page">
+      <section className="page-header board-post-header">
+        <Link className="ghost-button board-back-button" href="/board">목록으로</Link>
         <div className="board-post-heading">
-          <h1 className="board-post-title">{selectedPost.title}</h1>
+          <div>
+            <span className="badge">{categoryLabels[selectedPost.category]}</span>
+            <h1 className="board-post-title">{selectedPost.title}</h1>
+          </div>
           {selectedPost.userId === user?.id ? (
             <div className="chip-row">
               <button className="ghost-button" type="button" onClick={startEditing}>수정</button>
@@ -346,7 +349,7 @@ export default function BoardPostPage() {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel board-post-panel">
         {isEditing ? (
           <form className="form board-edit-form" onSubmit={updateSelectedPost}>
             <div className="section-title">
@@ -376,20 +379,19 @@ export default function BoardPostPage() {
           </form>
         ) : (
           <>
-            <div className="meta">
-              <span className="badge">{categoryLabels[selectedPost.category]}</span>
+            <div className="meta board-post-meta">
               <BoardAuthorMenu userId={selectedPost.userId} authorName={selectedPost.authorName} currentUserId={user?.id} posts={posts} />
               <span>{new Intl.DateTimeFormat("ko-KR").format(new Date(selectedPost.createdAt))}</span>
               <span>조회 {selectedPost.viewCount}</span>
               <span className="recommend-meta">추천 {selectedPost.recommendCount}</span>
             </div>
             <p className="board-post-content">{selectedPost.content}</p>
-            {attachedImage ? <img className="mt-5 max-h-[36rem] w-full rounded-lg object-contain" src={attachedImage.dataUrl} alt={attachedImage.name || "게시글 첨부 이미지"} /> : null}
+            {attachedImage ? <img className="board-post-image" src={attachedImage.dataUrl} alt={attachedImage.name || "게시글 첨부 이미지"} /> : null}
           </>
         )}
       </section>
 
-      <section className="panel" style={{ marginTop: 16 }}>
+      <section className="panel board-comments-panel">
         <div className="section-title">
           <h2>댓글 {selectedPost.comments.length}</h2>
         </div>
@@ -423,7 +425,7 @@ export default function BoardPostPage() {
           ))}
           {selectedPost.comments.length === 0 ? <div className="list-item">아직 댓글이 없습니다.</div> : null}
         </div>
-        <form className="form" onSubmit={addComment} style={{ marginTop: 12 }}>
+        <form className="form board-comment-form" onSubmit={addComment}>
           <div className="field">
             <label htmlFor="comment">댓글</label>
             <input id="comment" maxLength={1000} value={comment} onChange={(event) => setComment(event.target.value)} />

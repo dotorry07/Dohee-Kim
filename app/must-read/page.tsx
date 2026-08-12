@@ -1,3 +1,5 @@
+import { BannerTagIcon } from "@/components/BannerTagIcon";
+
 const registrationSchedule = [
   {
     title: "강의시간표 조회",
@@ -43,28 +45,40 @@ const freshmanNotes = [
 ];
 
 const requiredApps = [
-  "성신 알리미",
-  "수강신청 앱",
-  "스마트캠퍼스",
-  "성신 모바일 신분증",
-  "도서관 시설 예약",
-  "코스모스"
+  { name: "성신 알리미", iconSrc: "/images/apps/sungshin-alimi.webp" },
+  { name: "수강신청 앱", iconSrc: "/images/apps/sungshin-course-registration.webp" },
+  { name: "스마트캠퍼스", iconSrc: "/images/apps/sungshin-smart-campus.webp" },
+  { name: "성신 모바일 신분증", iconSrc: "/images/apps/sungshin-mobile-id.webp" },
+  { name: "도서관 시설 예약", iconSrc: "/images/apps/sungshin-library-reservation.webp" },
+  { name: "코스모스", iconSrc: "/images/apps/cosmos.webp" }
 ];
 
 const helpfulApps = [
-  "에브리타임",
-  "노크",
-  "링커리어",
-  "캠퍼스픽"
+  { name: "에브리타임", iconSrc: "/images/apps/everytime.webp" },
+  { name: "노크", iconSrc: "/images/apps/knock.webp" },
+  { name: "링커리어", iconSrc: "/images/apps/linkareer.webp" },
+  { name: "캠퍼스픽", iconSrc: "/images/apps/campuspick.webp" }
 ];
 
 export default function MustReadPage() {
   return (
-    <main className="page">
-      <section className="page-header">
-        <span className="badge">2026학년도 2학기</span>
-        <h1>필수 수강신청 안내</h1>
-        <p>성신여대 학사운영팀의 2026학년도 2학기 수강신청 안내를 새내기가 먼저 확인해야 할 일정과 유의사항 중심으로 정리했습니다.</p>
+    <main className="page must-read-page">
+      <section className="page-header must-read-page-header">
+        <div className="app-banner-inner">
+          <div className="app-banner-copy">
+            <h1>새내기 필독</h1>
+            <p>수강신청 일정, 필수 확인사항, 학교 공식 앱을 한눈에 확인합니다.</p>
+            <div className="app-banner-tags" aria-hidden="true">
+              <span><BannerTagIcon icon="checklist" />수강신청</span>
+              <span><BannerTagIcon icon="bell" />필수 안내</span>
+              <span><BannerTagIcon icon="phone" />학교 앱</span>
+              <span><BannerTagIcon icon="pin" />문의처</span>
+            </div>
+          </div>
+          <div className="app-banner-art must-read-banner-art" aria-hidden="true">
+            <img src="/images/banner-must-read.png" alt="" />
+          </div>
+        </div>
       </section>
 
       <section className="grid two">
@@ -131,8 +145,9 @@ export default function MustReadPage() {
           </div>
           <div className="list">
             {requiredApps.map((app) => (
-              <div className="list-item" key={app}>
-                <strong>{app}</strong>
+              <div className="list-item must-read-app-item" key={app.name}>
+                <img src={app.iconSrc} alt="" aria-hidden="true" />
+                <strong>{app.name}</strong>
               </div>
             ))}
           </div>
@@ -147,8 +162,9 @@ export default function MustReadPage() {
           </div>
           <div className="list">
             {helpfulApps.map((app) => (
-              <div className="list-item" key={app}>
-                <strong>{app}</strong>
+              <div className="list-item must-read-app-item" key={app.name}>
+                <img src={app.iconSrc} alt="" aria-hidden="true" />
+                <strong>{app.name}</strong>
               </div>
             ))}
           </div>

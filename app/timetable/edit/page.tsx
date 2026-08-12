@@ -133,14 +133,7 @@ const semesterOptions = [
   { value: "1", label: "1학기" }
 ] as const;
 const electiveAreaOptions = ["인식과가치", "문학과예술", "사회의이해", "자연의설명", "공학과기술", "도전과실천"] as const;
-const electiveAreaIcons: Record<(typeof electiveAreaOptions)[number], string> = {
-  인식과가치: "💡",
-  문학과예술: "🎨",
-  사회의이해: "🌐",
-  자연의설명: "🌿",
-  공학과기술: "⚙️",
-  도전과실천: "🚀"
-};
+type ElectiveArea = (typeof electiveAreaOptions)[number];
 const electivePreferenceOptions: { value: ElectivePreference; label: string }[] = [
   { value: "no-consecutive", label: "연강시러" },
   { value: "no-first-period", label: "1교시 시러" },
@@ -373,6 +366,15 @@ function classMatchesParsedSchedule(classItem: ClassSchedule, parsedItem: ClassS
     && classItem.dayOfWeek === parsedItem.dayOfWeek
     && classItem.startTime === parsedItem.startTime
     && classItem.endTime === parsedItem.endTime;
+}
+
+function classMatchesSungshinCourse(classItem: ClassSchedule, course: SungshinCourse) {
+  return parseSungshinCourse(course, 0).some((parsedClass) => classMatchesParsedSchedule(classItem, parsedClass));
+}
+
+function getClassMemoDepartment(classItem: ClassSchedule) {
+  const [departmentName] = (classItem.memo ?? "").split("·").map((item) => item.trim()).filter(Boolean);
+  return departmentName ?? "";
 }
 
 function matchesSelectedMajorGrade(course: SungshinCourse, selectedGrade: string) {
@@ -657,9 +659,11 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   const [isInitialPageLoading, setIsInitialPageLoading] = useState(true);
   const [isDatabaseLoadingVisible, setIsDatabaseLoadingVisible] = useState(true);
   const [isDraftReady, setIsDraftReady] = useState(false);
+  const [isSavingTimetable, setIsSavingTimetable] = useState(false);
   const [courseConflictNotice, setCourseConflictNotice] = useState("");
   const [pendingSemester, setPendingSemester] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<PlannerStep>("classes");
+  const isSavingTimetableRef = useRef(false);
   const isDatabaseLoading = isInitialPageLoading || isRequiredCourseLoading || isCourseLoading || isElectiveCourseLoading || isRemoteTimetableLoading;
   const requiredCourses = useMemo(() => getRequiredCoursesForDepartment(department, semester), [department, semester]);
   const activeStepIndex = plannerSteps.findIndex((step) => step.id === activeStep);
@@ -688,6 +692,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   const visibleElectiveCourses = useMemo(
     () => electiveCourses
       .filter((course) => !isOwnDepartmentGemCourse(course))
+      .filter((course) => !isRequiredElectiveCourse(course))
       .filter((course) => !isSungshinCourseSelected(course))
       .filter((course) => {
         return selectedElectiveAreas.length === electiveAreaOptions.length || selectedElectiveAreas.includes(getElectiveAreaName(course));
@@ -696,7 +701,26 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         return matchesElectivePreferences(course, selectedElectivePreferences, classes, personalSchedules);
       })
       .filter((course) => !sungshinCourseConflictsWithSchedule(course)),
-    [classes, department, electiveCourses, personalSchedules, selectedElectiveAreas, selectedElectivePreferences]
+    [classes, department, electiveCourses, personalSchedules, requiredCourses, selectedElectiveAreas, selectedElectivePreferences]
+  );
+  const selectedSungshinElectiveCourses = useMemo(
+    () => electiveCourses
+      .filter((course) => !isOwnDepartmentGemCourse(course))
+      .filter((course) => !isRequiredElectiveCourse(course))
+      .filter(isSungshinCourseSelected)
+      .sort((left, right) => (
+        Number(Boolean(right.isGem)) - Number(Boolean(left.isGem))
+        || left.courseName.localeCompare(right.courseName, "ko")
+        || left.classNumber.localeCompare(right.classNumber, "ko")
+      )),
+    [classes, electiveCourses, department, requiredCourses]
+  );
+  const selectedExistingElectiveClasses = useMemo(
+    () => classes.filter((item) => (
+      isClassShownAsSelectedElective(item)
+      && !selectedSungshinElectiveCourses.some((course) => classMatchesSungshinCourse(item, course))
+    )),
+    [classes, requiredCourses, selectedSungshinElectiveCourses]
   );
   const recommendedElectiveCourses = useMemo(
     () => {
@@ -743,6 +767,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     },
     [classes, electiveCourses, recommendedElectiveCourses]
   );
+  const selectedElectiveDisplayCount = selectedSungshinElectiveCourses.length + selectedExistingElectiveClasses.length;
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1002,62 +1027,89 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   }, [activeStep, isDraftReady, selectedMajorDepartments, selectedMajorGrade, semester]);
 
   async function completeTimetable() {
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
-      setError("시간표 이름은 필수입니다.");
+    if (isSavingTimetableRef.current) {
       return;
     }
 
-    if (!classes.length) {
-      setError("강의를 직접 추가하거나 추천 후보를 선택한 뒤 저장하세요.");
-      return;
-    }
+    isSavingTimetableRef.current = true;
+    setIsSavingTimetable(true);
 
-    const saved = window.localStorage.getItem(savedTimetablesKey);
-    let savedTimetables: Timetable[] = [];
+    let didNavigate = false;
 
     try {
-      savedTimetables = saved ? (JSON.parse(saved) as Timetable[]) : [];
-    } catch {
-      savedTimetables = [];
+      const trimmedTitle = title.trim();
+
+      if (!trimmedTitle) {
+        setError("시간표 이름은 필수입니다.");
+        return;
+      }
+
+      if (!classes.length) {
+        setError("강의를 직접 추가하거나 추천 후보를 선택한 뒤 저장하세요.");
+        return;
+      }
+
+      const saved = window.localStorage.getItem(savedTimetablesKey);
+      let savedTimetables: Timetable[] = [];
+
+      try {
+        savedTimetables = saved ? (JSON.parse(saved) as Timetable[]) : [];
+      } catch {
+        savedTimetables = [];
+      }
+
+      let remoteTimetables: Timetable[] = [];
+
+      try {
+        remoteTimetables = await loadRemoteTimetables(user);
+      } catch {
+        remoteTimetables = [];
+      }
+
+      const draftId = editingId ?? `saved-${Date.now()}`;
+      const uniqueTitle = getUniqueTimetableTitle(trimmedTitle, [...savedTimetables, ...remoteTimetables], [draftId, editingId ?? ""]);
+
+      const newTimetable: Timetable = {
+        id: draftId,
+        userId,
+        semester: semester.trim() || currentSemester,
+        title: uniqueTitle,
+        isSelected: false,
+        score: classes.length ? 0 : 0,
+        classes,
+        personalSchedules,
+        createdAt: new Date().toISOString()
+      };
+      let savedTimetable = newTimetable;
+
+      try {
+        const remoteSavedTimetable = await saveRemoteTimetable(user, newTimetable) ?? newTimetable;
+        savedTimetable = {
+          ...remoteSavedTimetable,
+          personalSchedules: remoteSavedTimetable.personalSchedules?.length
+            ? remoteSavedTimetable.personalSchedules
+            : personalSchedules
+        };
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : "Supabase에 시간표를 저장하지 못했습니다. 잠시 후 다시 시도하세요.");
+        return;
+      }
+
+      const localOnlyTimetables = savedTimetables.filter((item) => (
+        item.id.startsWith("saved-")
+        && item.id !== newTimetable.id
+        && item.id !== savedTimetable.id
+      ));
+      window.localStorage.setItem(savedTimetablesKey, JSON.stringify([savedTimetable, ...localOnlyTimetables]));
+      window.localStorage.removeItem(draftStorageKey);
+      didNavigate = true;
+      router.push(`/timetable?semester=${encodeURIComponent(savedTimetable.semester)}`);
+    } finally {
+      if (!didNavigate) {
+        isSavingTimetableRef.current = false;
+        setIsSavingTimetable(false);
+      }
     }
-
-    let remoteTimetables: Timetable[] = [];
-
-    try {
-      remoteTimetables = await loadRemoteTimetables(user);
-    } catch {
-      remoteTimetables = [];
-    }
-
-    const draftId = editingId ?? `saved-${Date.now()}`;
-    const uniqueTitle = getUniqueTimetableTitle(trimmedTitle, [...savedTimetables, ...remoteTimetables], [draftId, editingId ?? ""]);
-
-    const newTimetable: Timetable = {
-      id: draftId,
-      userId,
-      semester: semester.trim() || currentSemester,
-      title: uniqueTitle,
-      isSelected: false,
-      score: classes.length ? 0 : 0,
-      classes,
-      personalSchedules,
-      createdAt: new Date().toISOString()
-    };
-    let savedTimetable = newTimetable;
-
-    try {
-      savedTimetable = await saveRemoteTimetable(user, newTimetable) ?? newTimetable;
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Supabase에 시간표를 저장하지 못했습니다. 잠시 후 다시 시도하세요.");
-      return;
-    }
-
-    const withoutCurrent = savedTimetables.filter((item) => item.id !== newTimetable.id && item.id !== savedTimetable.id);
-    window.localStorage.setItem(savedTimetablesKey, JSON.stringify([savedTimetable, ...withoutCurrent]));
-    window.localStorage.removeItem(draftStorageKey);
-    router.push(`/timetable?semester=${encodeURIComponent(savedTimetable.semester)}`);
   }
 
   function toClassSchedule(course: Course, colorOffset: number, memo = "필수 이수"): ClassSchedule {
@@ -1489,6 +1541,28 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     return Boolean(course.isGem) && course.departmentName === department;
   }
 
+  function isRequiredElectiveCourse(course: SungshinCourse) {
+    return requiredCourses.some((courseName) => getRequiredCourseDisplayName(course.courseName, requiredCourses) === courseName);
+  }
+
+  function isClassShownAsSelectedElective(classItem: ClassSchedule) {
+    if (classItem.memo?.includes("필수 이수") || requiredCourses.some((courseName) => classMatchesRequiredCourseName(classItem, courseName, requiredCourses))) {
+      return false;
+    }
+
+    if (classItem.memo?.includes("교양") || classItem.memo?.includes("GEM")) {
+      return true;
+    }
+
+    const classDepartment = getClassMemoDepartment(classItem);
+    return Boolean(classDepartment && classDepartment !== department);
+  }
+
+  function removeExistingElectiveClass(classId: string) {
+    setClasses((current) => current.filter((item) => item.id !== classId));
+    setError("");
+  }
+
   function toggleSungshinCourse(course: SungshinCourse, checked: boolean) {
     const classIdPrefix = getSungshinClassIdPrefix(course);
     const parsedClasses = parseSungshinCourse(course, 0);
@@ -1810,7 +1884,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                   <span aria-hidden="true" />
                   <h2>추천 교양 목록</h2>
                 </div>
-                <span className="badge">{visibleElectiveCourses.length || recommendedElectiveCourses.length}개 표시</span>
+                <span className="badge">{selectedElectiveDisplayCount + (visibleElectiveCourses.length || recommendedElectiveCourses.length)}개 표시</span>
               </div>
               <div className="timetable-recommend-filter-row timetable-recommend-area-row" aria-label="교양 및 GEM 영역 필터">
                 {electiveAreaOptions.map((area) => (
@@ -1820,7 +1894,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                       checked={selectedElectiveAreas.includes(area)}
                       onChange={(event) => toggleElectiveArea(area, event.target.checked)}
                     />
-                    <i aria-hidden="true">{electiveAreaIcons[area]}</i>
+                    <ElectiveAreaIcon area={area} />
                     <span>
                       <strong>{area}</strong>
                     </span>
@@ -1846,8 +1920,42 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                   <div className="timetable-recommend-course-row">
                     <strong>교양 강좌를 불러오는 중입니다.</strong>
                   </div>
-                ) : visibleElectiveCourses.length ? (
+                ) : selectedElectiveDisplayCount || visibleElectiveCourses.length ? (
                   <>
+                    {selectedSungshinElectiveCourses.map((course) => (
+                      <label className="timetable-recommend-course-row selected-recommend-course-row" key={`selected-${course.id}`}>
+                        <input
+                          type="checkbox"
+                          checked
+                          onChange={(event) => toggleSungshinCourse(course, event.target.checked)}
+                        />
+                        <span>
+                          <strong>{course.courseName}{course.classNumber && course.classNumber !== "001" ? ` (${course.classNumber})` : ""}</strong>
+                          <em>{course.isGem ? "GEM" : "교양"}</em>
+                          <small>
+                            {[course.completionType, course.subjectAreaName, course.departmentName, course.professorName, course.scheduleText || "시간 미정", getCourseRoomLabel(course)].filter(Boolean).join(" · ")}
+                          </small>
+                        </span>
+                      </label>
+                    ))}
+                    {selectedExistingElectiveClasses.map((classItem) => (
+                      <label className="timetable-recommend-course-row selected-recommend-course-row" key={`selected-existing-${classItem.id}`}>
+                        <input
+                          type="checkbox"
+                          checked
+                          onChange={(event) => {
+                            if (!event.target.checked) {
+                              removeExistingElectiveClass(classItem.id);
+                            }
+                          }}
+                        />
+                        <span>
+                          <strong>{classItem.courseName}</strong>
+                          <em>{classItem.memo?.includes("GEM") ? "GEM" : "교양"}</em>
+                          <small>{[classItem.professorName, getClassScheduleLabel(classItem), classItem.memo].filter(Boolean).join(" · ")}</small>
+                        </span>
+                      </label>
+                    ))}
                     {visibleElectiveCourses.map((course) => {
                       const isSelected = isSungshinCourseSelected(course);
 
@@ -1926,8 +2034,10 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       ) : null}
 
       <div className="timetable-step-actions">
-        {activeStep !== "classes" ? <button className="ghost-button" type="button" onClick={goToPreviousStep}>이전</button> : <span />}
-        <button className="button" type="button" onClick={goToNextStep}>{activeStep === "recommendations" ? "시간표 저장" : "다음"}</button>
+        {activeStep !== "classes" ? <button className="ghost-button" type="button" onClick={goToPreviousStep} disabled={isSavingTimetable}>이전</button> : <span />}
+        <button className="button" type="button" onClick={goToNextStep} disabled={isSavingTimetable}>
+          {isSavingTimetable ? "저장 중" : activeStep === "recommendations" ? "시간표 저장" : "다음"}
+        </button>
       </div>
 
       {pendingSemester ? (
@@ -1962,6 +2072,68 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       ) : null}
       {isDatabaseLoadingVisible ? <DatabaseLoadingNotice /> : null}
     </main>
+  );
+}
+
+function ElectiveAreaIcon({ area }: { area: ElectiveArea }) {
+  return (
+    <i className="elective-area-art" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        {area === "인식과가치" ? (
+          <>
+            <path d="M15.8 21v-4.2h3v-3.1h2.3l-2.4-4.1C18.2 5.8 15.3 3 11.4 3 7 3 3.6 6.5 3.6 10.9c0 2.9 1.5 5.2 3.8 6.6V21h8.4Z" />
+          </>
+        ) : null}
+        {area === "문학과예술" ? (
+          <>
+            <path d="M12 4.3c-4.5 0-8.2 3.2-8.2 7.1 0 3.5 2.9 6.4 6.8 7 .9.1 1.5-.6 1.2-1.4-.3-1 .5-1.9 1.6-1.9h1.2c3.1 0 5.6-2.3 5.6-5.2 0-3.1-3.7-5.6-8.2-5.6Z" />
+            <path d="M7.7 10.8h.1M10.4 8.3h.1M13.7 8.3h.1M16.1 10.8h.1" />
+          </>
+        ) : null}
+        {area === "사회의이해" ? (
+          <>
+            <path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z" />
+            <path d="M4.6 12h14.8" />
+            <path d="M12 4c2 2.1 3.1 4.7 3.1 8S14 17.9 12 20" />
+            <path d="M12 4c-2 2.1-3.1 4.7-3.1 8S10 17.9 12 20" />
+          </>
+        ) : null}
+        {area === "자연의설명" ? (
+          <>
+            <path d="M4.5 18.6c2.4-1 4.9-1.5 7.5-1.5s5.1.5 7.5 1.5" />
+            <path d="M12 17.1V9.8" />
+            <path d="M12 12.3c-2.8 0-4.9-1.8-5.4-4.6 2.8-.2 4.9 1.3 5.4 4.6Z" />
+            <path d="M12 12.3c2.8 0 4.9-1.8 5.4-4.6-2.8-.2-4.9 1.3-5.4 4.6Z" />
+            <path d="M6.2 20.2h11.6" />
+          </>
+        ) : null}
+        {area === "공학과기술" ? (
+          <>
+            <path d="M8.3 4.2v1.5M8.3 12.5V14M4.2 8.3h1.5M10.9 5.7 12 4.6M10.9 10.9 12 12M5.7 5.7 4.6 4.6M5.7 10.9 4.6 12" />
+            <path d="M8.3 6.1a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Z" />
+            <path d="M16.6 10v1.3M16.6 18.6V20M12.6 14.6h1.3M19.3 14.6h1.3M13.8 11.8l.9.9M18.5 16.5l.9.9M13.8 17.4l.9-.9M18.5 12.7l.9-.9" />
+            <path d="M16.6 12.4a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Z" />
+            <path d="M18.5 4.5v1.1M18.5 10.7v1.1M15.4 7.6h1.1M20.5 7.6h1.1M16.3 5.4l.8.8M19.9 9l.8.8M16.3 9.8l.8-.8M19.9 6.2l.8-.8" />
+            <path d="M18.5 6.2a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8Z" />
+          </>
+        ) : null}
+        {area === "도전과실천" ? (
+          <>
+            <path d="M8.1 11.4a5.4 5.4 0 1 1 7.8 0c-1.3 1.2-2 2.5-2 4.1h-3.8c0-1.6-.7-2.9-2-4.1Z" />
+            <path d="M10.1 18h3.8" />
+            <path d="M10.7 21h2.6" />
+            <path d="M9.9 9.6c.5-.9 1.2-1.5 2.2-1.8" />
+            <path d="M12 2.6V1.2" />
+            <path d="M4.9 5.2 3.8 4.1" />
+            <path d="m19.1 5.2 1.1-1.1" />
+            <path d="M2.4 12h-1.4" />
+            <path d="M23 12h-1.4" />
+            <path d="m4.9 18.8-1.1 1.1" />
+            <path d="m19.1 18.8 1.1 1.1" />
+          </>
+        ) : null}
+      </svg>
+    </i>
   );
 }
 

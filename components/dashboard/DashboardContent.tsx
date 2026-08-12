@@ -199,7 +199,7 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId, i
             <div><dt>학년</dt><dd>{displayGrade}학년</dd></div>
             <div><dt>이메일</dt><dd title={user.email}>{user.email}</dd></div>
           </dl>
-          <Link className={styles.profileButton} href="/timetable">내 시간표 관리</Link>
+          <Link className={styles.profileButton} href="/mypage">내 정보 확인하기</Link>
         </article>
       </div>
       <article className={styles.card}><Heading icon="clock" title="D-DAY 학사일정" href="/notices"/><div className={styles.eventList}>{academicEvents.map((event) => { const isCompleted = normalizeDate(event.startDate).getTime() < normalizeDate(now).getTime(); return <div className={`${styles.event} ${isCompleted ? styles.eventCompleted : ""}`} key={event.id}><span className={styles.iconBox}><Icon name="calendar"/></span><div><h3>{event.title}</h3><p>{event.displayDate}</p></div><strong>{isCompleted ? "완료" : getDdayLabel(now, event.startDate)}</strong></div>; })}</div></article>

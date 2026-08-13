@@ -51,6 +51,13 @@ function getCourseCategories(course) {
   return [...categories];
 }
 
+function getCreditValue(course) {
+  const creditValue = asText(course.cdtHcnt).split("/")[0]?.trim() ?? "";
+  const creditNumber = Number(creditValue);
+
+  return Number.isFinite(creditNumber) ? String(creditNumber) : creditValue;
+}
+
 function mapCourse(course, term, index) {
   const isGem = isGemCourse(course);
 
@@ -62,7 +69,7 @@ function mapCourse(course, term, index) {
     courseName: asText(course.sbjNm),
     classNumber: asText(course.dvcls),
     completionType: asText(course.cpdivNm),
-    credits: asText(course.cdtHcnt),
+    credits: getCreditValue(course),
     scheduleText: asText(course.tmtblKorDsc),
     roomText: asText(course.roomKorDsc),
     professorName: asText(course.empNm || course.profDsc || course.profKorDsc),

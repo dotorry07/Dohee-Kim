@@ -12,9 +12,65 @@ export const weekdays = Object.keys(dayLabels) as DayOfWeek[];
 
 export const timetableColors = ["#582f82", "#7350a0", "#8b5fbf", "#442363", "#6d3d98", "#9b78c4"];
 
-export function isRecordedRemoteClass(item: { lessonTypeName?: string; roomName?: string; buildingName?: string }) {
+export function isRemoteClass(item: { lessonTypeName?: string; roomName?: string; buildingName?: string; memo?: string }) {
   const lessonType = item.lessonTypeName?.replace(/\s+/g, "") ?? "";
-  return lessonType.includes("원격") && (lessonType.includes("녹화") || lessonType.includes("RecordingContent"));
+  const buildingName = item.buildingName?.replace(/\s+/g, "") ?? "";
+  const roomName = item.roomName?.replace(/\s+/g, "") ?? "";
+  const memo = item.memo?.replace(/\s+/g, "") ?? "";
+
+  return [lessonType, buildingName, roomName, memo].some((value) => value.includes("원격"));
+}
+
+export const isRecordedRemoteClass = isRemoteClass;
+
+export function getClassCreditLabel(item: { credits?: string; memo?: string }) {
+  const memoParts = item.memo?.split("·") ?? [];
+  const credits = getClassCreditValue({ ...item, memoCredit: memoParts[memoParts.length - 1]?.trim() });
+
+  if (credits === null) {
+    return "";
+  }
+
+  return `${formatCreditValue(credits)}학점`;
+}
+
+export function getClassCreditValue(item: { credits?: string; memoCredit?: string }) {
+  const rawValue = item.credits?.trim() || item.memoCredit?.trim() || "";
+  const normalized = rawValue.replace(/학점$/, "").trim();
+  const creditPart = normalized.split("/")[0]?.trim() ?? "";
+  const creditNumber = Number(creditPart);
+
+  if (!Number.isFinite(creditNumber)) {
+    return null;
+  }
+
+  return creditNumber;
+}
+
+export function getTotalCreditLabel(classes: { courseId?: string; courseName?: string; professorName?: string; credits?: string; memo?: string }[]) {
+  const countedCourseKeys = new Set<string>();
+  const totalCredits = classes.reduce((total, item) => {
+    const courseKey = item.courseId || [item.courseName, item.professorName, item.memo].filter(Boolean).join("|");
+
+    if (courseKey && countedCourseKeys.has(courseKey)) {
+      return total;
+    }
+
+    const memoParts = item.memo?.split("·") ?? [];
+    const creditValue = getClassCreditValue({ ...item, memoCredit: memoParts[memoParts.length - 1]?.trim() });
+
+    if (courseKey && creditValue !== null) {
+      countedCourseKeys.add(courseKey);
+    }
+
+    return total + (creditValue ?? 0);
+  }, 0);
+
+  return `총 ${formatCreditValue(totalCredits)}학점`;
+}
+
+function formatCreditValue(value: number) {
+  return Number.isInteger(value) ? String(value) : String(value);
 }
 
 export function toMinutes(time: string) {

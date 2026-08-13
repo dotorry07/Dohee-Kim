@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthGuard } from "@/components/AuthGuard";
 import { BannerTagIcon } from "@/components/BannerTagIcon";
-import { dayLabels, isRecordedRemoteClass, toMinutes, weekdays } from "@/lib/timetable";
+import { dayLabels, getClassCreditLabel, getTotalCreditLabel, isRemoteClass, toMinutes, weekdays } from "@/lib/timetable";
 import { deleteRemoteTimetable, loadRemoteTimetables, saveRemoteTimetable, selectRemoteMonthlyTimetable } from "@/lib/timetable-storage";
 import { TimetableSelect } from "./TimetableSelect";
 import styles from "./SwipeNotice.module.css";
@@ -726,20 +726,22 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
             >
               <div className="section-title">
                 <div className="timetable-title-line">
-                  <h2>{timetable.title}</h2>
-                  <button
-                    aria-label="시간표 이름 수정"
-                    className="icon-button timetable-title-edit-button"
-                    type="button"
-                    onClick={() => openRenameModal(timetable)}
-                    onPointerDown={(event) => event.stopPropagation()}
-                  >
-                    <svg aria-hidden="true" viewBox="0 0 24 24">
-                      <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
-                      <path d="m13.5 6.5 4 4" />
-                    </svg>
-                    <span className="timetable-action-tooltip" aria-hidden="true">이름 수정</span>
-                  </button>
+                  <div className="timetable-title-underline">
+                    <h2>{timetable.title}</h2>
+                    <button
+                      aria-label="시간표 이름 수정"
+                      className="icon-button timetable-title-edit-button"
+                      type="button"
+                      onClick={() => openRenameModal(timetable)}
+                      onPointerDown={(event) => event.stopPropagation()}
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+                        <path d="m13.5 6.5 4 4" />
+                      </svg>
+                      <span className="timetable-action-tooltip" aria-hidden="true">이름 수정</span>
+                    </button>
+                  </div>
                   {isMonthlyTimetable ? (
                     <span className="monthly-star" aria-label={selectedLabel}>
                       <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -750,6 +752,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
                 </div>
                 <div className="timetable-actions">
                   <span className="badge">{timetable.classes.length}과목</span>
+                  <span className="badge total-credit-badge">{getTotalCreditLabel(timetable.classes)}</span>
                   <button
                     aria-pressed={isMonthlyTimetable}
                     className={`monthly-timetable-button${isMonthlyTimetable ? " active" : ""}`}
@@ -980,8 +983,8 @@ function TimetablePreview({
   classes: ClassSchedule[];
   personalSchedules?: PersonalSchedule[];
 }) {
-  const onlineClasses = classes.filter(isRecordedRemoteClass);
-  const mergedClasses = mergeAdjacentClasses(classes.filter((item) => !isRecordedRemoteClass(item)));
+  const onlineClasses = classes.filter(isRemoteClass);
+  const mergedClasses = mergeAdjacentClasses(classes.filter((item) => !isRemoteClass(item)));
   const schedules = (personalSchedules ?? []).filter((item) => weekdays.includes(item.dayOfWeek as (typeof weekdays)[number]));
 
   return (
@@ -1021,6 +1024,7 @@ function TimetablePreview({
             >
               <strong>{item.courseName}</strong>
               <span>{item.startTime}-{item.endTime}</span>
+              {getClassCreditLabel(item) ? <span>{getClassCreditLabel(item)}</span> : null}
             </div>
           );
         })}
@@ -1065,7 +1069,7 @@ function PreviewOnlineLane({ classes }: { classes: ClassSchedule[] }) {
           classes.map((item) => (
             <div className="preview-online-card" key={item.id}>
               <strong>{item.courseName}</strong>
-              <span>{item.professorName || "교수 미정"}</span>
+              <span>{[item.professorName || "교수 미정", getClassCreditLabel(item)].filter(Boolean).join(" · ")}</span>
             </div>
           ))
         ) : (
@@ -1148,7 +1152,7 @@ function downloadTimetableImage(timetable: Timetable) {
     context.fillText(`${String(hour).padStart(2, "0")}:00`, gridLeft + timeColumn / 2, gridTop + headerHeight + index * hourHeight + hourHeight / 2);
   });
 
-  mergeAdjacentClasses(timetable.classes.filter((item) => !isRecordedRemoteClass(item))).forEach((item) => {
+  mergeAdjacentClasses(timetable.classes.filter((item) => !isRemoteClass(item))).forEach((item) => {
     const dayIndex = weekdays.indexOf(item.dayOfWeek);
     const start = Math.max(toMinutes(item.startTime), previewHours[0] * 60);
     const end = Math.min(toMinutes(item.endTime), (previewHours[previewHours.length - 1] + 1) * 60);
@@ -1168,7 +1172,12 @@ function downloadTimetableImage(timetable: Timetable) {
     context.font = "800 9px sans-serif";
     wrapCanvasText(context, item.courseName, x + 5, y + 5, blockWidth - 10, 11, Math.max(1, Math.floor((blockHeight - 18) / 11)));
     context.font = "500 8px sans-serif";
-    context.fillText(`${item.startTime}-${item.endTime}`, x + 5, Math.min(y + blockHeight - 13, y + 5 + 24));
+    const creditLabel = getClassCreditLabel(item);
+    context.fillText(
+      [`${item.startTime}-${item.endTime}`, creditLabel].filter(Boolean).join(" · "),
+      x + 5,
+      Math.min(y + blockHeight - 13, y + 5 + 24)
+    );
   });
 
   drawOnlineLane(context, timetable, margin, onlineTop, width - margin * 2, onlineHeight);
@@ -1188,7 +1197,7 @@ function downloadTimetableImage(timetable: Timetable) {
 }
 
 function drawOnlineLane(context: CanvasRenderingContext2D, timetable: Timetable, x: number, y: number, width: number, height: number) {
-  const onlineClasses = timetable.classes.filter(isRecordedRemoteClass);
+  const onlineClasses = timetable.classes.filter(isRemoteClass);
   drawRoundedRect(context, x, y, width, height, 8, "#ffffff", "#e5ddeb");
   context.fillStyle = "#f1edf5";
   context.fillRect(x, y, 58, height);
@@ -1213,6 +1222,13 @@ function drawOnlineLane(context: CanvasRenderingContext2D, timetable: Timetable,
     context.fillStyle = "#582f82";
     context.font = "800 9px sans-serif";
     wrapCanvasText(context, item.courseName, cardX + 6, y + 16, 72, 11, 2);
+    const creditLabel = getClassCreditLabel(item);
+
+    if (creditLabel) {
+      context.fillStyle = "#75677f";
+      context.font = "700 8px sans-serif";
+      context.fillText(creditLabel, cardX + 6, y + height - 18);
+    }
   });
 }
 

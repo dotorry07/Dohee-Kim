@@ -5703,6 +5703,10 @@ button {
   flex: 0 0 auto;
 }
 
+.total-credit-badge {
+  white-space: nowrap;
+}
+
 .icon-button {
   position: relative;
   display: inline-grid;
@@ -6027,6 +6031,15 @@ button {
   min-width: 0;
   align-items: center;
   gap: 8px;
+}
+
+.timetable-title-underline {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 3px solid var(--primary);
+  padding-bottom: 3px;
 }
 
 .timetable-title-edit-button {

@@ -43,6 +43,7 @@ export interface ClassSchedule {
   buildingName: string;
   roomName: string;
   lessonTypeName?: string;
+  credits?: string;
   color: string;
   memo?: string;
 }

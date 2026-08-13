@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const categoryFiltered = isKnownCategory(category) ? courses.filter((course) => hasCourseCategory(course, category)) : courses;
   const filtered = query ? categoryFiltered.filter((course) => matchesQuery(course, query)) : categoryFiltered;
   const fallbackCourses = query && !filtered.length ? findCrossTermFallbackCourses(term, category, query) : [];
-  const visibleCourses = filtered.length ? filtered : fallbackCourses;
+  const visibleCourses = (filtered.length ? filtered : fallbackCourses).map(normalizeCourseCredits);
 
   return NextResponse.json({
     courses: visibleCourses,
@@ -27,6 +27,16 @@ export async function GET(request: NextRequest) {
     source: "local-db",
     term
   });
+}
+
+function normalizeCourseCredits<T extends { credits: string }>(course: T) {
+  const creditValue = course.credits.split("/")[0]?.trim() ?? course.credits;
+  const creditNumber = Number(creditValue);
+
+  return {
+    ...course,
+    credits: Number.isFinite(creditNumber) ? String(creditNumber) : course.credits
+  };
 }
 
 function normalize(value: string) {

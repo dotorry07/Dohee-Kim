@@ -33,6 +33,8 @@ interface RemoteClassScheduleRow {
   end_time: string;
   building_name: string;
   room_name: string;
+  lesson_type_name: string | null;
+  credits: string | null;
   color: string;
   memo: string | null;
 }
@@ -316,7 +318,7 @@ async function replaceClassSchedules(timetableId: string, classes: ClassSchedule
     return;
   }
 
-  const inserted = await supabase.from("class_schedules").insert(classes.map((item) => ({
+  const rows = classes.map((item) => ({
     timetable_id: timetableId,
     course_id: item.courseId && isUuid(item.courseId) ? item.courseId : null,
     course_name: item.courseName,
@@ -326,13 +328,53 @@ async function replaceClassSchedules(timetableId: string, classes: ClassSchedule
     end_time: item.endTime,
     building_name: item.buildingName,
     room_name: item.roomName,
+    lesson_type_name: item.lessonTypeName ?? null,
+    credits: item.credits ?? null,
     color: item.color,
     memo: item.memo ?? null
-  })));
+  }));
 
-  if (inserted.error) {
-    throw inserted.error;
+  await insertClassSchedulesWithSchemaFallback(rows);
+}
+
+async function insertClassSchedulesWithSchemaFallback(rows: Record<string, string | null>[]) {
+  const optionalColumns = ["lesson_type_name", "credits"];
+  let rowsToInsert = rows;
+
+  for (let attempt = 0; attempt <= optionalColumns.length; attempt += 1) {
+    const supabase = createSupabaseAdminClient();
+    const inserted = await supabase.from("class_schedules").insert(rowsToInsert);
+
+    if (!inserted.error) {
+      return;
+    }
+
+    const missingColumn = getMissingOptionalColumn(inserted.error, optionalColumns);
+
+    if (!missingColumn) {
+      throw inserted.error;
+    }
+
+    rowsToInsert = rowsToInsert.map((row) => {
+      const { [missingColumn]: _missing, ...rest } = row;
+      return rest;
+    });
   }
+}
+
+function getMissingOptionalColumn(error: unknown, optionalColumns: string[]) {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const code = "code" in error ? (error as { code?: string }).code : undefined;
+  const message = "message" in error ? (error as { message?: string }).message ?? "" : "";
+
+  if (code !== "PGRST204" && code !== "42703" && !message.includes("Could not find") && !message.includes("does not exist")) {
+    return null;
+  }
+
+  return optionalColumns.find((column) => message.includes(column)) ?? null;
 }
 
 async function replacePersonalSchedules(userId: string, timetableId: string, personalSchedules: PersonalSchedule[]) {
@@ -389,6 +431,8 @@ function toClassSchedule(row: RemoteClassScheduleRow): ClassSchedule {
     endTime: row.end_time,
     buildingName: row.building_name,
     roomName: row.room_name,
+    lessonTypeName: row.lesson_type_name ?? undefined,
+    credits: row.credits ?? undefined,
     color: row.color,
     memo: row.memo ?? undefined
   };

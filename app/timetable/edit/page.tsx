@@ -7,7 +7,7 @@ import type { CSSProperties, PointerEvent } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { courses } from "@/lib/data";
 import { sungshinDepartments } from "@/lib/sungshin-departments";
-import { dayLabels, isRecordedRemoteClass, overlaps, timetableColors, toMinutes, weekdays } from "@/lib/timetable";
+import { dayLabels, getClassCreditLabel, isRemoteClass, overlaps, timetableColors, toMinutes, weekdays } from "@/lib/timetable";
 import { loadRemoteTimetables, saveRemoteTimetable } from "@/lib/timetable-storage";
 import { TimetableSelect } from "../TimetableSelect";
 import styles from "../SwipeNotice.module.css";
@@ -242,6 +242,7 @@ function parseSungshinCourse(
         buildingName: roomParts.buildingName,
         roomName: roomParts.roomName,
         lessonTypeName: course.lessonTypeName,
+        credits: course.credits,
         color: timetableColors[(colorOffset + index) % timetableColors.length],
         memo: options?.memo ?? `${course.departmentName} · ${course.completionType} · ${course.credits}`.trim()
       });
@@ -254,7 +255,7 @@ function splitRoomText(course: SungshinCourse) {
 
   if (!trimmed) {
     return {
-      buildingName: isRecordedRemoteClass(course) ? "원격강의" : "강의실 미정",
+      buildingName: isRemoteClass(course) ? "원격강의" : "강의실 미정",
       roomName: ""
     };
   }
@@ -267,7 +268,7 @@ function splitRoomText(course: SungshinCourse) {
 }
 
 function getCourseRoomLabel(course: SungshinCourse) {
-  return course.roomText.trim() || (isRecordedRemoteClass(course) ? "원격강의" : "강의실 미정");
+  return course.roomText.trim() || (isRemoteClass(course) ? "원격강의" : "강의실 미정");
 }
 
 function normalizeElectiveAreaName(value?: string) {
@@ -290,7 +291,7 @@ function matchesElectivePreferences(
   }
 
   const parsedClasses = parseSungshinCourse(course, 0);
-  const isRemote = !parsedClasses.length || parsedClasses.every(isRecordedRemoteClass);
+  const isRemote = !parsedClasses.length || parsedClasses.every(isRemoteClass);
 
   if (preferences.includes("remote-only")) {
     return isRemote;
@@ -320,7 +321,7 @@ function hasAdjacentClass(classItem: ClassSchedule, classes: ClassSchedule[]) {
   const end = toMinutes(classItem.endTime);
 
   return classes.some((item) => (
-    !isRecordedRemoteClass(item)
+    !isRemoteClass(item)
     && item.dayOfWeek === classItem.dayOfWeek
     && (toMinutes(item.endTime) === start || toMinutes(item.startTime) === end)
   ));
@@ -330,7 +331,7 @@ function keepsAtLeastOneFreeDay(newClasses: ClassSchedule[], classes: ClassSched
   const busyDays = new Set<string>();
 
   [...classes, ...newClasses].forEach((item) => {
-    if (!isRecordedRemoteClass(item)) {
+    if (!isRemoteClass(item)) {
       busyDays.add(item.dayOfWeek);
     }
   });
@@ -1138,7 +1139,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   function addRecommendedCourse(course: Course) {
     const newClass = toClassSchedule(course, classes.length, "교양");
 
-    if (!isRecordedRemoteClass(newClass) && classes.some((item) => !isRecordedRemoteClass(item) && overlaps(item, newClass))) {
+    if (!isRemoteClass(newClass) && classes.some((item) => !isRemoteClass(item) && overlaps(item, newClass))) {
       setCourseConflictNotice("선택한 강좌가 기존 강의 시간과 겹칩니다.");
       return;
     }
@@ -1155,7 +1156,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   function courseConflictsWithSchedule(course: Course) {
     const newClass = toClassSchedule(course, 0);
 
-    return classes.some((item) => !isRecordedRemoteClass(item) && overlaps(item, newClass))
+    return classes.some((item) => !isRemoteClass(item) && overlaps(item, newClass))
       || classOverlapsPersonalSchedule(newClass, personalSchedules);
   }
 
@@ -1185,7 +1186,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
 
     const newClass = toClassSchedule(course, classes.length);
 
-    if (!isRecordedRemoteClass(newClass) && classes.some((item) => !isRecordedRemoteClass(item) && overlaps(item, newClass))) {
+    if (!isRemoteClass(newClass) && classes.some((item) => !isRemoteClass(item) && overlaps(item, newClass))) {
       setCourseConflictNotice("선택한 강좌가 기존 강의 시간과 겹칩니다.");
       return;
     }
@@ -1239,6 +1240,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         buildingName: roomParts.buildingName,
         roomName: roomParts.roomName,
         lessonTypeName: option.lessonTypeName,
+        credits: option.course.credits,
         color: timetableColors[(colorOffset + index) % timetableColors.length],
         memo: "필수 이수"
       });
@@ -1271,7 +1273,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       return;
     }
 
-    if (newClasses.some((newClass) => !isRecordedRemoteClass(newClass) && existingOtherClasses.some((item) => !isRecordedRemoteClass(item) && overlaps(item, newClass)))) {
+    if (newClasses.some((newClass) => !isRemoteClass(newClass) && existingOtherClasses.some((item) => !isRemoteClass(item) && overlaps(item, newClass)))) {
       setCourseConflictNotice("선택한 강좌가 기존 강의 시간과 겹칩니다.");
       return;
     }
@@ -1507,7 +1509,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       return;
     }
 
-    if (parsedClasses.some((newClass) => !isRecordedRemoteClass(newClass) && classes.some((item) => !isRecordedRemoteClass(item) && overlaps(item, newClass)))) {
+    if (parsedClasses.some((newClass) => !isRemoteClass(newClass) && classes.some((item) => !isRemoteClass(item) && overlaps(item, newClass)))) {
       setCourseConflictNotice("선택한 강좌가 기존 강의 시간과 겹칩니다.");
       return;
     }
@@ -1526,7 +1528,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
 
     return !parsedClasses.length
       || parsedClasses.some((newClass) => (
-        (!isRecordedRemoteClass(newClass) && classes.some((item) => !isRecordedRemoteClass(item) && overlaps(item, newClass)))
+        (!isRemoteClass(newClass) && classes.some((item) => !isRemoteClass(item) && overlaps(item, newClass)))
         || classOverlapsPersonalSchedule(newClass, personalSchedules)
       ));
   }
@@ -1832,7 +1834,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
               {classes.length ? classes.map((item) => (
                 <div className="list-item" key={item.id}>
                   <strong>{item.courseName}</strong>
-                  <span className="muted">{[item.professorName, getClassScheduleLabel(item), item.memo].filter(Boolean).join(" · ")}</span>
+                  <span className="muted">{[item.professorName, getClassScheduleLabel(item), getClassCreditLabel(item), item.memo].filter(Boolean).join(" · ")}</span>
                 </div>
               )) : (
                 <div className="list-item">
@@ -2295,7 +2297,7 @@ function PersonalSchedulePlanner({
   }
 
   const visibleSchedules = personalSchedules.filter((item) => weekdays.includes(item.dayOfWeek as DayOfWeek) && isInPlannerTimeRange(item));
-  const visibleClasses = classes.filter((item) => !isRecordedRemoteClass(item) && weekdays.includes(item.dayOfWeek) && isInPlannerTimeRange(item));
+  const visibleClasses = classes.filter((item) => !isRemoteClass(item) && weekdays.includes(item.dayOfWeek) && isInPlannerTimeRange(item));
 
   return (
     <>
@@ -2429,7 +2431,7 @@ function isInPlannerTimeRange(item: { startTime: string; endTime: string }) {
 }
 
 function classOverlapsPersonalSchedule(classItem: ClassSchedule, personalSchedules: PersonalSchedule[]) {
-  if (isRecordedRemoteClass(classItem)) {
+  if (isRemoteClass(classItem)) {
     return false;
   }
 

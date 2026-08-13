@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { dayLabels, isRecordedRemoteClass, toMinutes, weekdays } from "@/lib/timetable";
+import { dayLabels, getClassCreditLabel, isRemoteClass, toMinutes, weekdays } from "@/lib/timetable";
 import type { CSSProperties } from "react";
 import type { ClassSchedule, PersonalSchedule } from "@/lib/types";
 
@@ -12,8 +12,8 @@ export function WeeklyTimetable({
   classes: ClassSchedule[];
   personalSchedules?: PersonalSchedule[];
 }) {
-  const onlineClasses = classes.filter(isRecordedRemoteClass);
-  const mergedClasses = mergeAdjacentClasses(classes.filter((item) => !isRecordedRemoteClass(item))).filter(isInVisibleTimeRange);
+  const onlineClasses = classes.filter(isRemoteClass);
+  const mergedClasses = mergeAdjacentClasses(classes.filter((item) => !isRemoteClass(item))).filter(isInVisibleTimeRange);
   const schedules = (personalSchedules ?? []).filter((item) => weekdays.includes(item.dayOfWeek as (typeof weekdays)[number]) && isInVisibleTimeRange(item));
 
   return (
@@ -35,6 +35,7 @@ export function WeeklyTimetable({
           >
             <strong>{item.courseName}</strong>
             <span>{item.startTime}-{item.endTime}</span>
+            {getClassCreditLabel(item) ? <span>{getClassCreditLabel(item)}</span> : null}
             <span>{item.buildingName} {item.roomName}</span>
           </Link>
         ))}
@@ -103,7 +104,7 @@ function OnlineClassLane({ classes }: { classes: ClassSchedule[] }) {
             <div className="online-class-card" key={item.id}>
               <strong>{item.courseName}</strong>
               <span>{item.professorName || "교수 미정"} · {item.lessonTypeName || "원격 강의"}</span>
-              <span>{item.startTime}-{item.endTime}</span>
+              <span>{[`${item.startTime}-${item.endTime}`, getClassCreditLabel(item)].filter(Boolean).join(" · ")}</span>
             </div>
           ))
         ) : (

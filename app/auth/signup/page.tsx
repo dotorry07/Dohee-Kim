@@ -192,7 +192,7 @@ export default function SignupPage() {
                 required
               />
               <small className={studentNumberError ? "signup-field-help error-text" : "signup-field-help"}>
-                {studentNumberError || "학번의 양식 (학번 전체를 작성해주세요)"}
+                {studentNumberError || "8자리 학번 전체를 입력해주세요"}
               </small>
             </div>
             <DepartmentCombobox

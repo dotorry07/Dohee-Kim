@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AuthGuard } from "@/components/AuthGuard";
-import { signOut } from "@/lib/auth/client";
+import { BannerTagIcon } from "@/components/BannerTagIcon";
+import { signOut, updateRemoteProfile, updateStoredProfile } from "@/lib/auth/client";
 import {
   getDepartmentNotificationPreferences,
   loadDepartmentNotificationPreferences,
@@ -12,6 +14,7 @@ import {
   type DepartmentNotificationTarget
 } from "@/lib/department-notifications";
 import { extractStudentNumber, getGradeFromStudentNumber } from "@/lib/student";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { UserProfile } from "@/lib/types";
 
 type MyPageIconName = "bell" | "book" | "building" | "calendar" | "chevron" | "edit" | "id" | "info" | "lock" | "logout" | "mail" | "megaphone" | "school" | "settings" | "shield" | "user";
@@ -31,15 +34,34 @@ function MyPageIcon({ name }: { name: MyPageIconName }) {
     mail: <><path d="M5 7h14v10H5z" /><path d="m5.5 8 6.5 5 6.5-5" /></>,
     megaphone: <><path d="m4 13 3 1 9 4V6l-9 4-3 1v2Z" /><path d="m7 14 1 5h3l-1-4" /></>,
     school: <><path d="m4 9 8-4 8 4-8 4z" /><path d="M7 11.2v3.2c1.6 1.8 8.4 1.8 10 0v-3.2" /><path d="M20 9v5" /></>,
-    settings: <><path d="M12 8.7a3.3 3.3 0 1 1 0 6.6 3.3 3.3 0 0 1 0-6.6Z" /><path d="M19.1 13.6c.1-.5.1-1.1 0-1.6l1.7-1.3-1.8-3-2 .8c-.4-.3-.9-.6-1.4-.8l-.3-2.2h-3.6l-.3 2.2c-.5.2-1 .4-1.4.8l-2-.8-1.8 3L7.9 12a7 7 0 0 0 0 1.6l-1.7 1.3 1.8 3 2-.8c.4.3.9.6 1.4.8l.3 2.2h3.6l.3-2.2c.5-.2 1-.4 1.4-.8l2 .8 1.8-3z" /></>,
+    settings: <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.36a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.64 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63h.01A1.7 1.7 0 0 0 10.04 3.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.64a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.37 9v.01A1.7 1.7 0 0 0 20.9 10H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z" />
+    </>,
     shield: <><path d="M12 3.8 18 6v5.2c0 3.8-2.2 6.7-6 8.3-3.8-1.6-6-4.5-6-8.3V6z" /><path d="m9.5 12 1.7 1.7 3.4-4" /></>,
     user: <><circle cx="12" cy="8" r="3.2" /><path d="M5.5 19c1.2-3.5 3.4-5.2 6.5-5.2s5.3 1.7 6.5 5.2" /></>
   };
 
   return (
-    <svg aria-hidden="true" className="mypage-icon" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" viewBox="0 0 24 24">
+    <svg aria-hidden="true" className="mypage-icon" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth={name === "settings" ? 2.65 : 1.9} viewBox="0 0 24 24">
       {paths[name]}
     </svg>
+  );
+}
+
+function MyPageModalLayer({ children, onClose }: { children: ReactNode; onClose: () => void }) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => setIsMounted(true), []);
+  if (!isMounted) return null;
+
+  return createPortal(
+    <div className="modal-backdrop mypage-modal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      {children}
+    </div>,
+    document.body
   );
 }
 
@@ -56,6 +78,30 @@ type LocalNotificationSettings = {
   importantEnabled: boolean;
   boardEnabled: boolean;
 };
+
+type LocalProfileSettings = {
+  nickname: string;
+  image: string;
+};
+
+function localProfileSettingsKey(userId: string) {
+  return `newbie-on:mypage-profile:${userId}`;
+}
+
+function loadLocalProfileSettings(user: UserProfile): LocalProfileSettings {
+  if (typeof window === "undefined") return { nickname: user.nickname || user.name, image: "" };
+
+  try {
+    const raw = window.localStorage.getItem(localProfileSettingsKey(user.id));
+    const parsed = raw ? JSON.parse(raw) as Partial<LocalProfileSettings> : {};
+    return {
+      nickname: parsed.nickname?.trim() || user.nickname || user.name,
+      image: typeof parsed.image === "string" ? parsed.image : ""
+    };
+  } catch {
+    return { nickname: user.nickname || user.name, image: "" };
+  }
+}
 
 const defaultLocalNotificationSettings: LocalNotificationSettings = {
   allEnabled: true,
@@ -93,6 +139,21 @@ export default function MyPage() {
 function MyPageContent({ user }: { user: UserProfile }) {
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false);
+  const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
+  const [isPasswordSettingsOpen, setIsPasswordSettingsOpen] = useState(false);
+  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
+  const [localProfile, setLocalProfile] = useState<LocalProfileSettings>(() => loadLocalProfileSettings(user));
+  const [draftLocalProfile, setDraftLocalProfile] = useState<LocalProfileSettings>(() => loadLocalProfileSettings(user));
+  const [profileEditError, setProfileEditError] = useState("");
+  const [profileForm, setProfileForm] = useState({
+    name: user.name,
+    department: user.department,
+    secondaryDepartment: user.secondaryDepartment ?? ""
+  });
+  const [passwordForm, setPasswordForm] = useState({ password: "", passwordConfirm: "" });
+  const [settingsError, setSettingsError] = useState("");
+  const [settingsMessage, setSettingsMessage] = useState("");
+  const [isSettingsSaving, setIsSettingsSaving] = useState(false);
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false);
   const [notificationPreferences, setNotificationPreferences] = useState<DepartmentNotificationPreferences>(() => (
     getDepartmentNotificationPreferences(user.id)
@@ -104,7 +165,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
   const storedStudentNumber = user.studentNumber || extractStudentNumber(user.id);
   const studentNumber = storedStudentNumber || "학번 미등록";
   const displayGrade = storedStudentNumber ? getGradeFromStudentNumber(storedStudentNumber) : user.grade;
-  const profileInitial = (user.nickname || user.name).slice(0, 1);
+  const profileInitial = (localProfile.nickname || user.name).slice(0, 1);
   const hasSecondaryDepartment = Boolean(user.secondaryDepartment?.trim());
 
   useEffect(() => {
@@ -117,16 +178,129 @@ function MyPageContent({ user }: { user: UserProfile }) {
       }
     });
     setLocalNotificationSettings(loadLocalNotificationSettings(user.id));
+    const savedProfile = loadLocalProfileSettings(user);
+    setLocalProfile(savedProfile);
+    setDraftLocalProfile(savedProfile);
 
     return () => {
       ignore = true;
     };
   }, [user]);
 
+  const openProfileEdit = () => {
+    setDraftLocalProfile(localProfile);
+    setProfileEditError("");
+    setIsProfileEditOpen(true);
+  };
+
+  const handleProfileImageChange = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setProfileEditError("이미지 파일만 선택할 수 있습니다.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setProfileEditError("프로필 이미지는 2MB 이하로 선택해 주세요.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setDraftLocalProfile((current) => ({ ...current, image: reader.result as string }));
+        setProfileEditError("");
+      }
+    };
+    reader.onerror = () => setProfileEditError("이미지를 불러오지 못했습니다.");
+    reader.readAsDataURL(file);
+  };
+
+  const saveLocalProfile = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nickname = draftLocalProfile.nickname.trim();
+    if (nickname.length < 2 || nickname.length > 12) {
+      setProfileEditError("프로필 닉네임은 2~12자로 입력해 주세요.");
+      return;
+    }
+
+    const nextProfile = { ...draftLocalProfile, nickname };
+    window.localStorage.setItem(localProfileSettingsKey(user.id), JSON.stringify(nextProfile));
+    window.dispatchEvent(new CustomEvent("newbie-on:mypage-profile-updated", { detail: { userId: user.id } }));
+    setLocalProfile(nextProfile);
+    setDraftLocalProfile(nextProfile);
+    setIsProfileEditOpen(false);
+  };
+
   const handleLogout = () => {
     signOut();
     setIsLogoutConfirmOpen(false);
     window.location.href = "/";
+  };
+
+  const openProfileSettings = () => {
+    setProfileForm({
+      name: user.name,
+      department: user.department,
+      secondaryDepartment: user.secondaryDepartment ?? ""
+    });
+    setSettingsError("");
+    setSettingsMessage("");
+    setIsAccountSettingsOpen(false);
+    setIsProfileSettingsOpen(true);
+  };
+
+  const openPasswordSettings = () => {
+    setPasswordForm({ password: "", passwordConfirm: "" });
+    setSettingsError("");
+    setSettingsMessage("");
+    setIsAccountSettingsOpen(false);
+    setIsPasswordSettingsOpen(true);
+  };
+
+  const saveProfileSettings = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = profileForm.name.trim();
+    const department = profileForm.department.trim();
+    const secondaryDepartment = profileForm.secondaryDepartment.trim();
+
+    if (name.length < 2 || !department) {
+      setSettingsError("이름과 소속을 확인해 주세요.");
+      return;
+    }
+
+    setIsSettingsSaving(true);
+    setSettingsError("");
+    const localUser = updateStoredProfile({ name, department, secondaryDepartment });
+    await updateRemoteProfile(localUser ?? user, { name, department, secondaryDepartment });
+    setIsSettingsSaving(false);
+    window.location.reload();
+  };
+
+  const savePasswordSettings = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (passwordForm.password.length < 8) {
+      setSettingsError("비밀번호는 8자 이상 입력해 주세요.");
+      return;
+    }
+    if (passwordForm.password !== passwordForm.passwordConfirm) {
+      setSettingsError("비밀번호 확인이 일치하지 않습니다.");
+      return;
+    }
+
+    setIsSettingsSaving(true);
+    setSettingsError("");
+    const supabase = createSupabaseBrowserClient();
+    if (supabase) {
+      const { error } = await supabase.auth.updateUser({ password: passwordForm.password });
+      if (error) {
+        setSettingsError(error.message || "비밀번호를 변경하지 못했습니다.");
+        setIsSettingsSaving(false);
+        return;
+      }
+    }
+    setPasswordForm({ password: "", passwordConfirm: "" });
+    setSettingsMessage("비밀번호가 변경되었습니다.");
+    setIsSettingsSaving(false);
   };
 
   const openNotificationSettings = () => {
@@ -210,7 +384,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
 
   const accountRows = [
     { icon: "user" as const, label: "이름", value: user.name },
-    { icon: "id" as const, label: "닉네임", value: user.nickname },
+    { icon: "id" as const, label: "닉네임", value: localProfile.nickname },
     { icon: "mail" as const, label: "이메일", value: user.email },
     { icon: "school" as const, label: "학번", value: studentNumber },
     { icon: "building" as const, label: "소속", value: user.department },
@@ -225,6 +399,12 @@ function MyPageContent({ user }: { user: UserProfile }) {
           <div className="mypage-hero-copy">
             <h1 id="mypage-title">마이페이지</h1>
             <p>내 프로필과 학교생활 관리 메뉴를 확인합니다.</p>
+            <div className="app-banner-tags mypage-hero-tags" aria-hidden="true">
+              <span><BannerTagIcon icon="user" />내 정보 관리</span>
+              <span><BannerTagIcon icon="bell" />알림 설정</span>
+              <span><BannerTagIcon icon="lock" />보안 관리</span>
+              <span><BannerTagIcon icon="logout" />로그아웃</span>
+            </div>
           </div>
           <div className="mypage-hero-art" aria-hidden="true">
             <img src="/images/mypage-banner.png" alt="" />
@@ -234,12 +414,16 @@ function MyPageContent({ user }: { user: UserProfile }) {
 
       <section className="grid two mypage-layout">
         <article className="panel mypage-profile">
-          <div className="mypage-avatar" aria-hidden="true">{profileInitial}</div>
+          <div
+            className={`mypage-avatar${localProfile.image ? " has-image" : ""}`}
+            style={localProfile.image ? { backgroundImage: `url(${localProfile.image})` } : undefined}
+            aria-hidden="true"
+          >{localProfile.image ? null : profileInitial}</div>
           <div className="mypage-profile-copy">
             <p className="mypage-eyebrow">MY PROFILE</p>
             <div className="mypage-name-row">
-              <h2>{user.nickname || user.name}</h2>
-              <Link className="mypage-edit-button" href="/mypage/edit"><MyPageIcon name="edit" />프로필 수정</Link>
+              <h2>{localProfile.nickname}</h2>
+              <button className="mypage-edit-button" type="button" onClick={openProfileEdit}>프로필 수정<MyPageIcon name="edit" /></button>
             </div>
             <p className="muted">{user.department} · {displayGrade}학년</p>
           </div>
@@ -283,38 +467,120 @@ function MyPageContent({ user }: { user: UserProfile }) {
         </dl>
       </section>
 
+      {isProfileEditOpen ? (
+        <MyPageModalLayer onClose={() => setIsProfileEditOpen(false)}>
+          <section className="account-form-modal profile-edit-modal" role="dialog" aria-modal="true" aria-labelledby="profile-edit-title">
+            <div className="account-form-header">
+              <div><p>MY PROFILE</p><h2 id="profile-edit-title">프로필 수정</h2></div>
+              <button type="button" aria-label="프로필 수정 닫기" onClick={() => setIsProfileEditOpen(false)}>×</button>
+            </div>
+            <form onSubmit={saveLocalProfile}>
+              <div className="profile-image-editor">
+                <div
+                  className={`profile-image-preview${draftLocalProfile.image ? " has-image" : ""}`}
+                  style={draftLocalProfile.image ? { backgroundImage: `url(${draftLocalProfile.image})` } : undefined}
+                >{draftLocalProfile.image ? null : (draftLocalProfile.nickname || user.name).slice(0, 1)}</div>
+                <div>
+                  <label className="profile-image-button">
+                    이미지 선택<MyPageIcon name="edit" />
+                    <input type="file" accept="image/*" onChange={(event) => handleProfileImageChange(event.target.files?.[0])} />
+                  </label>
+                  {draftLocalProfile.image ? <button type="button" className="profile-image-remove" onClick={() => setDraftLocalProfile((current) => ({ ...current, image: "" }))}>기본 이미지로 변경</button> : null}
+                </div>
+              </div>
+              <label>프로필 닉네임<input value={draftLocalProfile.nickname} maxLength={12} onChange={(event) => setDraftLocalProfile((current) => ({ ...current, nickname: event.target.value }))} /></label>
+              <p className="profile-edit-help">프로필 닉네임은 개인정보의 이름과 별도로 사용됩니다.</p>
+              {profileEditError ? <p className="account-form-error">{profileEditError}</p> : null}
+              <div className="account-form-actions"><button type="button" onClick={() => setIsProfileEditOpen(false)}>취소</button><button type="submit">저장</button></div>
+            </form>
+          </section>
+        </MyPageModalLayer>
+      ) : null}
+
       {isAccountSettingsOpen ? (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setIsAccountSettingsOpen(false);
-        }}>
+        <MyPageModalLayer onClose={() => setIsAccountSettingsOpen(false)}>
           <section className="account-settings-modal" role="dialog" aria-modal="true" aria-labelledby="mypage-account-settings-title">
             <div className="account-settings-header">
               <div>
                 <p>ACCOUNT SETTINGS</p>
                 <h2 id="mypage-account-settings-title">설정</h2>
+                <span>계정 및 보안 관련 설정을 관리할 수 있습니다.</span>
               </div>
-              <button type="button" aria-label="설정 닫기" onClick={() => setIsAccountSettingsOpen(false)}>×</button>
-            </div>
-            <div className="account-settings-list">
-              <Link href="/mypage/edit">
-                <span><MyPageIcon name="user" /></span>
-                <strong>개인정보 수정</strong>
-                <MyPageIcon name="chevron" />
-              </Link>
-              <button type="button">
-                <span><MyPageIcon name="lock" /></span>
-                <strong>비밀번호 변경</strong>
-                <MyPageIcon name="chevron" />
+              <button type="button" aria-label="설정 닫기" onClick={() => setIsAccountSettingsOpen(false)}>
+                <i aria-hidden="true" />
               </button>
             </div>
+            <div className="account-settings-list">
+              <button type="button" onClick={openProfileSettings}>
+                <span><MyPageIcon name="user" /></span>
+                <div>
+                  <strong>개인정보 수정</strong>
+                  <small>이름, 학과, 연락처 등 개인 정보를 관리합니다.</small>
+                </div>
+                <b><MyPageIcon name="chevron" /></b>
+              </button>
+              <button type="button" onClick={openPasswordSettings}>
+                <span><MyPageIcon name="lock" /></span>
+                <div>
+                  <strong>비밀번호 변경</strong>
+                  <small>계정 비밀번호를 안전하게 변경합니다.</small>
+                </div>
+                <b><MyPageIcon name="chevron" /></b>
+              </button>
+            </div>
+            <div className="account-settings-note">
+              <MyPageIcon name="info" />
+              <div>
+                <strong>계정 보안을 위해 주기적으로 비밀번호를 변경해주세요.</strong>
+                <p>개인정보 및 보안 설정은 안전하게 보호됩니다.</p>
+              </div>
+              <span aria-hidden="true">
+                <MyPageIcon name="shield" />
+                <i><MyPageIcon name="lock" /></i>
+              </span>
+            </div>
           </section>
-        </div>
+        </MyPageModalLayer>
+      ) : null}
+
+      {isProfileSettingsOpen ? (
+        <MyPageModalLayer onClose={() => setIsProfileSettingsOpen(false)}>
+          <section className="account-form-modal personal-info-modal" role="dialog" aria-modal="true" aria-labelledby="profile-settings-title">
+            <div className="account-form-header">
+              <div><p>ACCOUNT SETTINGS</p><h2 id="profile-settings-title">개인정보 수정</h2></div>
+              <button type="button" aria-label="개인정보 수정 닫기" onClick={() => setIsProfileSettingsOpen(false)}>×</button>
+            </div>
+            <form onSubmit={saveProfileSettings}>
+              <label>이름<input value={profileForm.name} maxLength={20} onChange={(event) => setProfileForm((current) => ({ ...current, name: event.target.value }))} /></label>
+              <label>소속<input value={profileForm.department} maxLength={40} onChange={(event) => setProfileForm((current) => ({ ...current, department: event.target.value }))} /></label>
+              <label>부/복수전공<input value={profileForm.secondaryDepartment} maxLength={40} placeholder="미등록" onChange={(event) => setProfileForm((current) => ({ ...current, secondaryDepartment: event.target.value }))} /></label>
+              {settingsError ? <p className="account-form-error">{settingsError}</p> : null}
+              <div className="account-form-actions"><button type="button" onClick={() => setIsProfileSettingsOpen(false)}>취소</button><button type="submit" disabled={isSettingsSaving}>{isSettingsSaving ? "저장 중" : "저장"}</button></div>
+            </form>
+          </section>
+        </MyPageModalLayer>
+      ) : null}
+
+      {isPasswordSettingsOpen ? (
+        <MyPageModalLayer onClose={() => setIsPasswordSettingsOpen(false)}>
+          <section className="account-form-modal" role="dialog" aria-modal="true" aria-labelledby="password-settings-title">
+            <div className="account-form-header">
+              <div><p>SECURITY SETTINGS</p><h2 id="password-settings-title">비밀번호 변경</h2></div>
+              <button type="button" aria-label="비밀번호 변경 닫기" onClick={() => setIsPasswordSettingsOpen(false)}>×</button>
+            </div>
+            <form onSubmit={savePasswordSettings}>
+              <label>새 비밀번호<input type="password" autoComplete="new-password" value={passwordForm.password} placeholder="8자 이상 입력해 주세요" onChange={(event) => setPasswordForm((current) => ({ ...current, password: event.target.value }))} /></label>
+              <label>새 비밀번호 확인<input type="password" autoComplete="new-password" value={passwordForm.passwordConfirm} placeholder="비밀번호를 다시 입력해 주세요" onChange={(event) => setPasswordForm((current) => ({ ...current, passwordConfirm: event.target.value }))} /></label>
+              {settingsError ? <p className="account-form-error">{settingsError}</p> : null}
+              {settingsMessage ? <p className="account-form-message">{settingsMessage}</p> : null}
+              <div className="account-form-actions"><button type="button" onClick={() => setIsPasswordSettingsOpen(false)}>취소</button><button type="submit" disabled={isSettingsSaving}>{isSettingsSaving ? "변경 중" : "변경"}</button></div>
+            </form>
+          </section>
+        </MyPageModalLayer>
       ) : null}
 
       {isNotificationSettingsOpen ? (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) closeNotificationSettings();
-        }}>
+        <MyPageModalLayer onClose={closeNotificationSettings}>
           <section className="notification-settings-modal" role="dialog" aria-modal="true" aria-labelledby="mypage-notification-dialog-title">
             <div className="notification-settings-header">
               <div>
@@ -389,13 +655,11 @@ function MyPageContent({ user }: { user: UserProfile }) {
               <button type="button" className="notification-save-button" onClick={closeNotificationSettings}>닫기</button>
             </div>
           </section>
-        </div>
+        </MyPageModalLayer>
       ) : null}
 
       {isLogoutConfirmOpen ? (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setIsLogoutConfirmOpen(false);
-        }}>
+        <MyPageModalLayer onClose={() => setIsLogoutConfirmOpen(false)}>
           <div className="confirm-modal yes-no-confirm" role="alertdialog" aria-modal="true" aria-labelledby="mypage-logout-dialog-title">
             <div className="yes-no-confirm-mark" aria-hidden="true">?</div>
             <div>
@@ -407,7 +671,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
               <button type="button" className="ghost-button" onClick={() => setIsLogoutConfirmOpen(false)}>아니오</button>
             </div>
           </div>
-        </div>
+        </MyPageModalLayer>
       ) : null}
 
       <style jsx>{`
@@ -471,6 +735,10 @@ function MyPageContent({ user }: { user: UserProfile }) {
           line-height: 1.7;
         }
 
+        .mypage-hero-tags {
+          margin-top: 18px;
+        }
+
         .mypage-hero-art {
           position: relative;
           flex: 0 0 365px;
@@ -515,6 +783,14 @@ function MyPageContent({ user }: { user: UserProfile }) {
           font-weight: 900;
         }
 
+        .mypage-avatar.has-image,
+        .profile-image-preview.has-image {
+          background-color: #eee5fa;
+          background-position: center;
+          background-repeat: no-repeat;
+          background-size: cover;
+        }
+
         .mypage-profile-copy {
           min-width: 0;
           flex: 1;
@@ -531,7 +807,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
         .mypage-name-row {
           display: flex;
           min-width: 0;
-          align-items: center;
+          align-items: flex-start;
           gap: 12px;
         }
 
@@ -558,6 +834,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
           padding: 5px 10px;
           font-size: 11px;
           font-weight: 900;
+          transform: none;
         }
 
         .mypage-edit-button :global(.mypage-icon) {
@@ -617,6 +894,11 @@ function MyPageContent({ user }: { user: UserProfile }) {
         .mypage-manage-actions span :global(.mypage-icon) {
           width: 28px;
           height: 28px;
+        }
+
+        .mypage-manage-actions button:first-child span :global(.mypage-icon) {
+          transform: scale(0.72);
+          transform-origin: center;
         }
 
         .section-title h2 {
@@ -692,13 +974,16 @@ function MyPageContent({ user }: { user: UserProfile }) {
 
         .account-settings-modal {
           display: grid;
-          width: min(560px, calc(100vw - 40px));
-          gap: 22px;
+          width: min(760px, calc(100vw - 48px));
+          max-height: calc(100vh - 48px);
+          overflow: auto;
+          align-content: start;
+          gap: 16px;
           border: 1px solid rgba(222, 214, 237, 0.95);
-          border-radius: 18px;
+          border-radius: 24px;
           background: #fff;
           box-shadow: 0 28px 80px rgba(35, 24, 45, 0.22);
-          padding: 34px;
+          padding: 32px 36px 36px;
         }
 
         .account-settings-header {
@@ -709,52 +994,79 @@ function MyPageContent({ user }: { user: UserProfile }) {
         }
 
         .account-settings-header p {
-          margin: 0 0 10px;
+          margin: 0 0 8px;
           color: var(--primary);
           font-size: 13px;
-          font-weight: 900;
+          font-weight: 800;
           letter-spacing: 0;
         }
 
         .account-settings-header h2 {
           margin: 0;
           color: #171326;
-          font-size: 30px;
+          font-size: 32px;
           font-weight: 900;
-          line-height: 1.25;
+          line-height: 1.1;
+        }
+
+        .account-settings-header span {
+          display: block;
+          margin-top: 10px;
+          color: #6d6880;
+          font-size: 15px;
+          font-weight: 700;
         }
 
         .account-settings-header button {
           display: grid;
-          width: 44px;
-          height: 44px;
+          position: relative;
+          width: 46px;
+          height: 46px;
           flex: 0 0 auto;
           place-items: center;
-          border: 1px solid #ded3ef;
-          border-radius: 12px;
+          border: 1px solid #e3d9f3;
+          border-radius: 13px;
           background: #fff;
-          color: #655d77;
-          font-size: 32px;
-          line-height: 1;
+          color: #6336c7;
+        }
+
+        .account-settings-header button i::before,
+        .account-settings-header button i::after {
+          position: absolute;
+          top: 21px;
+          left: 13px;
+          width: 20px;
+          height: 3px;
+          border-radius: 999px;
+          background: currentColor;
+          content: "";
+        }
+
+        .account-settings-header button i::before {
+          transform: rotate(45deg);
+        }
+
+        .account-settings-header button i::after {
+          transform: rotate(-45deg);
         }
 
         .account-settings-list {
           display: grid;
-          gap: 12px;
+          gap: 14px;
         }
 
         .account-settings-list a,
         .account-settings-list button {
           display: grid;
-          grid-template-columns: 52px minmax(0, 1fr) 28px;
+          grid-template-columns: 64px minmax(0, 1fr) 44px;
           align-items: center;
-          gap: 14px;
-          min-height: 76px;
-          border: 1px solid #e5ddeb;
-          border-radius: 12px;
+          gap: 18px;
+          min-height: 92px;
+          border: 1px solid #e4d9f2;
+          border-radius: 14px;
           background: #fff;
           color: #171326;
-          padding: 12px 16px;
+          padding: 14px 18px;
           text-align: left;
         }
 
@@ -765,32 +1077,314 @@ function MyPageContent({ user }: { user: UserProfile }) {
 
         .account-settings-list span {
           display: grid;
-          width: 52px;
-          height: 52px;
+          width: 64px;
+          height: 64px;
           place-items: center;
           border: 1px solid rgba(88, 47, 130, 0.08);
-          border-radius: 8px;
+          border-radius: 12px;
           background: linear-gradient(135deg, #f5edff 0%, #ece0ff 100%);
           color: #7036d8;
         }
 
         .account-settings-list span :global(.mypage-icon) {
-          width: 27px;
-          height: 27px;
+          width: 32px;
+          height: 32px;
         }
 
         .account-settings-list strong {
           min-width: 0;
           color: #171326;
-          font-size: 17px;
+          font-size: 19px;
           font-weight: 900;
         }
 
-        .account-settings-list a > :global(.mypage-icon),
-        .account-settings-list button > :global(.mypage-icon) {
+        .account-settings-list small {
+          display: block;
+          margin-top: 6px;
+          color: #6e6880;
+          font-size: 13px;
+          font-weight: 700;
+          line-height: 1.4;
+        }
+
+        .account-settings-list b {
+          display: grid;
+          width: 44px;
+          height: 44px;
+          place-items: center;
+          border-radius: 50%;
+          background: #f7f2fc;
+          color: #65528d;
+        }
+
+        .account-settings-list b :global(.mypage-icon) {
           width: 20px;
           height: 20px;
-          color: #7f7296;
+        }
+
+        .account-settings-note {
+          display: grid;
+          grid-template-columns: 24px minmax(0, 1fr) 92px;
+          align-items: center;
+          gap: 18px;
+          min-height: 112px;
+          border: 1px solid #e2d6f0;
+          border-radius: 14px;
+          background: linear-gradient(110deg, #fdfaff 0%, #faf6ff 100%);
+          padding: 20px 26px;
+          color: #4c416d;
+        }
+
+        .account-settings-note > :global(.mypage-icon) {
+          width: 24px;
+          height: 24px;
+          color: #7040d5;
+        }
+
+        .account-settings-note strong {
+          font-size: 15px;
+          font-weight: 800;
+          line-height: 1.45;
+        }
+
+        .account-settings-note p {
+          margin: 10px 0 0;
+          color: #766f89;
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .account-settings-note > span {
+          position: relative;
+          display: grid;
+          width: 84px;
+          height: 76px;
+          place-items: center;
+          justify-self: center;
+          color: #7446dc;
+          filter: drop-shadow(0 14px 14px rgba(93, 48, 193, 0.2));
+        }
+
+        .account-settings-note > span > :global(.mypage-icon) {
+          width: 72px;
+          height: 72px;
+          stroke-width: 1.5;
+          fill: #c3a8ff;
+        }
+
+        .account-settings-note > span i {
+          position: absolute;
+          right: 0;
+          bottom: 0;
+          display: grid;
+          width: 38px;
+          height: 38px;
+          place-items: center;
+          border-radius: 10px;
+          background: #eee4ff;
+          color: #6840c7;
+        }
+
+        .account-settings-note > span i :global(.mypage-icon) {
+          width: 25px;
+          height: 25px;
+        }
+
+        .account-form-modal {
+          width: min(560px, calc(100vw - 48px));
+          max-height: calc(100vh - 48px);
+          overflow: auto;
+          border: 1px solid #e2d7ef;
+          border-radius: 22px;
+          background: #fff;
+          box-shadow: 0 28px 80px rgba(35, 24, 45, 0.22);
+          padding: 30px;
+        }
+
+        .personal-info-modal {
+          width: clamp(320px, 46vw, 560px);
+          max-width: calc(100vw - 32px);
+          max-height: calc(100dvh - 96px);
+          margin: auto;
+          padding: clamp(20px, 2.5vw, 30px);
+        }
+
+        .account-form-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+
+        .account-form-header p {
+          margin: 0 0 7px;
+          color: var(--primary);
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .account-form-header h2 {
+          margin: 0;
+          color: #171326;
+          font-size: 28px;
+        }
+
+        .account-form-header > button {
+          display: grid;
+          width: 42px;
+          height: 42px;
+          place-items: center;
+          border: 1px solid #e2d7ef;
+          border-radius: 12px;
+          background: #fff;
+          color: #6336c7;
+          font-size: 29px;
+          line-height: 1;
+        }
+
+        .account-form-modal form {
+          display: grid;
+          gap: 15px;
+        }
+
+        .account-form-modal label {
+          display: grid;
+          gap: 8px;
+          color: #393247;
+          font-size: 14px;
+          font-weight: 850;
+        }
+
+        .account-form-modal input {
+          width: 100%;
+          height: 48px;
+          border: 1px solid #ded5e9;
+          border-radius: 10px;
+          background: #fff;
+          color: #171326;
+          padding: 0 14px;
+          font: inherit;
+          font-weight: 700;
+          outline: none;
+        }
+
+        .account-form-modal input:focus {
+          border-color: #895bd9;
+          box-shadow: 0 0 0 3px rgba(112, 64, 213, 0.1);
+        }
+
+        .account-form-error,
+        .account-form-message {
+          margin: 0;
+          border-radius: 9px;
+          padding: 11px 13px;
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .account-form-error { background: #fff1f3; color: #b4233c; }
+        .account-form-message { background: #f0f9f4; color: #237a4b; }
+
+        .account-form-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 9px;
+          margin-top: 8px;
+        }
+
+        .account-form-actions button {
+          min-width: 88px;
+          height: 44px;
+          border: 1px solid #dcd1e9;
+          border-radius: 10px;
+          background: #fff;
+          color: #665c72;
+          font-weight: 900;
+        }
+
+        .account-form-actions button[type="submit"] {
+          border-color: transparent;
+          background: linear-gradient(135deg, #8054da, #5b35c6);
+          color: #fff;
+        }
+
+        .profile-image-editor {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          border: 1px solid #ebe3f3;
+          border-radius: 14px;
+          background: #fcfaff;
+          padding: 18px;
+        }
+
+        .profile-image-preview {
+          display: grid;
+          width: 88px;
+          height: 88px;
+          flex: 0 0 88px;
+          place-items: center;
+          overflow: hidden;
+          border: 2px solid #e4d7f5;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #f4eaff, #e8d7ff);
+          color: var(--primary);
+          font-size: 32px;
+          font-weight: 900;
+        }
+
+        .profile-image-editor > div:last-child {
+          display: flex;
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 9px;
+        }
+
+        .account-form-modal .profile-image-button {
+          display: inline-flex;
+          height: 40px;
+          align-items: center;
+          gap: 7px;
+          border: 1px solid #b899ef;
+          border-radius: 9px;
+          background: #fff;
+          color: var(--primary);
+          padding: 0 13px;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 900;
+        }
+
+        .profile-image-button :global(.mypage-icon) {
+          width: 15px;
+          height: 15px;
+        }
+
+        .profile-image-button input {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .profile-image-remove {
+          border: 0;
+          background: transparent;
+          color: #756b82;
+          padding: 0;
+          font-size: 12px;
+          font-weight: 800;
+          text-decoration: underline;
+        }
+
+        .profile-edit-help {
+          margin: -5px 0 0;
+          color: #766e82;
+          font-size: 12px;
+          font-weight: 700;
         }
 
         .notification-settings-modal {
@@ -814,25 +1408,25 @@ function MyPageContent({ user }: { user: UserProfile }) {
         }
 
         .notification-settings-header p {
-          margin: 0 0 18px;
+          margin: 0 0 8px;
           color: var(--primary);
-          font-size: 20px;
+          font-size: 13px;
           font-weight: 800;
         }
 
         .notification-settings-header h2 {
           margin: 0;
           color: #171326;
-          font-size: 42px;
+          font-size: 32px;
           font-weight: 900;
           line-height: 1.25;
         }
 
         .notification-settings-header span {
           display: block;
-          margin-top: 22px;
+          margin-top: 10px;
           color: #242035;
-          font-size: 24px;
+          font-size: 15px;
           font-weight: 750;
           line-height: 1.45;
         }
@@ -1003,7 +1597,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
           border-radius: 14px;
           color: #4f4860;
           padding: 22px 26px;
-          font-size: 19px;
+          font-size: 15px;
           font-weight: 750;
           line-height: 1.5;
         }
@@ -1051,13 +1645,13 @@ function MyPageContent({ user }: { user: UserProfile }) {
 
         .popup-section-heading h3 {
           color: #171326;
-          font-size: 24px;
+          font-size: 19px;
           font-weight: 950;
         }
 
         .popup-section-heading p {
           color: #746b84;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 750;
           text-align: right;
         }
@@ -1118,7 +1712,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
 
         :global(.popup-setting-copy h4) {
           color: #171326;
-          font-size: 18px;
+          font-size: 19px;
           font-weight: 950;
         }
 
@@ -1131,7 +1725,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
         :global(.popup-setting-copy p) {
           margin-top: 8px;
           color: #696176;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 750;
           line-height: 1.45;
         }
@@ -1194,7 +1788,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
           min-width: 140px;
           min-height: 62px;
           border-radius: 13px;
-          font-size: 20px;
+          font-size: 15px;
           font-weight: 900;
         }
 
@@ -1216,9 +1810,67 @@ function MyPageContent({ user }: { user: UserProfile }) {
           height: 24px;
         }
 
+        :global(.mypage-modal-backdrop) {
+          top: 65px;
+          right: 0;
+          bottom: 0;
+          left: 0;
+          width: 100vw;
+          transform: none;
+          background: rgba(55, 51, 64, 0.44);
+          -webkit-backdrop-filter: blur(10px);
+          backdrop-filter: blur(10px);
+        }
+
+        @media (min-width: 761px) {
+          .account-settings-modal,
+          .notification-settings-modal {
+            width: min(760px, calc(100vw - 48px));
+            box-sizing: border-box;
+            overflow: auto;
+            transform: scale(0.75);
+            transform-origin: center;
+          }
+
+          .account-settings-modal {
+            height: auto;
+            max-height: calc(100vh - 48px);
+          }
+
+          .notification-settings-modal {
+            width: min(760px, 88vw);
+            height: auto;
+            max-height: min(680px, calc(100dvh - 64px));
+            align-content: start;
+          }
+        }
+
         @media (max-width: 760px) {
           .mypage-page > :not(.mypage-hero) {
             width: min(100% - 28px, 1180px);
+          }
+
+          .personal-info-modal {
+            width: calc(100vw - 32px);
+            max-height: calc(100dvh - 96px);
+            border-radius: 18px;
+            padding: 20px;
+          }
+
+          .personal-info-modal .account-form-header {
+            margin-bottom: 18px;
+          }
+
+          .personal-info-modal .account-form-header h2 {
+            font-size: clamp(22px, 6vw, 28px);
+          }
+
+          .personal-info-modal form {
+            gap: 12px;
+          }
+
+          .personal-info-modal input {
+            height: 44px;
           }
 
           .mypage-hero {
@@ -1265,6 +1917,10 @@ function MyPageContent({ user }: { user: UserProfile }) {
             gap: 8px;
           }
 
+          .mypage-edit-button {
+            transform: translateY(-4px);
+          }
+
           .mypage-manage {
             padding: 22px 20px;
           }
@@ -1296,30 +1952,101 @@ function MyPageContent({ user }: { user: UserProfile }) {
           }
 
           .account-settings-modal {
-            width: min(100% - 28px, 560px);
+            width: min(100% - 28px, 1380px);
             gap: 18px;
-            padding: 24px;
+            border-radius: 20px;
+            padding: 24px 20px;
           }
 
           .account-settings-header h2 {
-            font-size: 26px;
+            font-size: 30px;
           }
 
-          .account-settings-list a,
-          .account-settings-list button {
-            grid-template-columns: 46px minmax(0, 1fr) 24px;
-            min-height: 68px;
-            gap: 12px;
-            padding: 10px 12px;
+          .account-settings-header p {
+            margin-bottom: 10px;
+            font-size: 13px;
           }
 
-          .account-settings-list span {
+          .account-settings-header span {
+            margin-top: 12px;
+            font-size: 14px;
+          }
+
+          .account-settings-header button {
             width: 46px;
             height: 46px;
           }
 
+          .account-settings-header button i::before,
+          .account-settings-header button i::after {
+            top: 21px;
+            left: 13px;
+            width: 20px;
+          }
+
+          .account-settings-list a,
+          .account-settings-list button {
+            grid-template-columns: 58px minmax(0, 1fr) 42px;
+            min-height: 94px;
+            gap: 12px;
+            border-radius: 14px;
+            padding: 14px;
+          }
+
+          .account-settings-list span {
+            width: 58px;
+            height: 58px;
+            border-radius: 12px;
+          }
+
+          .account-settings-list span :global(.mypage-icon) {
+            width: 30px;
+            height: 30px;
+          }
+
           .account-settings-list strong {
-            font-size: 15px;
+            font-size: 17px;
+          }
+
+          .account-settings-list small {
+            margin-top: 5px;
+            font-size: 12px;
+          }
+
+          .account-settings-list b {
+            width: 42px;
+            height: 42px;
+          }
+
+          .account-settings-list b :global(.mypage-icon) {
+            width: 20px;
+            height: 20px;
+          }
+
+          .account-settings-note {
+            grid-template-columns: 24px minmax(0, 1fr);
+            min-height: 120px;
+            gap: 14px;
+            border-radius: 14px;
+            padding: 20px;
+          }
+
+          .account-settings-note > :global(.mypage-icon) {
+            width: 24px;
+            height: 24px;
+          }
+
+          .account-settings-note strong {
+            font-size: 14px;
+          }
+
+          .account-settings-note p {
+            margin-top: 10px;
+            font-size: 12px;
+          }
+
+          .account-settings-note > span {
+            display: none;
           }
 
           .notification-settings-modal {
@@ -1330,16 +2057,16 @@ function MyPageContent({ user }: { user: UserProfile }) {
 
           .notification-settings-header p {
             margin-bottom: 10px;
-            font-size: 14px;
+            font-size: 13px;
           }
 
           .notification-settings-header h2 {
-            font-size: 28px;
+            font-size: 30px;
           }
 
           .notification-settings-header span {
             margin-top: 12px;
-            font-size: 15px;
+            font-size: 14px;
           }
 
           .notification-settings-header button {

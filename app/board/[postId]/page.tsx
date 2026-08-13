@@ -26,6 +26,24 @@ type BoardPostWithImage = BoardPost & {
   };
 };
 
+function BoardDetailIcon({ name }: { name: "back" | "more" | "recommend" | "recommended" | "comment" | "arrowLeft" | "arrowRight" }) {
+  const paths: Record<typeof name, string> = {
+    back: "M15 6 9 12l6 6",
+    more: "M6 12h.01M12 12h.01M18 12h.01",
+    recommend: "M8.5 10.5 12 4.75c.55-.9 1.9-.52 1.9.54v4.46H18a2 2 0 0 1 1.94 2.48l-1.35 5.5a2 2 0 0 1-1.94 1.52H8.5v-8.75ZM4 10.5h4.5v8.75H4V10.5Z",
+    recommended: "M8.5 10.5 12 4.75c.55-.9 1.9-.52 1.9.54v4.46H18a2 2 0 0 1 1.94 2.48l-1.35 5.5a2 2 0 0 1-1.94 1.52H8.5v-8.75ZM4 10.5h4.5v8.75H4V10.5Z",
+    comment: "M5 5.75h14v9.5H9.5L5 18.5V5.75Z",
+    arrowLeft: "M15 6 9 12l6 6",
+    arrowRight: "m9 6 6 6-6 6"
+  };
+
+  return (
+    <svg className={name === "recommended" ? "board-detail-icon board-detail-icon-filled" : "board-detail-icon"} viewBox="0 0 24 24" aria-hidden="true">
+      <path d={paths[name]} />
+    </svg>
+  );
+}
+
 export default function BoardPostPage() {
   const params = useParams<{ postId: string }>();
   const router = useRouter();
@@ -52,6 +70,9 @@ export default function BoardPostPage() {
 
   const selectedPost = posts.find((post) => post.id === params.postId);
   const attachedImage = (selectedPost as BoardPostWithImage | undefined)?.image;
+  const currentPostIndex = selectedPost ? posts.findIndex((post) => post.id === selectedPost.id) : -1;
+  const previousPost = currentPostIndex > 0 ? posts[currentPostIndex - 1] : null;
+  const nextPost = currentPostIndex >= 0 && currentPostIndex < posts.length - 1 ? posts[currentPostIndex + 1] : null;
 
   useEffect(() => {
     if (!params.postId || !selectedPost || viewCountRequested.current) {
@@ -211,14 +232,19 @@ export default function BoardPostPage() {
       return;
     }
 
-    if (!selectedPost || selectedPost.userId === currentUser.id || selectedPost.recommendedUserIds.includes(currentUser.id)) {
+    if (!selectedPost || selectedPost.userId === currentUser.id) {
       return;
     }
 
+    const alreadyRecommended = selectedPost.recommendedUserIds.includes(currentUser.id);
+    const nextRecommendedUserIds = alreadyRecommended
+      ? selectedPost.recommendedUserIds.filter((userId) => userId !== currentUser.id)
+      : [...selectedPost.recommendedUserIds, currentUser.id];
+
     const nextPosts = posts.map((post) => post.id === selectedPost.id ? {
       ...post,
-      recommendedUserIds: [...post.recommendedUserIds, currentUser.id],
-      recommendCount: post.recommendedUserIds.length + 1,
+      recommendedUserIds: nextRecommendedUserIds,
+      recommendCount: nextRecommendedUserIds.length,
       updatedAt: new Date().toISOString()
     } : post);
 
@@ -332,21 +358,8 @@ export default function BoardPostPage() {
 
   return (
     <main className="page board-post-page">
-      <section className="page-header board-post-header">
-        <Link className="ghost-button board-back-button" href="/board">목록으로</Link>
-        <div className="board-post-heading">
-          <div>
-            <span className="badge">{categoryLabels[selectedPost.category]}</span>
-            <h1 className="board-post-title">{selectedPost.title}</h1>
-          </div>
-          {selectedPost.userId === user?.id ? (
-            <div className="chip-row">
-              <button className="ghost-button" type="button" onClick={startEditing}>수정</button>
-              <span className="board-action-divider" aria-hidden="true" />
-              <button className="ghost-button" type="button" onClick={requestDeleteSelectedPost}>삭제</button>
-            </div>
-          ) : null}
-        </div>
+      <section className="board-post-topbar" aria-label="게시글 이동">
+        <Link className="ghost-button board-back-button" href="/board"><BoardDetailIcon name="back" />목록으로</Link>
       </section>
 
       <section className="panel board-post-panel">
@@ -379,14 +392,40 @@ export default function BoardPostPage() {
           </form>
         ) : (
           <>
-            <div className="meta board-post-meta">
-              <BoardAuthorMenu userId={selectedPost.userId} authorName={selectedPost.authorName} currentUserId={user?.id} posts={posts} />
-              <span>{new Intl.DateTimeFormat("ko-KR").format(new Date(selectedPost.createdAt))}</span>
-              <span>조회 {selectedPost.viewCount}</span>
-              <span className="recommend-meta">추천 {selectedPost.recommendCount}</span>
+            <div className="board-post-card-header">
+              <div className="board-post-heading">
+                <span className="badge">{categoryLabels[selectedPost.category]}</span>
+                <h1 className="board-post-title">{selectedPost.title}</h1>
+                <div className="meta board-post-meta">
+                  <BoardAuthorMenu userId={selectedPost.userId} authorName={selectedPost.authorName} currentUserId={user?.id} posts={posts} />
+                  <span>{new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(selectedPost.createdAt))}</span>
+                  <span>조회 {selectedPost.viewCount}</span>
+                  <span className="recommend-meta">추천 {selectedPost.recommendCount}</span>
+                </div>
+              </div>
+              {selectedPost.userId === user?.id ? (
+                <div className="chip-row">
+                  <button className="ghost-button board-post-more-button" type="button" aria-label="게시글 수정" onClick={startEditing}>수정</button>
+                  <span className="board-action-divider" aria-hidden="true" />
+                  <button className="ghost-button board-post-more-button" type="button" aria-label="게시글 삭제" onClick={requestDeleteSelectedPost}>삭제</button>
+                </div>
+              ) : (
+                <button className="ghost-button board-post-more-button" type="button" aria-label="게시글 더보기"><BoardDetailIcon name="more" /></button>
+              )}
             </div>
             <p className="board-post-content">{selectedPost.content}</p>
             {attachedImage ? <img className="board-post-image" src={attachedImage.dataUrl} alt={attachedImage.name || "게시글 첨부 이미지"} /> : null}
+            <div className="board-post-card-actions">
+              <button
+                className={user && selectedPost.recommendedUserIds.includes(user.id) ? "board-recommend-button active" : "board-recommend-button"}
+                type="button"
+                onClick={() => void recommendPost()}
+                disabled={selectedPost.userId === user?.id}
+              >
+                <BoardDetailIcon name={user && selectedPost.recommendedUserIds.includes(user.id) ? "recommended" : "recommend"} />
+                추천 {selectedPost.recommendCount}
+              </button>
+            </div>
           </>
         )}
       </section>
@@ -423,28 +462,44 @@ export default function BoardPostPage() {
               {editingCommentId === item.id && error ? <div className="error board-comment-error">{error}</div> : null}
             </div>
           ))}
-          {selectedPost.comments.length === 0 ? <div className="list-item">아직 댓글이 없습니다.</div> : null}
+          {selectedPost.comments.length === 0 ? (
+            <div className="board-comment-empty">
+              <BoardDetailIcon name="comment" />
+              <div>
+                <strong>아직 댓글이 없습니다.</strong>
+                <span>첫 번째 댓글을 작성해보세요!</span>
+              </div>
+            </div>
+          ) : null}
         </div>
         <form className="form board-comment-form" onSubmit={addComment}>
-          <div className="field">
-            <label htmlFor="comment">댓글</label>
-            <input id="comment" maxLength={1000} value={comment} onChange={(event) => setComment(event.target.value)} />
+          <span className="board-comment-avatar" aria-hidden="true">{(user?.nickname || user?.name || "새").slice(0, 1)}</span>
+          <div className="field board-comment-input-field">
+            <label className="sr-only" htmlFor="comment">댓글</label>
+            <input id="comment" maxLength={1000} placeholder="댓글을 입력해주세요." value={comment} onChange={(event) => setComment(event.target.value)} />
+            <span className="board-comment-count">{comment.length} / 1000</span>
           </div>
           {error ? <div className="error">{error}</div> : null}
           <button className="button" type="submit">댓글 작성</button>
         </form>
       </section>
 
-      <div className="board-recommend-bar">
-        <button
-          className="board-recommend-button"
-          type="button"
-          onClick={() => void recommendPost()}
-          disabled={selectedPost.userId === user?.id || Boolean(user && selectedPost.recommendedUserIds.includes(user.id))}
-        >
-          추천 {selectedPost.recommendCount}
-        </button>
-      </div>
+      <nav className="board-post-neighbor-nav" aria-label="이전글 다음글">
+        {previousPost ? (
+          <Link className="board-post-neighbor previous" href={`/board/${previousPost.id}`}>
+            <BoardDetailIcon name="arrowLeft" />
+            <span>이전글</span>
+            <strong>{previousPost.title}</strong>
+          </Link>
+        ) : <span />}
+        {nextPost ? (
+          <Link className="board-post-neighbor next" href={`/board/${nextPost.id}`}>
+            <span>다음글</span>
+            <strong>{nextPost.title}</strong>
+            <BoardDetailIcon name="arrowRight" />
+          </Link>
+        ) : <span />}
+      </nav>
       {isPostDeleteConfirmOpen ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
           if (event.target === event.currentTarget) setIsPostDeleteConfirmOpen(false);

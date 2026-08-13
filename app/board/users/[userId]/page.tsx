@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getBoardPosts, loadPersistentBoardPosts, subscribeToBoardPosts } from "@/lib/board-storage";
-import { BoardUserRank } from "@/components/board-user-rank";
+import { BOARD_RANKS, BoardRankIcon, BoardUserRank } from "@/components/board-user-rank";
 import type { BoardPost, Comment } from "@/lib/types";
 
 type UserComment = { post: BoardPost; comment: Comment };
@@ -49,6 +49,18 @@ export default function BoardUserActivityPage() {
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)), [params.userId, posts]);
 
   const authorName = authoredPosts[0]?.authorName ?? authoredComments[0]?.comment.authorName ?? "사용자";
+  const activityExp = authoredPosts.length * 3 + authoredComments.length;
+  const currentRankIndex = Math.max(0, BOARD_RANKS.findIndex((rank, index) => {
+    const nextRank = BOARD_RANKS[index + 1];
+    return activityExp >= rank.minimum && (!nextRank || activityExp < nextRank.minimum);
+  }));
+  const currentRank = BOARD_RANKS[currentRankIndex] ?? BOARD_RANKS[0];
+  const nextRank = BOARD_RANKS[currentRankIndex + 1] ?? null;
+  const currentMinimum = currentRank.minimum;
+  const nextMinimum = nextRank?.minimum ?? currentRank.minimum;
+  const progressRange = Math.max(1, nextMinimum - currentMinimum);
+  const progressPercent = nextRank ? Math.min(100, Math.max(0, ((activityExp - currentMinimum) / progressRange) * 100)) : 100;
+  const expToNext = nextRank ? Math.max(0, nextRank.minimum - activityExp) : 0;
 
   return (
     <main className="page">
@@ -56,6 +68,43 @@ export default function BoardUserActivityPage() {
         <Link className="ghost-button" href="/board">게시판으로</Link>
         <h1 className="board-user-title">{authorName}<BoardUserRank posts={posts} userId={params.userId} />님의 활동</h1>
         <p>이 사용자가 작성한 게시글과 댓글, 추천한 글을 확인할 수 있습니다.</p>
+      </section>
+
+      <section className="board-user-exp-card" aria-label={`${authorName}님의 게시판 활동 EXP`}>
+        <div className="board-user-exp-rank">
+          <BoardRankIcon className={currentRank.className} name={currentRank.name} />
+        </div>
+        <div className="board-user-exp-content">
+          <div className="board-user-exp-stages">
+            <div className="board-user-exp-stage current">
+              <span>현재 단계</span>
+              <strong>{currentRank.name}</strong>
+              <em>{activityExp} EXP</em>
+            </div>
+            {nextRank ? (
+              <div className="board-user-exp-stage">
+                <span>다음 단계</span>
+                <strong>{nextRank.name}</strong>
+                <em>{nextRank.minimum} EXP</em>
+              </div>
+            ) : (
+              <div className="board-user-exp-stage">
+                <span>최고 단계</span>
+                <strong>{currentRank.name}</strong>
+                <em>MAX</em>
+              </div>
+            )}
+          </div>
+          <div className="board-user-exp-track" aria-hidden="true">
+            <span style={{ width: `${progressPercent}%` }} />
+            <i className="current" style={{ left: `${progressPercent}%` }} />
+            {nextRank ? <i style={{ left: "100%" }} /> : null}
+          </div>
+          <div className="board-user-exp-meta">
+            <span>{activityExp} / {nextRank ? nextRank.minimum : activityExp} EXP</span>
+            {nextRank ? <span>{expToNext} EXP 남음</span> : <span>최고 단계 달성</span>}
+          </div>
+        </div>
       </section>
 
       <div className="board-user-activity-tabs" role="tablist" aria-label="사용자 게시판 활동">

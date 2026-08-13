@@ -11,18 +11,37 @@ export function getStoredUser(): UserProfile | null {
     return null;
   }
 
-  const raw = window.localStorage.getItem(USER_KEY);
-  if (!raw) {
-    return null;
-  }
-
   try {
-    const user = JSON.parse(raw) as UserProfile;
+    const raw = window.localStorage.getItem(USER_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const storedUser = JSON.parse(raw) as Partial<UserProfile>;
+    if (!storedUser.id || !storedUser.email || !storedUser.name) {
+      window.localStorage.removeItem(USER_KEY);
+      return null;
+    }
+
+    const user: UserProfile = {
+      ...demoUser,
+      ...storedUser,
+      authUserId: storedUser.authUserId || demoUser.authUserId,
+      nickname: storedUser.nickname || storedUser.name,
+      department: storedUser.department || demoUser.department,
+      grade: storedUser.grade || demoUser.grade,
+      role: storedUser.role || "user",
+      createdAt: storedUser.createdAt || new Date().toISOString()
+    };
     const grade = getGradeFromUserId(user.id, user.grade);
 
     return grade === user.grade ? user : { ...user, grade };
   } catch {
-    window.localStorage.removeItem(USER_KEY);
+    try {
+      window.localStorage.removeItem(USER_KEY);
+    } catch {
+      // localStorage may be unavailable in restricted browser contexts.
+    }
     return null;
   }
 }
@@ -32,7 +51,11 @@ export function signIn(email: string, password: string) {
     throw new Error("이메일 또는 비밀번호가 올바르지 않습니다.");
   }
 
-  window.localStorage.setItem(USER_KEY, JSON.stringify(demoUser));
+  try {
+    window.localStorage.setItem(USER_KEY, JSON.stringify(demoUser));
+  } catch {
+    throw new Error("브라우저 저장소를 사용할 수 없어 로그인할 수 없습니다.");
+  }
   return demoUser;
 }
 
@@ -62,13 +85,21 @@ export function signUp(input: {
     createdAt: new Date().toISOString()
   };
 
-  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+  try {
+    window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } catch {
+    throw new Error("브라우저 저장소를 사용할 수 없어 회원가입할 수 없습니다.");
+  }
   return user;
 }
 
 export function signOut() {
   if (typeof window !== "undefined") {
-    window.localStorage.removeItem(USER_KEY);
+    try {
+      window.localStorage.removeItem(USER_KEY);
+    } catch {
+      // localStorage may be unavailable in restricted browser contexts.
+    }
   }
 }
 
@@ -86,6 +117,10 @@ export function updateStoredProfile(input: Partial<Pick<UserProfile, "nickname" 
     ...input,
     grade: studentNumber ? getGradeFromStudentNumber(studentNumber) : user.grade
   };
-  window.localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+  try {
+    window.localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+  } catch {
+    return null;
+  }
   return updatedUser;
 }

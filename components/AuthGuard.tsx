@@ -9,7 +9,11 @@ export function AuthGuard({ children }: { children: (user: UserProfile) => React
   const [user, setUser] = useState<UserProfile | null | undefined>(undefined);
 
   useEffect(() => {
-    setUser(getStoredUser());
+    try {
+      setUser(getStoredUser());
+    } catch {
+      setUser(null);
+    }
   }, []);
 
   if (user === undefined) {

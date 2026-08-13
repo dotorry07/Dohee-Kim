@@ -115,6 +115,7 @@ export default function BoardPage() {
   const [currentDraftId, setCurrentDraftId] = useState("");
   const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [isRankGuideOpen, setIsRankGuideOpen] = useState(false);
+  const [draftToLoad, setDraftToLoad] = useState<BoardDraft | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<BoardDraft | null>(null);
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
 
@@ -255,6 +256,7 @@ export default function BoardPage() {
     setCurrentDraftId("");
     setIsDraftListOpen(false);
     setIsCloseConfirmOpen(false);
+    setDraftToLoad(null);
     setDraftToDelete(null);
     setError("");
   }
@@ -302,7 +304,12 @@ export default function BoardPage() {
     setImage(draft.image);
     setCurrentDraftId(draft.id);
     setIsDraftListOpen(false);
+    setDraftToLoad(null);
     setError("");
+  }
+
+  function requestLoadDraft(draft: BoardDraft) {
+    setDraftToLoad(draft);
   }
 
   function deleteDraft(draft: BoardDraft) {
@@ -511,17 +518,23 @@ export default function BoardPage() {
         }}>
           <section className="board-composer" role="dialog" aria-modal="true" aria-labelledby="board-composer-title">
             <div className="section-title">
-              <div>
-                <h2 id="board-composer-title">글 작성</h2>
-                {!user ? <Link className="badge" href="/auth/login">로그인 필요</Link> : <span className="badge">{user.nickname}</span>}
+              <div className="board-composer-title-copy">
+                <span className="board-composer-title-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="m4.5 16.5-.7 3.7 3.7-.7L18.6 8.4 15.6 5.4 4.5 16.5Z" /><path d="m14.4 6.6 3 3" /></svg>
+                </span>
+                <div>
+                  <h2 id="board-composer-title">글 작성</h2>
+                  {!user ? <Link className="badge" href="/auth/login">로그인 필요</Link> : <span className="badge">새내기</span>}
+                </div>
               </div>
               <div className="board-composer-actions">
                 <button className="ghost-button" type="button" onClick={() => setIsDraftListOpen((open) => !open)}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5V4Z" /><path d="M8 4v6h8V4M8 17h8" /></svg>
                   임시저장 {drafts.length > 0 ? `(${drafts.length})` : ""}
                 </button>
                 <span className="board-composer-action-divider" aria-hidden="true" />
                 <button className="ghost-button board-composer-close-button" type="button" onClick={closeComposer}>
-                  닫기
+                  <span aria-hidden="true">×</span> 닫기
                 </button>
               </div>
             </div>
@@ -529,11 +542,12 @@ export default function BoardPage() {
               {isDraftListOpen ? (
                 <section className="board-draft-list" aria-label="임시저장한 글 목록">
                   <h3>임시저장한 글</h3>
+                  <p className="board-draft-guide">클릭으로 불러오기</p>
                   {drafts.length > 0 ? (
                     <div className="board-draft-scroll">
                       {drafts.map((draft) => (
                         <div className="board-draft-row" key={draft.id}>
-                          <button className="board-draft-item" type="button" onClick={() => loadDraft(draft)}>
+                          <button className="board-draft-item" type="button" onClick={() => requestLoadDraft(draft)}>
                             <strong>{draft.title.trim() || "제목 없음"}</strong>
                             <span>{categoryLabels[draft.category]} · {new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(draft.savedAt))}</span>
                           </button>
@@ -555,15 +569,22 @@ export default function BoardPage() {
               </div>
               <div className="field">
                 <label htmlFor="post-title">제목</label>
-                <input id="post-title" maxLength={100} value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
+                <input id="post-title" maxLength={100} placeholder="제목을 입력해주세요" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
               </div>
               <div className="field board-content-field">
                 <label htmlFor="post-content">내용</label>
-                <textarea id="post-content" maxLength={5000} value={form.content} onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))} />
+                <textarea id="post-content" maxLength={5000} placeholder="내용을 입력해주세요" value={form.content} onChange={(event) => setForm((current) => ({ ...current, content: event.target.value }))} />
               </div>
               <div className="field board-image-field">
                 <label htmlFor="post-image">사진 첨부 (최대 750KB)</label>
-                <input id="post-image" type="file" accept="image/*" onClick={(event) => { event.currentTarget.value = ""; }} onChange={(event) => selectImage(event.target.files?.[0])} />
+                <div className="board-file-control">
+                  <input id="post-image" type="file" accept="image/*" onClick={(event) => { event.currentTarget.value = ""; }} onChange={(event) => selectImage(event.target.files?.[0])} />
+                  <label className="board-file-button" htmlFor="post-image">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5" /><path d="M5 15v4h14v-4" /></svg>
+                    파일 선택
+                  </label>
+                  <span>{image?.name ?? "선택된 파일 없음"}</span>
+                </div>
               </div>
               {image ? (
                 <div className="board-image-preview">
@@ -572,7 +593,12 @@ export default function BoardPage() {
                 </div>
               ) : null}
               {error ? <div className="error">{error}</div> : null}
-              <button className="button board-submit-button" type="submit">작성</button>
+              <div className="board-submit-row">
+                <button className="button board-submit-button" type="submit">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4.5 16.5-.7 3.7 3.7-.7L18.6 8.4 15.6 5.4 4.5 16.5Z" /><path d="m14.4 6.6 3 3" /></svg>
+                  등록
+                </button>
+              </div>
             </form>
           </section>
           {isCloseConfirmOpen ? (
@@ -587,6 +613,21 @@ export default function BoardPage() {
                   <button className="button" type="button" onClick={saveDraftAndClose}>임시저장 후 닫기</button>
                   <button className="ghost-button" type="button" onClick={discardDraftAndClose}>저장하지 않고 닫기</button>
                   <button className="ghost-button" type="button" onClick={() => setIsCloseConfirmOpen(false)}>취소</button>
+                </div>
+              </section>
+            </div>
+          ) : null}
+          {draftToLoad ? (
+            <div className="board-close-confirm-backdrop" onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setDraftToLoad(null);
+            }}>
+              <section className="board-close-confirm board-draft-load-confirm" role="alertdialog" aria-modal="true" aria-labelledby="board-draft-load-title" aria-describedby="board-draft-load-description">
+                <div className="board-close-confirm-icon" aria-hidden="true">?</div>
+                <h2 id="board-draft-load-title">임시저장된 글을 불러오시겠습니까?</h2>
+                <p id="board-draft-load-description"><strong>{draftToLoad.title.trim() || "제목 없음"}</strong></p>
+                <div className="board-close-confirm-actions">
+                  <button className="button" type="button" onClick={() => loadDraft(draftToLoad)}>예</button>
+                  <button className="ghost-button" type="button" onClick={() => setDraftToLoad(null)}>아니오</button>
                 </div>
               </section>
             </div>

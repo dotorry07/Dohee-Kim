@@ -4,27 +4,32 @@ const registrationSchedule = [
   {
     title: "강의시간표 조회",
     period: "2026. 7. 29.(수) 이후",
-    path: "수강신청시스템 > 개설강좌조회"
+    path: "수강신청시스템 > 개설강좌조회",
+    icon: "calendar" as const
   },
   {
     title: "관심 강좌 신청",
     period: "2026. 8. 5.(수) 10:00 ~ 8. 11.(화) 17:00",
-    path: "수강신청시스템 > 관심강좌신청"
+    path: "수강신청시스템 > 관심강좌신청",
+    icon: "bell" as const
   },
   {
     title: "수강신청",
     period: "2026. 8. 19.(수) 10:00 ~ 8. 21.(금) 17:00",
-    path: "수강신청시스템 > 수강신청"
+    path: "수강신청시스템 > 수강신청",
+    icon: "edit" as const
   },
   {
     title: "수강정정",
     period: "2026. 9. 1.(화) 13:00 ~ 9. 8.(화) 11:00",
-    path: "수강신청시스템"
+    path: "수강신청시스템",
+    icon: "checklist" as const
   },
   {
     title: "수강철회",
     period: "2026. 9. 22.(화) 10:00 ~ 9. 29.(화) 17:00",
-    path: "통합정보시스템 > 수강철회/포기신청"
+    path: "통합정보시스템 > 수강철회/포기신청",
+    icon: "clock" as const
   }
 ];
 
@@ -83,35 +88,39 @@ export default function MustReadPage() {
 
       <section className="grid two">
         <div className="panel">
-          <div className="section-title">
+          <div className="section-title must-read-section-title">
+            <span className="must-read-title-icon"><BannerTagIcon icon="calendar" /></span>
             <div>
-              <span className="badge">일정</span>
               <h2>수강신청 기간</h2>
+              <p>주요 일정을 확인하세요.</p>
             </div>
           </div>
           <div className="list">
             {registrationSchedule.map((item) => (
-              <article className="list-item" key={item.title}>
-                <div className="section-title">
+              <article className="list-item must-read-schedule-item" key={item.title}>
+                <span className="must-read-item-icon"><BannerTagIcon icon={item.icon} /></span>
+                <div className="must-read-item-copy">
                   <h3>{item.title}</h3>
-                  <span className="badge">{item.period}</span>
+                  <span className="muted">{item.path}</span>
                 </div>
-                <span className="muted">{item.path}</span>
+                <span className="badge must-read-period-badge">{item.period}</span>
               </article>
             ))}
           </div>
         </div>
 
         <div className="panel">
-          <div className="section-title">
+          <div className="section-title must-read-section-title">
+            <span className="must-read-title-icon"><BannerTagIcon icon="bell" /></span>
             <div>
-              <span className="badge">새내기</span>
               <h2>먼저 확인할 내용</h2>
+              <p>필수 확인사항을 꼭 읽어주세요.</p>
             </div>
           </div>
           <div className="list">
             {freshmanNotes.map((note) => (
-              <div className="list-item" key={note}>
+              <div className="list-item must-read-note-item" key={note}>
+                <span className="must-read-item-icon"><BannerTagIcon icon="bell" /></span>
                 <strong>{note}</strong>
               </div>
             ))}
@@ -120,27 +129,71 @@ export default function MustReadPage() {
       </section>
 
       <section className="panel" style={{ marginTop: 16 }}>
-        <div className="section-title">
+        <div className="section-title must-read-section-title">
+          <span className="must-read-title-icon"><BannerTagIcon icon="checklist" /></span>
           <div>
-            <span className="badge">체크리스트</span>
             <h2>수강신청 전에 꼭 볼 것</h2>
+            <p>신청 전 놓치기 쉬운 기준을 확인하세요.</p>
           </div>
+          <a className="ghost-button must-read-source-link" href="https://www.sungshin.ac.kr/bbs/main_kor/3181/157409/artclView.do" rel="noreferrer" target="_blank">
+            <BannerTagIcon icon="link" />
+            원문 공지
+          </a>
         </div>
         <div className="list">
           {requiredChecks.map((check) => (
-            <div className="list-item" key={check}>
+            <div className="list-item must-read-note-item" key={check}>
+              <span className="must-read-item-icon"><BannerTagIcon icon="checkCircle" /></span>
               <span>{check}</span>
             </div>
           ))}
         </div>
       </section>
 
+      <section className="panel" style={{ marginTop: 16 }}>
+        <div className="section-title must-read-section-title">
+          <span className="must-read-title-icon"><BannerTagIcon icon="pin" /></span>
+          <div>
+            <h2>문의처와 바로가기</h2>
+            <p>필요한 부서와 시스템으로 바로 이동하세요.</p>
+          </div>
+        </div>
+        <div className="grid three">
+          <div className="list-item must-read-contact-item">
+            <span className="must-read-item-icon"><BannerTagIcon icon="call" /></span>
+            <div>
+              <strong>일반 수강신청</strong>
+              <span className="muted">학사운영팀 02-920-7018, 7844</span>
+            </div>
+          </div>
+          <div className="list-item must-read-contact-item">
+            <span className="must-read-item-icon"><BannerTagIcon icon="call" /></span>
+            <div>
+              <strong>교양 수강신청</strong>
+              <span className="muted">창의융합 교학팀 02-920-7228, 7150</span>
+            </div>
+          </div>
+          <div className="list-item must-read-contact-item">
+            <span className="must-read-item-icon"><BannerTagIcon icon="call" /></span>
+            <div>
+              <strong>학점교류</strong>
+              <span className="muted">학사운영팀 02-920-7022</span>
+            </div>
+          </div>
+        </div>
+        <div className="meta" style={{ marginTop: 14 }}>
+          <a className="button" href="http://sugang.sungshin.ac.kr" rel="noreferrer" target="_blank">수강신청시스템</a>
+          <a className="ghost-button" href="https://tis.sungshin.ac.kr" rel="noreferrer" target="_blank">통합정보시스템</a>
+        </div>
+      </section>
+
       <section className="grid two" style={{ marginTop: 16 }}>
         <div className="panel">
-          <div className="section-title">
+          <div className="section-title must-read-section-title">
+            <span className="must-read-title-icon"><BannerTagIcon icon="phone" /></span>
             <div>
-              <span className="badge">필수 어플</span>
               <h2>학교 공식 시스템 및 필수 앱</h2>
+              <p>학교생활에 필요한 앱을 모았습니다.</p>
             </div>
           </div>
           <div className="list">
@@ -154,10 +207,11 @@ export default function MustReadPage() {
         </div>
 
         <div className="panel">
-          <div className="section-title">
+          <div className="section-title must-read-section-title">
+            <span className="must-read-title-icon"><BannerTagIcon icon="star" /></span>
             <div>
-              <span className="badge">도움 어플</span>
               <h2>대학생활 유용 앱</h2>
+              <p>정보 탐색과 커뮤니티에 유용합니다.</p>
             </div>
           </div>
           <div className="list">
@@ -168,34 +222,6 @@ export default function MustReadPage() {
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      <section className="panel" style={{ marginTop: 16 }}>
-        <div className="section-title">
-          <div>
-            <span className="badge">문의</span>
-            <h2>문의처와 바로가기</h2>
-          </div>
-        </div>
-        <div className="grid three">
-          <div className="list-item">
-            <strong>일반 수강신청</strong>
-            <span className="muted">학사운영팀 02-920-7018, 7844</span>
-          </div>
-          <div className="list-item">
-            <strong>교양 수강신청</strong>
-            <span className="muted">창의융합 교학팀 02-920-7228, 7150</span>
-          </div>
-          <div className="list-item">
-            <strong>학점교류</strong>
-            <span className="muted">학사운영팀 02-920-7022</span>
-          </div>
-        </div>
-        <div className="meta" style={{ marginTop: 14 }}>
-          <a className="button" href="http://sugang.sungshin.ac.kr" rel="noreferrer" target="_blank">수강신청시스템</a>
-          <a className="ghost-button" href="https://tis.sungshin.ac.kr" rel="noreferrer" target="_blank">통합정보시스템</a>
-          <a className="ghost-button" href="https://www.sungshin.ac.kr/bbs/main_kor/3181/157409/artclView.do" rel="noreferrer" target="_blank">원문 공지</a>
         </div>
       </section>
     </main>

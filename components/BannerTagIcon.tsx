@@ -2,6 +2,7 @@
 
 export type BannerTagIconName =
   | "calendar"
+  | "checkCircle"
   | "checklist"
   | "scholarship"
   | "party"
@@ -14,6 +15,8 @@ export type BannerTagIconName =
   | "like"
   | "star"
   | "phone"
+  | "call"
+  | "link"
   | "clock"
   | "edit"
   | "map"
@@ -30,6 +33,7 @@ export function BannerTagIcon({ icon }: { icon: BannerTagIconName }) {
     <span className="banner-tag-icon" aria-hidden="true">
       <svg fill="none" height="16" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.9" viewBox="0 0 24 24" width="16">
         {icon === "calendar" ? <><path d="M7 4.5v3M17 4.5v3M5 8.5h14M6 6h12a1.5 1.5 0 0 1 1.5 1.5v11H4.5v-11A1.5 1.5 0 0 1 6 6Z" /><path d="M8 12.5h2M14 12.5h2M8 16h2" /></> : null}
+        {icon === "checkCircle" ? <><circle cx="12" cy="12" r="7.5" /><path d="m8.6 12 2.2 2.2 4.6-4.8" /></> : null}
         {icon === "checklist" ? <><path d="M6 5.5h12v13H6z" /><path d="m8.5 10 1.2 1.2 2.2-2.5M14 10h2.2M8.5 15l1.2 1.2 2.2-2.5M14 15h2.2" /></> : null}
         {icon === "scholarship" ? <><path d="m4 9 8-4 8 4-8 4z" /><path d="M7 11.2v3.2c1.6 1.8 8.4 1.8 10 0v-3.2" /><path d="M20 9v5" /></> : null}
         {icon === "party" ? <><path d="m6 18 4.5-12 7.5 7.5z" /><path d="M12.8 5.7c1.8-.9 3.2-.7 4.2.7M15.5 8.5c1.9-.5 3.1 0 3.8 1.4M8.8 11.2l3.9 3.9" /></> : null}
@@ -42,6 +46,8 @@ export function BannerTagIcon({ icon }: { icon: BannerTagIconName }) {
         {icon === "like" ? <><path d="M7.5 11v8H5V11zM7.5 11l4.2-6.5c.8.2 1.2.9 1 1.8L12 10h5.5c1 0 1.8.9 1.6 1.9l-.9 5.1c-.2 1.2-1.2 2-2.4 2H7.5" /></> : null}
         {icon === "star" ? <path d="m12 4.5 2.1 4.2 4.6.7-3.3 3.2.8 4.6-4.2-2.2-4.2 2.2.8-4.6-3.3-3.2 4.6-.7z" /> : null}
         {icon === "phone" ? <><path d="M8 4.5h8v15H8z" /><path d="M11 17h2M10 7h4" /></> : null}
+        {icon === "call" ? <path d="M6.2 5.2 9 4.1c.7-.3 1.5 0 1.8.7l1.1 2.6c.2.5.1 1.1-.3 1.5l-1.3 1.3a11.6 11.6 0 0 0 3.5 3.5l1.3-1.3c.4-.4 1-.5 1.5-.3l2.6 1.1c.7.3 1 1.1.7 1.8l-1.1 2.8c-.3.7-1 1.1-1.8 1-6.8-.8-12.2-6.2-13-13-.1-.8.3-1.5 1-1.8Z" /> : null}
+        {icon === "link" ? <><path d="M9.8 14.2 14.2 9.8" /><path d="M10.7 6.8 12 5.5a4 4 0 0 1 5.7 5.7l-1.3 1.3" /><path d="M13.3 17.2 12 18.5a4 4 0 0 1-5.7-5.7l1.3-1.3" /></> : null}
         {icon === "clock" ? <><circle cx="12" cy="12" r="7.5" /><path d="M12 8v4l2.7 1.6" /></> : null}
         {icon === "edit" ? <><path d="M5 18.8h4l9.5-9.5a2.1 2.1 0 0 0-3-3L6 15.8z" /><path d="M13.8 8 16 10.2" /></> : null}
         {icon === "map" ? <><path d="m5 7 4-2 6 2 4-2v12l-4 2-6-2-4 2z" /><path d="M9 5v12M15 7v12" /></> : null}

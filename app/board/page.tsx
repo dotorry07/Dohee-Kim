@@ -386,7 +386,19 @@ export default function BoardPage() {
           </div>
           <div className="list" style={{ marginTop: 16 }}>
             {paginatedPosts.map((post) => (
-              <div className="list-item board-list-link" key={post.id}>
+              <div
+                className="list-item board-list-link"
+                key={post.id}
+                role="link"
+                tabIndex={0}
+                onClick={() => router.push(`/board/${post.id}`)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    router.push(`/board/${post.id}`);
+                  }
+                }}
+              >
                 <div className="meta">
                   <span className="badge">{categoryLabels[post.category]}</span>
                   <BoardAuthorMenu userId={post.userId} authorName={post.authorName} currentUserId={user?.id} posts={posts} />
@@ -394,7 +406,7 @@ export default function BoardPage() {
                   <span className="board-stat" aria-label={`댓글 ${post.comments.length}개`}><CommentIcon />{post.comments.length}</span>
                   <span className="recommend-meta board-stat" aria-label={`추천 ${post.recommendCount}개`}><RecommendIcon />{post.recommendCount}</span>
                 </div>
-                <Link className="board-entry-title" href={`/board/${post.id}`}><strong>{post.title}</strong></Link>
+                <strong className="board-entry-title">{post.title}</strong>
               </div>
             ))}
             {filteredPosts.length === 0 ? <div className="list-item">아직 작성된 글이 없습니다.</div> : null}

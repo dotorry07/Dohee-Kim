@@ -451,7 +451,7 @@ export default function NoticesPage() {
           <div className="hero-art" aria-hidden="true">
             <img
               className="megaphone-image"
-              src="/images/notices/notice-banner-megaphone.png"
+              src="/images/notices/logo_notice.png"
               alt=""
             />
           </div>

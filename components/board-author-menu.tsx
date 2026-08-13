@@ -15,7 +15,7 @@ export function BoardAuthorMenu({ userId, authorName, currentUserId, posts }: Bo
   if (userId === currentUserId) return <span className="board-author-name">{authorName}<BoardUserRank posts={posts} userId={userId} /></span>;
 
   return (
-    <Link className="board-author-name" href={`/board/users/${encodeURIComponent(userId)}?tab=posts`}>
+    <Link className="board-author-name" href={`/board/users/${encodeURIComponent(userId)}?tab=posts`} onClick={(event) => event.stopPropagation()}>
       {authorName}<BoardUserRank posts={posts} userId={userId} />
     </Link>
   );

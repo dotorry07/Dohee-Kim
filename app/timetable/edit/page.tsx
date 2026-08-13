@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CSSProperties, PointerEvent } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { courses } from "@/lib/data";
@@ -663,6 +664,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   const [courseConflictNotice, setCourseConflictNotice] = useState("");
   const [pendingSemester, setPendingSemester] = useState<string | null>(null);
   const [activeStep, setActiveStep] = useState<PlannerStep>("classes");
+  const [isMounted, setIsMounted] = useState(false);
   const isSavingTimetableRef = useRef(false);
   const isDatabaseLoading = isInitialPageLoading || isRequiredCourseLoading || isCourseLoading || isElectiveCourseLoading || isRemoteTimetableLoading;
   const requiredCourses = useMemo(() => getRequiredCoursesForDepartment(department, semester), [department, semester]);
@@ -768,6 +770,10 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     [classes, electiveCourses, recommendedElectiveCourses]
   );
   const selectedElectiveDisplayCount = selectedSungshinElectiveCourses.length + selectedExistingElectiveClasses.length;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -2033,12 +2039,15 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         </>
       ) : null}
 
-      <div className="timetable-step-actions">
-        {activeStep !== "classes" ? <button className="ghost-button" type="button" onClick={goToPreviousStep} disabled={isSavingTimetable}>이전</button> : <span />}
-        <button className="button" type="button" onClick={goToNextStep} disabled={isSavingTimetable}>
-          {isSavingTimetable ? "저장 중" : activeStep === "recommendations" ? "시간표 저장" : "다음"}
-        </button>
-      </div>
+      {isMounted ? createPortal(
+        <div className="timetable-step-actions">
+          {activeStep !== "classes" ? <button className="ghost-button" type="button" onClick={goToPreviousStep} disabled={isSavingTimetable}>이전</button> : <span />}
+          <button className="button" type="button" onClick={goToNextStep} disabled={isSavingTimetable}>
+            {isSavingTimetable ? "저장 중" : activeStep === "recommendations" ? "시간표 저장" : "다음"}
+          </button>
+        </div>,
+        document.body
+      ) : null}
 
       {pendingSemester ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {

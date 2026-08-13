@@ -53,7 +53,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("password123");
   const [error, setError] = useState("");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const validationError = validateLogin({ email, password });
     if (validationError) {
@@ -62,7 +62,7 @@ export default function LoginPage() {
     }
 
     try {
-      signIn(email, password);
+      await signIn(email, password);
       window.location.href = "/dashboard";
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "이메일 또는 비밀번호가 올바르지 않습니다.");

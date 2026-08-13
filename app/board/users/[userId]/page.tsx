@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getBoardPosts, loadPersistentBoardPosts, subscribeToBoardPosts } from "@/lib/board-storage";
 import { BOARD_RANKS, BoardRankIcon, BoardUserRank } from "@/components/board-user-rank";
+import { getStoredUser } from "@/lib/auth/client";
 import type { BoardPost, Comment } from "@/lib/types";
 
 type UserComment = { post: BoardPost; comment: Comment };
@@ -35,17 +36,20 @@ export default function BoardUserActivityPage() {
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [activeTab, setActiveTab] = useState<UserActivityTab>("posts");
+  const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
+  const isOwnPage = user?.id === params.userId;
 
   useEffect(() => {
     setPosts(getBoardPosts());
     void loadPersistentBoardPosts().then(setPosts);
+    setUser(getStoredUser());
     return subscribeToBoardPosts(setPosts);
   }, []);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    setActiveTab(tab === "comments" || tab === "recommended" ? tab : "posts");
-  }, [searchParams]);
+    setActiveTab(tab === "comments" || (tab === "recommended" && isOwnPage) ? tab : "posts");
+  }, [isOwnPage, searchParams]);
 
   const authoredPosts = useMemo(() => posts
     .filter((post) => post.userId === params.userId)
@@ -74,17 +78,25 @@ export default function BoardUserActivityPage() {
   const progressRange = Math.max(1, nextMinimum - currentMinimum);
   const progressPercent = nextRank ? Math.min(100, Math.max(0, ((activityExp - currentMinimum) / progressRange) * 100)) : 100;
   const expToNext = nextRank ? Math.max(0, nextRank.minimum - activityExp) : 0;
+  const visibleTab = activeTab === "recommended" && !isOwnPage ? "posts" : activeTab;
 
   return (
     <main className="page board-user-page">
       <section className="page-header board-user-hero">
-        <div className="board-user-hero-copy">
-          <Link className="ghost-button board-user-back-link" href="/board"><ActivityIcon icon="back" />게시판으로</Link>
-          <h1 className="board-user-title">{authorName}<BoardUserRank posts={posts} userId={params.userId} />님의 활동</h1>
-          <p>이 사용자가 작성한 게시글과 댓글, 추천한 글을 확인할 수 있습니다.</p>
-        </div>
-        <div className="board-user-hero-art" aria-hidden="true">
-          <img src="/images/board-user-hero.png" alt="" />
+        <div className="app-banner-inner">
+          <div className="board-user-hero-copy app-banner-copy">
+            <Link className="ghost-button board-user-back-link" href="/board"><ActivityIcon icon="back" />게시판으로</Link>
+            <h1 className="board-user-title">{authorName}<BoardUserRank posts={posts} userId={params.userId} />님의 활동</h1>
+            <p>{isOwnPage ? "내가 작성한 게시글과 댓글, 추천한 글을 확인할 수 있습니다." : "이 사용자가 작성한 게시글과 댓글을 확인할 수 있습니다."}</p>
+            <div className="app-banner-tags" aria-hidden="true">
+              <span>작성한 글 {authoredPosts.length}</span>
+              <span>작성한 댓글 {authoredComments.length}</span>
+              {isOwnPage ? <span>추천한 글 {recommendedPosts.length}</span> : null}
+            </div>
+          </div>
+          <div className="app-banner-art board-user-hero-art" aria-hidden="true">
+            <img src="/images/board-user-hero.png" alt="" />
+          </div>
         </div>
       </section>
 
@@ -126,13 +138,13 @@ export default function BoardUserActivityPage() {
       </section>
 
       <div className="board-user-activity-tabs" role="tablist" aria-label="사용자 게시판 활동">
-        <button className={activeTab === "posts" ? "activity-tab active" : "activity-tab"} type="button" onClick={() => setActiveTab("posts")}><ActivityIcon icon="post" />작성한 글 {authoredPosts.length}</button>
-        <button className={activeTab === "comments" ? "activity-tab active" : "activity-tab"} type="button" onClick={() => setActiveTab("comments")}><ActivityIcon icon="comment" />작성한 댓글 {authoredComments.length}</button>
-        <button className={activeTab === "recommended" ? "activity-tab active" : "activity-tab"} type="button" onClick={() => setActiveTab("recommended")}><ActivityIcon icon="like" />추천한 글 {recommendedPosts.length}</button>
+        <button className={visibleTab === "posts" ? "activity-tab active" : "activity-tab"} type="button" onClick={() => setActiveTab("posts")}><ActivityIcon icon="post" />작성한 글 {authoredPosts.length}</button>
+        <button className={visibleTab === "comments" ? "activity-tab active" : "activity-tab"} type="button" onClick={() => setActiveTab("comments")}><ActivityIcon icon="comment" />작성한 댓글 {authoredComments.length}</button>
+        {isOwnPage ? <button className={visibleTab === "recommended" ? "activity-tab active" : "activity-tab"} type="button" onClick={() => setActiveTab("recommended")}><ActivityIcon icon="like" />추천한 글 {recommendedPosts.length}</button> : null}
       </div>
       <section className="panel board-user-activity">
         <div className="list board-user-activity-list">
-          {activeTab === "posts" ? authoredPosts.map((post) => (
+          {visibleTab === "posts" ? authoredPosts.map((post) => (
             <Link className="list-item board-list-link board-user-row" href={`/board/${post.id}`} key={post.id}>
               <span className="board-user-row-icon"><ActivityIcon icon="post" /></span>
               <div className="board-user-row-main">
@@ -147,7 +159,7 @@ export default function BoardUserActivityPage() {
               </div>
               <ActivityIcon icon="arrow" />
             </Link>
-          )) : activeTab === "comments" ? authoredComments.map(({ post, comment }) => (
+          )) : visibleTab === "comments" ? authoredComments.map(({ post, comment }) => (
             <Link className="list-item board-list-link board-user-row my-comment-list-link" href={`/board/${post.id}?commentId=${comment.id}#comment-${comment.id}`} key={comment.id}>
               <span className="board-user-row-icon"><ActivityIcon icon="comment" /></span>
               <div className="board-user-row-main">
@@ -172,9 +184,9 @@ export default function BoardUserActivityPage() {
               <ActivityIcon icon="arrow" />
             </Link>
           ))}
-          {activeTab === "posts" && authoredPosts.length === 0 ? <div className="list-item board-user-empty">작성한 게시글이 없습니다.</div> : null}
-          {activeTab === "comments" && authoredComments.length === 0 ? <div className="list-item board-user-empty">작성한 댓글이 없습니다.</div> : null}
-          {activeTab === "recommended" && recommendedPosts.length === 0 ? <div className="list-item board-user-empty">추천한 게시글이 없습니다.</div> : null}
+          {visibleTab === "posts" && authoredPosts.length === 0 ? <div className="list-item board-user-empty">작성한 게시글이 없습니다.</div> : null}
+          {visibleTab === "comments" && authoredComments.length === 0 ? <div className="list-item board-user-empty">작성한 댓글이 없습니다.</div> : null}
+          {isOwnPage && visibleTab === "recommended" && recommendedPosts.length === 0 ? <div className="list-item board-user-empty">추천한 게시글이 없습니다.</div> : null}
         </div>
       </section>
     </main>

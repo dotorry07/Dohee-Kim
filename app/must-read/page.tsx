@@ -50,12 +50,12 @@ const freshmanNotes = [
 ];
 
 const requiredApps = [
-  { name: "성신 알리미", iconSrc: "/images/apps/sungshin-alimi.webp" },
-  { name: "수강신청 앱", iconSrc: "/images/apps/sungshin-course-registration.webp" },
-  { name: "스마트캠퍼스", iconSrc: "/images/apps/sungshin-smart-campus.webp" },
-  { name: "성신 모바일 신분증", iconSrc: "/images/apps/sungshin-mobile-id.webp" },
-  { name: "도서관 시설 예약", iconSrc: "/images/apps/sungshin-library-reservation.webp" },
-  { name: "코스모스", iconSrc: "/images/apps/cosmos.webp" }
+  { name: "성신 알리미", iconSrc: "/images/apps/sungshin-alimi.webp", description: "학교 소식, 놓치지 않도록" },
+  { name: "수강신청 앱", iconSrc: "/images/apps/sungshin-course-registration.webp", description: "수강신청 기간, 빠르고 간편하게" },
+  { name: "스마트캠퍼스", iconSrc: "/images/apps/sungshin-smart-campus.webp", description: "출석부터 시간표, 스쿨버스까지 한곳에서" },
+  { name: "성신 모바일 신분증", iconSrc: "/images/apps/sungshin-mobile-id.webp", description: "학생증은 이제 휴대폰으로" },
+  { name: "도서관 시설 예약", iconSrc: "/images/apps/sungshin-library-reservation.webp", description: "공부할 자리와 시설을 미리 예약" },
+  { name: "코스모스", iconSrc: "/images/apps/cosmos.webp", description: "강의 자료와 과제를 한눈에" }
 ];
 
 const helpfulApps = [
@@ -200,7 +200,10 @@ export default function MustReadPage() {
             {requiredApps.map((app) => (
               <div className="list-item must-read-app-item" key={app.name}>
                 <img src={app.iconSrc} alt="" aria-hidden="true" />
-                <strong>{app.name}</strong>
+                <div className="must-read-app-copy">
+                  <strong>{app.name}</strong>
+                  <span>{app.description}</span>
+                </div>
               </div>
             ))}
           </div>

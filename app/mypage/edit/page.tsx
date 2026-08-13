@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { AuthGuard } from "@/components/AuthGuard";
-import { updateStoredProfile } from "@/lib/auth/client";
+import { updateRemoteProfile, updateStoredProfile } from "@/lib/auth/client";
 import { getBoardPosts, saveBoardPosts } from "@/lib/board-storage";
 import type { UserProfile } from "@/lib/types";
 
@@ -47,7 +47,8 @@ function MyPageEditContent({ user }: { user: UserProfile }) {
     setIsSaving(true);
     setError("");
 
-    updateStoredProfile({ name, nickname, department, secondaryDepartment });
+    const localUser = updateStoredProfile({ name, nickname, department, secondaryDepartment });
+    await updateRemoteProfile(localUser ?? user, { name, nickname, department, secondaryDepartment });
 
     const posts = getBoardPosts();
     const nextPosts = posts.map((post) => ({

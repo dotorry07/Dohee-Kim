@@ -2,9 +2,17 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  getDepartmentNoticesAfterEnabledAt,
+  getSubscribedDepartments,
+  loadDepartmentNotificationPreferences,
+  subscribeToDepartmentNotificationPreferences,
+  type DepartmentNotificationTarget
+} from "@/lib/department-notifications";
+import { loadNoticeReads, markNoticeRead, subscribeToNoticeReads } from "@/lib/notice-reads";
 import { extractStudentNumber, getGradeFromStudentNumber } from "@/lib/student";
 import { getTodayClasses } from "@/lib/timetable";
-import type { Timetable } from "@/lib/types";
+import type { Notice, Timetable } from "@/lib/types";
 import type { ChecklistItem, DashboardData, DashboardIconName, DashboardUser, MealWeekday, ScheduleType, TodayScheduleItem } from "@/types/dashboard";
 import { formatKoreanDate, getDdayLabel, getRelativeTime, normalizeDate } from "@/utils/date";
 import { FreshmanChecklist } from "./FreshmanChecklist";
@@ -20,6 +28,12 @@ const legacyMonthlyTimetableKey = "newbie-on:monthly-timetable";
 const currentSemester = "2026-2";
 const dayCodes = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
 type ScheduleState = "current" | "next" | "ended";
+type ScheduleWithState = TodayScheduleItem & { state: ScheduleState };
+type DepartmentAlarmItem = {
+  department: string;
+  target: DepartmentNotificationTarget;
+  notice: Notice;
+};
 
 function Icon({ name }: { name: DashboardIconName }) {
   const paths: Record<DashboardIconName, ReactNode> = {
@@ -48,6 +62,14 @@ function getTimetableSortValue(timetable: Timetable) {
   return Number(year) * 10 + (semesterOrder[semesterPart] ?? 0);
 }
 
+function getDepartmentAlarmLabel(target: DepartmentNotificationTarget) {
+  return target === "primary" ? "주전공" : "부전공";
+}
+
+function dedupeNoticesById(items: Notice[]) {
+  return [...new Map(items.map((notice) => [notice.id, notice])).values()];
+}
+
 function ScheduleItem({ item, state }: { item: TodayScheduleItem; state: ScheduleState }) {
   const title = item.type === "CLASS" && item.subtitle ? `${item.title} · ${item.subtitle}` : item.title;
 
@@ -74,6 +96,9 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId, i
   const [dashboardTimetables, setDashboardTimetables] = useState<Timetable[]>(data.timetables);
   const [favoriteTimetableIds, setFavoriteTimetableIds] = useState<Set<string>>(new Set());
   const [selectedTimetableIdsBySemester, setSelectedTimetableIdsBySemester] = useState<Record<string, string>>({});
+  const [readNoticeIds, setReadNoticeIds] = useState<Set<string>>(new Set());
+  const [departmentAlarmItems, setDepartmentAlarmItems] = useState<DepartmentAlarmItem[]>([]);
+  const [isDepartmentAlarmLoading, setIsDepartmentAlarmLoading] = useState(false);
   const { academicEvents, campusMeals, notices, posts, timetables } = data;
 
   const syncFavoriteTimetables = useCallback(() => {
@@ -117,6 +142,86 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId, i
     };
   }, [syncFavoriteTimetables]);
 
+  useEffect(() => {
+    const syncNoticeReads = () => {
+      void loadNoticeReads(user).then(setReadNoticeIds);
+    };
+
+    syncNoticeReads();
+    window.addEventListener("focus", syncNoticeReads);
+    const unsubscribe = subscribeToNoticeReads(syncNoticeReads);
+
+    return () => {
+      window.removeEventListener("focus", syncNoticeReads);
+      unsubscribe();
+    };
+  }, [user]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadDepartmentAlarms() {
+      const preferences = await loadDepartmentNotificationPreferences(user);
+      const subscribedDepartments = getSubscribedDepartments(user, preferences);
+
+      if (subscribedDepartments.length === 0) {
+        if (!ignore) {
+          setDepartmentAlarmItems([]);
+          setIsDepartmentAlarmLoading(false);
+        }
+        return;
+      }
+
+      if (!ignore) {
+        setIsDepartmentAlarmLoading(true);
+      }
+
+      try {
+        const departmentItems = await Promise.all(subscribedDepartments.map(async (department) => {
+          const params = new URLSearchParams({ department: department.name });
+          const response = await fetch(`/api/notices?${params.toString()}`, { cache: "no-store" });
+
+          if (!response.ok) {
+            throw new Error("department notice request failed");
+          }
+
+          const payload = await response.json() as { notices: Notice[] };
+          return getDepartmentNoticesAfterEnabledAt(payload.notices, department.enabledAt)
+            .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+            .map((notice) => ({
+              department: department.name,
+              target: department.target,
+              notice
+            }));
+        }));
+
+        if (!ignore) {
+          setDepartmentAlarmItems(departmentItems.flat());
+        }
+      } catch {
+        if (!ignore) {
+          setDepartmentAlarmItems([]);
+        }
+      } finally {
+        if (!ignore) {
+          setIsDepartmentAlarmLoading(false);
+        }
+      }
+    }
+
+    void loadDepartmentAlarms();
+    const unsubscribe = subscribeToDepartmentNotificationPreferences(() => {
+      void loadDepartmentAlarms();
+    });
+    window.addEventListener("focus", loadDepartmentAlarms);
+
+    return () => {
+      ignore = true;
+      unsubscribe();
+      window.removeEventListener("focus", loadDepartmentAlarms);
+    };
+  }, [user]);
+
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const currentDayKey = dayCodes[now.getDay()];
   const selectedTimetableIds = Object.values(selectedTimetableIdsBySemester);
@@ -152,6 +257,15 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId, i
   const wait = nextClass ? minutes(nextClass.startTime) - nowMinutes : null;
   const displayName = user.nickname || user.name || "새내기";
   const important = [...notices].sort((a, b) => Number(b.isPinned) - Number(a.isPinned)).slice(0, 4);
+  const unreadDepartmentAlarmItems = departmentAlarmItems.filter((item) => !readNoticeIds.has(item.notice.id));
+  const includedNotices = dedupeNoticesById([
+    ...notices,
+    ...departmentAlarmItems.map((item) => item.notice)
+  ]);
+  const includedUnreadNotices = includedNotices.filter((notice) => !readNoticeIds.has(notice.id));
+  const unreadNoticeCount = includedUnreadNotices.length;
+  const includedNoticeCount = includedNotices.length;
+  const isNoticeSummaryLoading = isLoading || isDepartmentAlarmLoading;
   const recent = [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 3);
   const timetablePersonalSchedules = activeTimetables.flatMap((timetable) => (timetable.personalSchedules ?? [])
     .filter((item) => item.dayOfWeek === currentDayKey)
@@ -160,6 +274,15 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId, i
     ...classes.map((item) => ({ id: item.id, type: "CLASS" as const, title: item.courseName, startTime: item.startTime, endTime: item.endTime, location: `${item.buildingName} ${item.roomName}`, subtitle: `${item.professorName} 교수` })),
     ...timetablePersonalSchedules
   ].map((item) => [item.id, item])).values()).sort((a, b) => minutes(a.startTime) - minutes(b.startTime));
+  const scheduleSections = todaySchedules.reduce<{ active: ScheduleWithState[]; completed: ScheduleWithState[] }>((sections, item) => {
+    const state: ScheduleState = nowMinutes < minutes(item.startTime) ? "next" : item.endTime && nowMinutes < minutes(item.endTime) ? "current" : "ended";
+    if (state === "ended") {
+      sections.completed.push({ ...item, state });
+    } else {
+      sections.active.push({ ...item, state });
+    }
+    return sections;
+  }, { active: [], completed: [] });
   const firstScheduleLocation = todaySchedules.find((item) => item.location)?.location ?? null;
   const storedStudentNumber = extractStudentNumber(user.id);
   const displayStudentNumber = storedStudentNumber || "학번 미등록";
@@ -174,14 +297,29 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId, i
   return <main className={styles.page}><div className={styles.container}>
     <section className={styles.hero}>
       <div><p className={styles.eyebrow}>NEWBIE ON DASHBOARD</p><h1>안녕하세요, {displayName}님! <span aria-hidden="true">👋</span></h1><p>오늘도 즐거운 하루 되세요. 필요한 정보를 한눈에 확인해보세요.</p></div>
-      <div className={styles.summary}><span className={styles.iconBox}><Icon name="calendar"/></span><div><small>오늘은</small><strong>{formatKoreanDate(now)}</strong></div><div className={styles.summaryStats}><span>오늘 일정 <b>{isLoading ? "로딩 중" : `${todaySchedules.length}개`}</b></span><span>{isLoading ? <b>로딩 중</b> : wait !== null ? <>다음 수업까지 <b>{wait}분</b></> : <b>오늘 수업 완료</b>}</span></div></div>
+      <div className={styles.summaryGrid}>
+        <Link className={`${styles.summary} ${styles.noticeSummary}`} href="/notices"><span className={styles.iconBox}><Icon name="notice"/></span><div><small>미확인 공지</small><strong>{isNoticeSummaryLoading ? "로딩 중" : `${unreadNoticeCount}개`}</strong></div><div className={styles.summaryStats}><span>전체 공지 <b>{isNoticeSummaryLoading ? "로딩 중" : `${includedNoticeCount}개`}</b></span><span>{isNoticeSummaryLoading ? <b>확인 중</b> : unreadNoticeCount > 0 ? <b>확인 필요</b> : <b>모두 확인</b>}</span></div></Link>
+        <div className={styles.summary}><span className={styles.iconBox}><Icon name="calendar"/></span><div><small>오늘은</small><strong>{formatKoreanDate(now)}</strong></div><div className={styles.summaryStats}><span>오늘 일정 <b>{isLoading ? "로딩 중" : `${todaySchedules.length}개`}</b></span><span>{isLoading ? <b>로딩 중</b> : wait !== null ? <>다음 수업까지 <b>{wait}분</b></> : <b>오늘 수업 완료</b>}</span></div></div>
+      </div>
     </section>
 
     <section className={styles.twoGrid}>
       <article className={styles.card}><Heading icon="calendar" title="오늘의 일정" meta={isLoading ? "로딩 중" : `${todaySchedules.length}개`}/>
-        {isLoading ? <DashboardLoadingState /> : todaySchedules.length ? <><ol className={styles.scheduleList}>{todaySchedules.map((item) => { const state: ScheduleState = nowMinutes < minutes(item.startTime) ? "next" : item.endTime && nowMinutes < minutes(item.endTime) ? "current" : "ended"; return <ScheduleItem item={item} key={item.id} state={state}/>; })}</ol>{firstScheduleLocation ? <div className={styles.actionArea}><Link className={styles.actionButton} href={`/map?location=${encodeURIComponent(firstScheduleLocation)}`}>캠퍼스 길찾기</Link><small>다음 일정 장소({firstScheduleLocation}) 위치 확인하기</small></div> : null}</> : <div className={`${styles.empty} ${styles.scheduleEmpty}`}><span className={styles.emptyIcon} aria-hidden="true">☕</span><p>오늘은 예정된 일정이 없습니다. 편안한 휴식을 취하세요! ☕</p></div>}
+        {isLoading ? <DashboardLoadingState /> : todaySchedules.length ? <>
+          <div className={styles.scheduleSections}>
+            <section className={styles.scheduleSection}>
+              <div className={styles.scheduleSectionHeading}><h3>진행 예정/진행 중인 일정</h3><span>{scheduleSections.active.length}개</span></div>
+              {scheduleSections.active.length ? <ol className={styles.scheduleList}>{scheduleSections.active.map((item) => <ScheduleItem item={item} key={item.id} state={item.state}/>)}</ol> : <div className={styles.scheduleSectionEmpty}>남은 일정이 없습니다.</div>}
+            </section>
+            <section className={styles.scheduleSection}>
+              <div className={styles.scheduleSectionHeading}><h3>진행 완료된 일정</h3><span>{scheduleSections.completed.length}개</span></div>
+              {scheduleSections.completed.length ? <ol className={styles.scheduleList}>{scheduleSections.completed.map((item) => <ScheduleItem item={item} key={item.id} state={item.state}/>)}</ol> : <div className={styles.scheduleSectionEmpty}>완료된 일정이 없습니다.</div>}
+            </section>
+          </div>
+          {firstScheduleLocation ? <div className={styles.actionArea}><Link className={styles.actionButton} href={`/map?location=${encodeURIComponent(firstScheduleLocation)}`}>캠퍼스 길찾기</Link><small>다음 일정 장소({firstScheduleLocation}) 위치 확인하기</small></div> : null}
+        </> : <div className={`${styles.empty} ${styles.scheduleEmpty}`}><span className={styles.emptyIcon} aria-hidden="true">☕</span><p>오늘은 예정된 일정이 없습니다. 편안한 휴식을 취하세요! ☕</p></div>}
       </article>
-      <article className={styles.card}><Heading icon="notice" title="중요 공지" href="/notices"/><div className={styles.noticeList}>{isLoading ? <DashboardLoadingState /> : important.length ? important.map((notice) => <Link className={styles.noticeItem} href={getNoticeHref(notice.sourceUrl)} key={notice.id}><span className={`${styles.badge} ${styles[`notice_${notice.category}`]}`}>{noticeLabels[notice.category]}</span><div><h3>{notice.isPinned && <i className={styles.unread} aria-label="읽지 않은 중요 공지"/>}{notice.title}</h3><p>{notice.summary}</p><time>{new Intl.DateTimeFormat("ko-KR").format(new Date(notice.publishedAt))}</time></div></Link>) : <div className={styles.empty}>표시할 공지가 없습니다.</div>}</div></article>
+      <article className={styles.card}><Heading icon="notice" title="중요 공지" href="/notices"/><div className={styles.noticeList}>{isLoading ? <DashboardLoadingState /> : important.length ? important.map((notice) => <Link className={styles.noticeItem} href={getNoticeHref(notice.sourceUrl)} key={notice.id} onClick={() => void markNoticeRead(user, notice.id)}><span className={`${styles.badge} ${styles[`notice_${notice.category}`]}`}>{noticeLabels[notice.category]}</span><div><h3>{notice.isPinned && !readNoticeIds.has(notice.id) && <i className={styles.unread} aria-label="읽지 않은 중요 공지"/>}{notice.title}</h3><p>{notice.summary}</p><time>{new Intl.DateTimeFormat("ko-KR").format(new Date(notice.publishedAt))}</time></div></Link>) : <div className={styles.empty}>표시할 공지가 없습니다.</div>}</div></article>
     </section>
 
     <section className={styles.mainGrid}>
@@ -200,6 +338,21 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId, i
             <div><dt>이메일</dt><dd title={user.email}>{user.email}</dd></div>
           </dl>
           <Link className={styles.profileButton} href="/mypage">내 정보 확인하기</Link>
+        </article>
+        <article className={styles.card}>
+          <Heading icon="notice" title="학과 알람" href="/mypage"/>
+          <div className={styles.departmentAlarmList}>
+            {isDepartmentAlarmLoading ? <DashboardLoadingState /> : unreadDepartmentAlarmItems.length ? unreadDepartmentAlarmItems.map((item) => (
+              <Link className={styles.departmentAlarmItem} href={getNoticeHref(item.notice.sourceUrl)} key={`${item.department}-${item.notice.id}`} onClick={() => void markNoticeRead(user, item.notice.id)}>
+                <span className={styles.departmentAlarmBadge}>{getDepartmentAlarmLabel(item.target)}</span>
+                <div>
+                  <strong>{item.department}</strong>
+                  <h3>{item.notice.title}</h3>
+                  <time>{new Intl.DateTimeFormat("ko-KR").format(new Date(item.notice.publishedAt))}</time>
+                </div>
+              </Link>
+            )) : <div className={styles.empty}>마이페이지에서 주전공 또는 부전공 알람을 켜면 학과 공지가 표시됩니다.</div>}
+          </div>
         </article>
       </div>
       <article className={styles.card}><Heading icon="clock" title="D-DAY 학사일정" href="/notices"/><div className={styles.eventList}>{academicEvents.map((event) => { const isCompleted = normalizeDate(event.startDate).getTime() < normalizeDate(now).getTime(); return <div className={`${styles.event} ${isCompleted ? styles.eventCompleted : ""}`} key={event.id}><span className={styles.iconBox}><Icon name="calendar"/></span><div><h3>{event.title}</h3><p>{event.displayDate}</p></div><strong>{isCompleted ? "완료" : getDdayLabel(now, event.startDate)}</strong></div>; })}</div></article>

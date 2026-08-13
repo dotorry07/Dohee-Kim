@@ -78,7 +78,7 @@ export default function SignupPage() {
     };
   }, []);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isDepartmentLoading || !departments.length) {
       setError("성신여대 학과 목록을 불러온 뒤 다시 시도해주세요.");
@@ -111,12 +111,17 @@ export default function SignupPage() {
       return;
     }
 
-    signUp({ email, name, department, secondaryDepartment, grade: getGradeFromStudentNumber(studentNumber), studentNumber });
-    setError("");
-    setSuccess("회원가입이 완료되었습니다. 대시보드로 이동합니다.");
-    window.setTimeout(() => {
-      window.location.href = "/dashboard";
-    }, 500);
+    try {
+      await signUp({ email, password, name, department, secondaryDepartment, grade: getGradeFromStudentNumber(studentNumber), studentNumber });
+      setError("");
+      setSuccess("회원가입이 완료되었습니다. 로그인 화면으로 이동합니다.");
+      window.setTimeout(() => {
+        window.location.href = "/auth/login";
+      }, 500);
+    } catch (reason) {
+      setSuccess("");
+      setError(reason instanceof Error ? reason.message : "회원가입을 완료하지 못했습니다.");
+    }
   }
 
   return (

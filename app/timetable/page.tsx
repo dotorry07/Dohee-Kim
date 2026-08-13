@@ -1,12 +1,13 @@
 "use client";
 
 import { Fragment, PointerEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthGuard } from "@/components/AuthGuard";
 import { BannerTagIcon } from "@/components/BannerTagIcon";
 import { dayLabels, isRecordedRemoteClass, toMinutes, weekdays } from "@/lib/timetable";
-import { deleteRemoteTimetable, loadRemoteTimetables, selectRemoteMonthlyTimetable } from "@/lib/timetable-storage";
+import { deleteRemoteTimetable, loadRemoteTimetables, saveRemoteTimetable, selectRemoteMonthlyTimetable } from "@/lib/timetable-storage";
 import { TimetableSelect } from "./TimetableSelect";
 import styles from "./SwipeNotice.module.css";
 import fingerImage from "./finger.png";
@@ -94,9 +95,12 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
   const [selectedTimetableIdsBySemester, setSelectedTimetableIdsBySemester] = useState<Record<string, string>>({});
   const [pendingMonthlyTimetableId, setPendingMonthlyTimetableId] = useState<string | null>(null);
   const [pendingDownloadTimetableId, setPendingDownloadTimetableId] = useState<string | null>(null);
+  const [renamingTimetableId, setRenamingTimetableId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newTimetableTitle, setNewTimetableTitle] = useState("");
+  const [renameTimetableTitle, setRenameTimetableTitle] = useState("");
   const [createError, setCreateError] = useState("");
+  const [renameError, setRenameError] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -105,6 +109,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
   const [isSwipeNoticeClosing, setIsSwipeNoticeClosing] = useState(false);
   const [selectedSemester, setSelectedSemester] = useState(currentSemester);
   const [syncError, setSyncError] = useState("");
+  const [isMounted, setIsMounted] = useState(false);
   const pageRef = useRef<HTMLElement | null>(null);
   const stackRef = useRef<HTMLElement | null>(null);
   const swipeNoticeTimerRef = useRef<number | null>(null);
@@ -113,6 +118,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
   const deletingTimetable = timetableList.find((item) => item.id === deletingTimetableId);
   const pendingMonthlyTimetable = timetableList.find((item) => item.id === pendingMonthlyTimetableId);
   const pendingDownloadTimetable = timetableList.find((item) => item.id === pendingDownloadTimetableId);
+  const renamingTimetable = timetableList.find((item) => item.id === renamingTimetableId);
   const visibleSemesterOptions = useMemo(() => {
     const visibleSemesters = new Set([
       currentSemester,
@@ -291,6 +297,10 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
   }, [user]);
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (swipeNoticeTimerRef.current !== null) {
         window.clearTimeout(swipeNoticeTimerRef.current);
@@ -421,6 +431,44 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
     setIsCreateModalOpen(true);
   }
 
+  function openRenameModal(timetable: Timetable) {
+    setRenamingTimetableId(timetable.id);
+    setRenameTimetableTitle(timetable.title);
+    setRenameError("");
+  }
+
+  async function renameTimetable() {
+    if (!renamingTimetable) {
+      return;
+    }
+
+    const trimmedTitle = renameTimetableTitle.trim();
+
+    if (!trimmedTitle) {
+      setRenameError("시간표 이름을 입력하세요.");
+      return;
+    }
+
+    const renamedTimetable = { ...renamingTimetable, title: trimmedTitle };
+
+    try {
+      await saveRemoteTimetable(user, renamedTimetable);
+      setSyncError("");
+    } catch {
+      setSyncError("Supabase에 시간표 이름을 저장하지 못했습니다. 로컬 목록에는 반영했습니다.");
+    }
+
+    setTimetableList((current) => {
+      const next = current.map((item) => (item.id === renamedTimetable.id ? renamedTimetable : item));
+      const savedOnly = next.filter((item) => item.id.startsWith("saved-"));
+      window.localStorage.setItem(savedTimetablesKey, JSON.stringify(savedOnly));
+      return next;
+    });
+    setRenamingTimetableId(null);
+    setRenameTimetableTitle("");
+    setRenameError("");
+  }
+
   function copyActiveTimetableSettings() {
     if (!activeTimetable) {
       return;
@@ -517,6 +565,49 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
   }
 
   const virtualActiveIndex = activeIndex - dragOffset / slideTravel;
+  const addMenu = (
+    <div className={`timetable-add-menu${isAddMenuOpen ? " open" : ""}${activeTimetable ? "" : " single-option"}`}>
+      <button
+        aria-label="새 시간표 제작"
+        className="timetable-add-option timetable-add-create-option"
+        title="새 시간표 제작"
+        type="button"
+        onClick={openCreateModal}
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+          <path d="m13.5 6.5 4 4" />
+          <path d="M19 15v5" />
+          <path d="M16.5 17.5h5" />
+        </svg>
+        <span>새 시간표 제작</span>
+      </button>
+      {activeTimetable ? (
+        <button
+          aria-label="현재 시간표 설정 복사"
+          className="timetable-add-option"
+          title="현재 시간표 설정 복사"
+          type="button"
+          onClick={copyActiveTimetableSettings}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <rect x="8" y="8" width="11" height="11" rx="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
+          </svg>
+          <span>시간표 설정 복사</span>
+        </button>
+      ) : null}
+      <button
+        aria-expanded={isAddMenuOpen}
+        aria-label="시간표 추가 옵션"
+        className="timetable-add-button"
+        type="button"
+        onClick={() => setIsAddMenuOpen((current) => !current)}
+      >
+        +
+      </button>
+    </div>
+  );
 
   return (
     <main className="page timetable-home" ref={pageRef}>
@@ -591,8 +682,17 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
 
         {orderedTimetables.length === 0 ? (
           <div className="timetable-empty-state">
+            <span className="timetable-empty-plus" aria-hidden="true">+</span>
             <strong>아직 시간표가 없어요</strong>
-            <span>시간표를 추가해보세요</span>
+            <span className="timetable-empty-subtitle">시간표를 추가해보세요</span>
+            <button
+              className="timetable-empty-add-button"
+              type="button"
+              onClick={openCreateModal}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              시간표 추가
+            </button>
           </div>
         ) : null}
 
@@ -627,6 +727,19 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
               <div className="section-title">
                 <div className="timetable-title-line">
                   <h2>{timetable.title}</h2>
+                  <button
+                    aria-label="시간표 이름 수정"
+                    className="icon-button timetable-title-edit-button"
+                    type="button"
+                    onClick={() => openRenameModal(timetable)}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                      <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+                      <path d="m13.5 6.5 4 4" />
+                    </svg>
+                    <span className="timetable-action-tooltip" aria-hidden="true">이름 수정</span>
+                  </button>
                   {isMonthlyTimetable ? (
                     <span className="monthly-star" aria-label={selectedLabel}>
                       <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -648,7 +761,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
                     {isMonthlyTimetable ? selectedLabel : isPreviousSemesterSelectionLocked ? "이전학기의 시간표 고정됨" : getSelectTimetableLabel(timetable.semester)}
                   </button>
                   <Link
-                    aria-label="시간표 이름 수정"
+                    aria-label="시간표 전체 수정"
                     className="icon-button"
                     href={`/timetable/edit?id=${encodeURIComponent(timetable.id)}`}
                     onPointerDown={(event) => event.stopPropagation()}
@@ -657,6 +770,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
                       <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
                       <path d="m13.5 6.5 4 4" />
                     </svg>
+                    <span className="timetable-action-tooltip" aria-hidden="true">시간표 수정</span>
                   </Link>
                   <button
                     aria-label="시간표 이미지 다운로드"
@@ -670,6 +784,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
                       <path d="m7 10 5 5 5-5" />
                       <path d="M5 19h14" />
                     </svg>
+                    <span className="timetable-action-tooltip" aria-hidden="true">다운로드</span>
                   </button>
                   <button
                     aria-label="시간표 삭제"
@@ -685,6 +800,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
                       <path d="M10 11v5" />
                       <path d="M14 11v5" />
                     </svg>
+                    <span className="timetable-action-tooltip" aria-hidden="true">시간표 삭제</span>
                   </button>
                 </div>
               </div>
@@ -694,46 +810,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
         })}
       </section>
 
-      <div className={`timetable-add-menu${isAddMenuOpen ? " open" : ""}`}>
-        <button
-          aria-label="새 시간표 제작"
-          className="timetable-add-option timetable-add-create-option"
-          title="새 시간표 제작"
-          type="button"
-          onClick={openCreateModal}
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
-            <path d="m13.5 6.5 4 4" />
-            <path d="M19 15v5" />
-            <path d="M16.5 17.5h5" />
-          </svg>
-          <span>새 시간표 제작</span>
-        </button>
-        <button
-          aria-label="현재 시간표 설정 복사"
-          className="timetable-add-option"
-          disabled={!activeTimetable}
-          title="현재 시간표 설정 복사"
-          type="button"
-          onClick={copyActiveTimetableSettings}
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24">
-            <rect x="8" y="8" width="11" height="11" rx="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
-          </svg>
-          <span>시간표 설정 복사</span>
-        </button>
-        <button
-          aria-expanded={isAddMenuOpen}
-          aria-label="시간표 추가 옵션"
-          className="timetable-add-button"
-          type="button"
-          onClick={() => setIsAddMenuOpen((current) => !current)}
-        >
-          +
-        </button>
-      </div>
+      {isMounted ? createPortal(addMenu, document.body) : null}
 
       {deletingTimetable ? (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
@@ -785,6 +862,41 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
             <div className="modal-actions">
               <button className="ghost-button" type="button" onClick={() => setIsCreateModalOpen(false)}>취소</button>
               <button className="button" type="button" onClick={moveToCreatePage}>확인</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {renamingTimetable ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setRenamingTimetableId(null);
+        }}>
+          <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="rename-timetable-title">
+            <div>
+              <h2 id="rename-timetable-title">시간표 이름 수정</h2>
+              <p>시간표 내용은 그대로 두고 이름만 변경합니다.</p>
+            </div>
+            <div className="field">
+              <label htmlFor="rename-timetable-title-input">시간표 이름</label>
+              <input
+                autoFocus
+                id="rename-timetable-title-input"
+                value={renameTimetableTitle}
+                onChange={(event) => {
+                  setRenameTimetableTitle(event.target.value);
+                  setRenameError("");
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    void renameTimetable();
+                  }
+                }}
+              />
+            </div>
+            {renameError ? <div className="error">{renameError}</div> : null}
+            <div className="modal-actions">
+              <button className="ghost-button" type="button" onClick={() => setRenamingTimetableId(null)}>취소</button>
+              <button className="button" type="button" onClick={() => void renameTimetable()}>저장</button>
             </div>
           </section>
         </div>

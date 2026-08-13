@@ -404,10 +404,24 @@ export default function BoardPostPage() {
                 </div>
               </div>
               {selectedPost.userId === user?.id ? (
-                <div className="chip-row">
-                  <button className="ghost-button board-post-more-button" type="button" aria-label="게시글 수정" onClick={startEditing}>수정</button>
-                  <span className="board-action-divider" aria-hidden="true" />
-                  <button className="ghost-button board-post-more-button" type="button" aria-label="게시글 삭제" onClick={requestDeleteSelectedPost}>삭제</button>
+                <div className="board-owner-actions">
+                  <button className="icon-button board-owner-action-button" type="button" aria-label="게시글 수정" onClick={startEditing}>
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                      <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+                      <path d="m13.5 6.5 4 4" />
+                    </svg>
+                    <span className="timetable-action-tooltip" aria-hidden="true">수정</span>
+                  </button>
+                  <button className="icon-button danger board-owner-action-button" type="button" aria-label="게시글 삭제" onClick={requestDeleteSelectedPost}>
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4h8v2" />
+                      <path d="M6 6l1 14h10l1-14" />
+                      <path d="M10 11v5" />
+                      <path d="M14 11v5" />
+                    </svg>
+                    <span className="timetable-action-tooltip" aria-hidden="true">삭제</span>
+                  </button>
                 </div>
               ) : (
                 <button className="ghost-button board-post-more-button" type="button" aria-label="게시글 더보기"><BoardDetailIcon name="more" /></button>
@@ -452,9 +466,23 @@ export default function BoardPostPage() {
                     </>
                   ) : (
                     <>
-                      <button className="ghost-button" type="button" onClick={() => startEditingComment(item.id)}>수정</button>
-                      <span className="board-action-divider" aria-hidden="true" />
-                      <button className="ghost-button" type="button" onClick={() => requestDeleteComment(item.id)}>삭제</button>
+                      <button className="icon-button board-owner-action-button" type="button" aria-label="댓글 수정" onClick={() => startEditingComment(item.id)}>
+                        <svg aria-hidden="true" viewBox="0 0 24 24">
+                          <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+                          <path d="m13.5 6.5 4 4" />
+                        </svg>
+                        <span className="timetable-action-tooltip" aria-hidden="true">수정</span>
+                      </button>
+                      <button className="icon-button danger board-owner-action-button" type="button" aria-label="댓글 삭제" onClick={() => requestDeleteComment(item.id)}>
+                        <svg aria-hidden="true" viewBox="0 0 24 24">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4h8v2" />
+                          <path d="M6 6l1 14h10l1-14" />
+                          <path d="M10 11v5" />
+                          <path d="M14 11v5" />
+                        </svg>
+                        <span className="timetable-action-tooltip" aria-hidden="true">삭제</span>
+                      </button>
                     </>
                   )}
                 </div>

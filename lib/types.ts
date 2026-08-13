@@ -10,6 +10,7 @@ export interface UserProfile {
   nickname: string;
   department: string;
   secondaryDepartment?: string;
+  studentNumber?: string;
   grade: 1 | 2 | 3 | 4;
   role: Role;
   createdAt: string;

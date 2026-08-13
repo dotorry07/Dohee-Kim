@@ -8,7 +8,7 @@ import { loadPersistentBoardPosts } from "@/lib/board-storage";
 import { loadDashboardFromSupabase } from "@/lib/dashboard/supabase";
 import { notices, posts } from "@/lib/data";
 import type { Notice } from "@/lib/types";
-import type { DashboardData, DashboardUser, DashboardViewData } from "@/types/dashboard";
+import type { AcademicEvent, DashboardData, DashboardUser, DashboardViewData, MealCampus, MealMenu } from "@/types/dashboard";
 
 const dashboardData: DashboardData = {
   timetables: [],
@@ -73,20 +73,27 @@ async function loadDashboardView(fallbackUser: DashboardUser): Promise<Dashboard
     data: {
       ...baseView.data,
       notices: liveData.notices,
-      posts: liveData.posts
+      posts: liveData.posts,
+      academicEvents: liveData.academicEvents,
+      campusMeals: liveData.campusMeals
     }
   };
 }
 
-async function loadDashboardLiveData(): Promise<Pick<DashboardData, "notices" | "posts">> {
-  const [remoteNotices, remotePosts] = await Promise.all([
+async function loadDashboardLiveData(): Promise<Pick<DashboardData, "notices" | "posts" | "academicEvents" | "campusMeals">> {
+  const [remoteNotices, remotePosts, referenceData] = await Promise.all([
     loadNoticePageNotices(),
-    loadPersistentBoardPosts()
+    loadPersistentBoardPosts(),
+    loadDashboardReferenceData()
   ]);
 
   return {
     notices: remoteNotices.length ? remoteNotices : dashboardData.notices,
-    posts: remotePosts.length ? remotePosts : dashboardData.posts
+    posts: remotePosts.length ? remotePosts : dashboardData.posts,
+    academicEvents: referenceData.academicEvents.length ? referenceData.academicEvents : dashboardData.academicEvents,
+    campusMeals: referenceData.campusMeals.sujeong && referenceData.campusMeals.unjeong
+      ? referenceData.campusMeals as Record<MealCampus, MealMenu>
+      : dashboardData.campusMeals
   };
 }
 
@@ -99,5 +106,23 @@ async function loadNoticePageNotices() {
     return Array.isArray(body.notices) ? body.notices : [];
   } catch {
     return [];
+  }
+}
+
+async function loadDashboardReferenceData() {
+  try {
+    const response = await fetch("/api/dashboard-reference", { cache: "no-store" });
+    if (!response.ok) return { academicEvents: [] as AcademicEvent[], campusMeals: {} as Partial<Record<MealCampus, MealMenu>> };
+
+    const body = await response.json() as {
+      academicEvents?: AcademicEvent[];
+      campusMeals?: Partial<Record<MealCampus, MealMenu>>;
+    };
+    return {
+      academicEvents: Array.isArray(body.academicEvents) ? body.academicEvents : [],
+      campusMeals: body.campusMeals ?? {}
+    };
+  } catch {
+    return { academicEvents: [] as AcademicEvent[], campusMeals: {} as Partial<Record<MealCampus, MealMenu>> };
   }
 }

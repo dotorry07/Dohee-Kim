@@ -2,13 +2,27 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BannerTagIcon } from "@/components/BannerTagIcon";
+import { getStoredUser } from "@/lib/auth/client";
+import {
+  getDepartmentNotificationPreferences,
+  getNewDepartmentNotificationItems,
+  getSubscribedDepartments,
+  loadDepartmentNotificationPreferences,
+  markDepartmentNoticesNotified,
+  subscribeToDepartmentNotificationPreferences
+} from "@/lib/department-notifications";
+import { markNoticeRead } from "@/lib/notice-reads";
 import { sungshinDepartments } from "@/lib/sungshin-departments";
 import type { Notice } from "@/lib/types";
 
 type DepartmentNoticeCategory = "curriculum" | "graduation" | "campus" | "event";
 type NoticeCategoryFilter = Notice["category"] | DepartmentNoticeCategory | "all";
 type NoticeSortOrder = "latest" | "oldest";
-
+type DepartmentNotificationAlert = {
+  department: string;
+  count: number;
+  latestNotice: Notice;
+};
 
 
 const categoryLabels: Record<Notice["category"], string> = {
@@ -296,6 +310,7 @@ export default function NoticesPage() {
   const [isStudentNumberGuideOpen, setIsStudentNumberGuideOpen] = useState(false);
   const [isPortalGuideOpen, setIsPortalGuideOpen] = useState(false);
   const [activePortalGuideIndex, setActivePortalGuideIndex] = useState(0);
+  const [departmentNotificationAlerts, setDepartmentNotificationAlerts] = useState<DepartmentNotificationAlert[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -360,6 +375,110 @@ export default function NoticesPage() {
     setImportantPage(1);
     setCurrentPage(1);
   }, [category, department, query, sortOrder]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function checkDepartmentNotifications() {
+      const user = getStoredUser();
+      if (!user) {
+        if (!ignore) setDepartmentNotificationAlerts([]);
+        return;
+      }
+
+      let preferences = await loadDepartmentNotificationPreferences(user);
+      const subscribedDepartments = getSubscribedDepartments(user, preferences);
+
+      if (subscribedDepartments.length === 0) {
+        if (!ignore) setDepartmentNotificationAlerts([]);
+        return;
+      }
+
+      const alerts: DepartmentNotificationAlert[] = [];
+      const nextNotifiedNoticeIds: string[] = [];
+
+      for (const subscribedDepartment of subscribedDepartments) {
+        try {
+          const params = new URLSearchParams({ department: subscribedDepartment.name });
+          const response = await fetch(`/api/notices?${params.toString()}`);
+
+          if (!response.ok) {
+            throw new Error("department notice request failed");
+          }
+
+          const data = await response.json() as { notices: Notice[] };
+          const departmentNotices = mergeDepartmentNotices(
+            data.notices,
+            officialDepartmentNotices[subscribedDepartment.name] ?? []
+          );
+          const newItems = getNewDepartmentNotificationItems(
+            departmentNotices,
+            subscribedDepartment.enabledAt,
+            preferences
+          ).sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+
+          if (newItems.length > 0) {
+            const latestNotice = newItems[0];
+            alerts.push({
+              department: subscribedDepartment.name,
+              count: newItems.length,
+              latestNotice
+            });
+            nextNotifiedNoticeIds.push(...newItems.map((notice) => notice.id));
+
+            if ("Notification" in window && window.Notification.permission === "granted") {
+              new window.Notification(`${subscribedDepartment.name} 새 공지`, {
+                body: latestNotice.title
+              });
+            }
+          }
+        } catch {
+          const fallbackNotices = mergeDepartmentNotices(
+            [],
+            officialDepartmentNotices[subscribedDepartment.name] ?? []
+          );
+          const newItems = getNewDepartmentNotificationItems(
+            fallbackNotices,
+            subscribedDepartment.enabledAt,
+            preferences
+          ).sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+
+          if (newItems.length > 0) {
+            alerts.push({
+              department: subscribedDepartment.name,
+              count: newItems.length,
+              latestNotice: newItems[0]
+            });
+            nextNotifiedNoticeIds.push(...newItems.map((notice) => notice.id));
+          }
+        }
+
+        preferences = getDepartmentNotificationPreferences(user.id);
+      }
+
+      if (nextNotifiedNoticeIds.length > 0) {
+        markDepartmentNoticesNotified(user.id, nextNotifiedNoticeIds);
+      }
+
+      if (!ignore) {
+        setDepartmentNotificationAlerts(alerts);
+      }
+    }
+
+    void checkDepartmentNotifications();
+    const unsubscribe = subscribeToDepartmentNotificationPreferences(() => {
+      void checkDepartmentNotifications();
+    });
+    const intervalId = window.setInterval(() => {
+      void checkDepartmentNotifications();
+    }, 5 * 60 * 1000);
+
+    return () => {
+      ignore = true;
+      unsubscribe();
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isStudentNumberGuideOpen && !isPortalGuideOpen) {
@@ -431,6 +550,10 @@ export default function NoticesPage() {
     activePage * noticesPerPage
   );
   const paginationItems = getPaginationItems(activePage, totalPages);
+  const handleNoticeRead = (noticeId: string) => {
+    const user = getStoredUser();
+    if (user) void markNoticeRead(user, noticeId);
+  };
 
   return (
     <main className="notices-page">
@@ -460,6 +583,29 @@ export default function NoticesPage() {
 
       <div className="notices-content">
         <div className="notices-main-column">
+      {departmentNotificationAlerts.length > 0 ? (
+        <section className="department-alert-panel" aria-live="polite">
+          <div>
+            <strong>구독한 학과 새 공지가 있습니다.</strong>
+            {departmentNotificationAlerts.map((alert) => (
+              <button
+                type="button"
+                key={`${alert.department}-${alert.latestNotice.id}`}
+                onClick={() => {
+                  setDepartment(alert.department);
+                  setCategory("all");
+                  setQuery("");
+                }}
+              >
+                <span>{alert.department}</span>
+                {alert.count > 1 ? `${alert.count}건의 새 공지` : alert.latestNotice.title}
+              </button>
+            ))}
+          </div>
+          <button type="button" aria-label="학과 공지 알림 닫기" onClick={() => setDepartmentNotificationAlerts([])}>×</button>
+        </section>
+      ) : null}
+
       <section className="notice-filter-panel">
         <form className="notice-filter-form" onSubmit={(event) => event.preventDefault()}>
           <div className="notice-search-row">
@@ -561,6 +707,7 @@ export default function NoticesPage() {
               : (activeImportantPage - 1) * noticesPerPage + 1
           )}
           numberDirection={sortOrder === "latest" ? "descending" : "ascending"}
+          onNoticeRead={handleNoticeRead}
         />
         {pinned.length > noticesPerPage ? (
           <nav className="notice-pagination" aria-label="중요 공지 페이지">
@@ -640,6 +787,7 @@ export default function NoticesPage() {
               : (activePage - 1) * noticesPerPage + 1
           )}
           numberDirection={sortOrder === "latest" ? "descending" : "ascending"}
+          onNoticeRead={handleNoticeRead}
         />
         {regular.length > noticesPerPage ? (
           <nav className="notice-pagination" aria-label="전체 공지 페이지">
@@ -1417,6 +1565,69 @@ export default function NoticesPage() {
           min-width: 0;
         }
 
+        .department-alert-panel {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: start;
+          gap: 14px;
+          margin-bottom: 16px;
+          border: 1px solid #d9cbf4;
+          border-radius: 10px;
+          background: linear-gradient(135deg, #fbf8ff, #f2eaff);
+          box-shadow: 0 10px 24px rgba(88, 47, 130, 0.08);
+          padding: 15px 16px;
+        }
+
+        .department-alert-panel > div {
+          display: grid;
+          min-width: 0;
+          gap: 9px;
+        }
+
+        .department-alert-panel strong {
+          color: #251a36;
+          font-size: 15px;
+          line-height: 1.35;
+        }
+
+        .department-alert-panel div button {
+          display: grid;
+          min-width: 0;
+          gap: 4px;
+          border: 0;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.72);
+          color: #332941;
+          padding: 10px 12px;
+          text-align: left;
+          font-size: 13px;
+          font-weight: 800;
+          line-height: 1.4;
+        }
+
+        .department-alert-panel div button:hover {
+          background: #fff;
+        }
+
+        .department-alert-panel div button span {
+          color: #6d35d0;
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        .department-alert-panel > button {
+          display: grid;
+          width: 30px;
+          height: 30px;
+          place-items: center;
+          border: 1px solid #ded1ed;
+          border-radius: 8px;
+          background: #fff;
+          color: #7f7296;
+          font-size: 20px;
+          line-height: 1;
+        }
+
         .notice-filter-panel,
         .important-notices,
         .all-notices,
@@ -2045,13 +2256,15 @@ function NoticeList({
   empty,
   featured = false,
   startNumber,
-  numberDirection = "descending"
+  numberDirection = "descending",
+  onNoticeRead
 }: {
   notices: Notice[];
   empty: string;
   featured?: boolean;
   startNumber?: number;
   numberDirection?: "ascending" | "descending";
+  onNoticeRead?: (noticeId: string) => void;
 }) {
   if (items.length === 0) {
     return <div className="notice-empty">{empty}</div>;
@@ -2092,13 +2305,13 @@ function NoticeList({
               {notice.isExpired ? (
                 <span className="closed-badge">신청기간 마감</span>
               ) : notice.applicationUrl ? (
-                <a href={notice.applicationUrl} target="_blank" rel="noreferrer">신청 링크</a>
+                <a href={notice.applicationUrl} target="_blank" rel="noreferrer" onClick={() => onNoticeRead?.(notice.id)}>신청 링크</a>
               ) : null}
             </div>
           </div>
           <time dateTime={notice.publishedAt}>{formatNoticeDate(notice.publishedAt)}</time>
           {notice.sourceUrl ? (
-            <a className="row-arrow" href={notice.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${notice.title} 원문 보기`}>
+            <a className="row-arrow" href={notice.sourceUrl} target="_blank" rel="noreferrer" aria-label={`${notice.title} 원문 보기`} onClick={() => onNoticeRead?.(notice.id)}>
               ›
             </a>
           ) : (

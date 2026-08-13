@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { BoardAuthorMenu } from "@/components/board-author-menu";
 import { BannerTagIcon } from "@/components/BannerTagIcon";
 import { BOARD_RANKS, BoardRankIcon, BoardUserRank } from "@/components/board-user-rank";
@@ -118,8 +119,10 @@ export default function BoardPage() {
   const [draftToLoad, setDraftToLoad] = useState<BoardDraft | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<BoardDraft | null>(null);
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
     setPosts(getBoardPosts());
     void loadPersistentBoardPosts().then(setPosts);
     setUser(getStoredUser());
@@ -429,7 +432,7 @@ export default function BoardPage() {
         </article>
 
         <div className="board-sidebar-column">
-          <section className="panel board-my-profile" aria-labelledby="board-my-profile-title">
+          <section className="panel board-my-profile" aria-label="내 프로필">
             {user ? (
               <>
                 <div className="board-profile-card">
@@ -437,7 +440,6 @@ export default function BoardPage() {
                     <BoardUserRank posts={posts} userId={user.id} />
                   </Link>
                   <div className="board-profile-copy">
-                    <span id="board-my-profile-title">내 프로필</span>
                     <div className="board-profile-name-row">
                       <Link href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`}>
                         <strong>{user.nickname}</strong>
@@ -450,8 +452,7 @@ export default function BoardPage() {
                 </div>
               </>
             ) : (
-              <Link className="board-profile-login" href="/auth/login">
-                <strong id="board-my-profile-title">내 프로필</strong>
+              <Link className="board-profile-login" href="/auth/login" aria-label="내 프로필">
                 <small>로그인하고 수정 등급을 확인해 보세요.</small>
               </Link>
             )}
@@ -492,9 +493,16 @@ export default function BoardPage() {
         </div>
       </section>
 
-      <button className="board-write-button" type="button" onClick={openComposer}>
-        글 작성
-      </button>
+      {isMounted ? createPortal(
+        <button className="board-write-button" type="button" onClick={openComposer}>
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+            <path d="m13.5 6.5 4 4" />
+          </svg>
+          글 작성
+        </button>,
+        document.body
+      ) : null}
 
       {isRankGuideOpen ? (
         <div className="board-rank-guide-backdrop" role="presentation" onMouseDown={(event) => {
@@ -524,7 +532,7 @@ export default function BoardPage() {
         </div>
       ) : null}
 
-      {isComposerOpen ? (
+      {isComposerOpen && isMounted ? createPortal((
         <div className="board-composer-backdrop" role="presentation" onMouseDown={(event) => {
           if (event.target === event.currentTarget) closeComposer();
         }}>
@@ -662,7 +670,7 @@ export default function BoardPage() {
             </div>
           ) : null}
         </div>
-      ) : null}
+      ), document.body) : null}
     </main>
   );
 }

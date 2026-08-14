@@ -837,6 +837,15 @@ function normalizeMajorDepartments(departments: string[], primaryDepartment: str
   return Array.from(new Set([primaryDepartment, ...departments].filter(Boolean)));
 }
 
+function getUserMajorDepartments(primaryDepartment: string, secondaryDepartment?: string) {
+  const secondaryDepartments = (secondaryDepartment ?? "")
+    .split(/[,;\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set([primaryDepartment, ...secondaryDepartments].filter(Boolean)));
+}
+
 function isDraft(value: unknown): value is TimetableEditDraft {
   if (!value || typeof value !== "object") {
     return false;
@@ -940,6 +949,10 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     () => new Set(requiredCourseOptionsByName.map(({ courseName }) => courseName)),
     [requiredCourseOptionsByName]
   );
+  const userMajorDepartments = useMemo(
+    () => getUserMajorDepartments(department, user.secondaryDepartment),
+    [department, user.secondaryDepartment]
+  );
   const freeDayOptions = useMemo(
     () => Array.from(
       { length: getFreeDayCountAfterAdding([], classes, personalSchedules) },
@@ -960,10 +973,10 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       : "수업 방식";
   const visibleElectiveCourses = useMemo(
     () => electiveCourses
-      .filter((course) => !isSelectedMajorNonGemCourse(course))
+      .filter((course) => !isSelectedMajorGemCourse(course))
       .filter((course) => !isRequiredElectiveCourse(course))
       .filter((course) => !isSungshinCourseSelected(course))
-      .filter((course) => !getCourseAudienceMismatch(course, [department], String(grade)))
+      .filter((course) => !getCourseAudienceMismatch(course, userMajorDepartments, String(grade)))
       .filter((course) => {
         return selectedElectiveAreas.length === electiveAreaOptions.length || selectedElectiveAreas.includes(getElectiveAreaName(course));
       })
@@ -972,11 +985,11 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       })
       .filter((course) => sungshinCourseMatchesSearch(course, normalizeCourseSearchQuery(electiveSearchQuery)))
       .filter((course) => !sungshinCourseConflictsWithSchedule(course)),
-    [classes, department, electiveCourses, electiveSearchQuery, grade, personalSchedules, requiredCourses, selectedElectiveAreas, selectedElectivePreferences, selectedFreeDayCounts, selectedLectureModes, selectedMajorDepartments]
+    [classes, department, electiveCourses, electiveSearchQuery, grade, personalSchedules, requiredCourses, selectedElectiveAreas, selectedElectivePreferences, selectedFreeDayCounts, selectedLectureModes, userMajorDepartments]
   );
   const selectedSungshinElectiveCourses = useMemo(
     () => electiveCourses
-      .filter((course) => !isSelectedMajorNonGemCourse(course))
+      .filter((course) => !isSelectedMajorGemCourse(course))
       .filter((course) => !isRequiredElectiveCourse(course))
       .filter(isSungshinCourseSelected)
       .filter((course) => sungshinCourseMatchesSearch(course, normalizeCourseSearchQuery(electiveSearchQuery)))
@@ -985,7 +998,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         || left.courseName.localeCompare(right.courseName, "ko")
         || left.classNumber.localeCompare(right.classNumber, "ko")
       )),
-    [classes, electiveCourses, electiveSearchQuery, department, requiredCourses, selectedMajorDepartments]
+    [classes, electiveCourses, electiveSearchQuery, department, requiredCourses, userMajorDepartments]
   );
   const selectedExistingElectiveClasses = useMemo(
     () => classes.filter((item) => (
@@ -1878,8 +1891,8 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     ));
   }
 
-  function isSelectedMajorNonGemCourse(course: SungshinCourse) {
-    return !course.isGem && selectedMajorDepartments.includes(course.departmentName);
+  function isSelectedMajorGemCourse(course: SungshinCourse) {
+    return Boolean(course.isGem) && userMajorDepartments.includes(course.departmentName);
   }
 
   function isRequiredElectiveCourse(course: SungshinCourse) {

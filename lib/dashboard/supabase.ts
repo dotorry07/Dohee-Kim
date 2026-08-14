@@ -31,7 +31,7 @@ export async function loadDashboardFromSupabase(
   try {
       const { data: profile, error } = await supabase
       .from("users")
-      .select("id, auth_user_id, email, name, nickname, department, secondary_department, grade, role, created_at")
+      .select("id, auth_user_id, email, name, nickname, users_nickname, department, secondary_department, student_number, profile_image_url, grade, role, created_at")
       .eq("email", fallbackUser.email)
       .maybeSingle();
 
@@ -49,9 +49,11 @@ export async function loadDashboardFromSupabase(
       authUserId: profile.auth_user_id ?? fallbackUser.authUserId,
       email: profile.email,
       name: profile.name,
-      nickname: profile.nickname,
+      nickname: profile.users_nickname || profile.nickname,
       department: profile.department,
       secondaryDepartment: profile.secondary_department ?? "",
+      studentNumber: profile.student_number ?? "",
+      profileImageUrl: profile.profile_image_url ?? "",
       grade: profile.grade as UserProfile["grade"],
       role: profile.role as UserProfile["role"],
       createdAt: profile.created_at

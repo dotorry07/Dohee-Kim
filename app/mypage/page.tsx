@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AuthGuard } from "@/components/AuthGuard";
 import { BannerTagIcon } from "@/components/BannerTagIcon";
@@ -17,7 +17,11 @@ import { extractStudentNumber, getGradeFromStudentNumber } from "@/lib/student";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { UserProfile } from "@/lib/types";
 
-type MyPageIconName = "bell" | "book" | "building" | "calendar" | "chevron" | "edit" | "id" | "info" | "lock" | "logout" | "mail" | "megaphone" | "school" | "settings" | "shield" | "user";
+type MyPageIconName = "bell" | "book" | "building" | "calendar" | "chevron" | "edit" | "id" | "info" | "lock" | "logout" | "mail" | "megaphone" | "plus" | "school" | "settings" | "shield" | "user";
+
+interface DepartmentResponse {
+  departments: string[];
+}
 
 function MyPageIcon({ name }: { name: MyPageIconName }) {
   const paths: Record<MyPageIconName, ReactNode> = {
@@ -33,6 +37,7 @@ function MyPageIcon({ name }: { name: MyPageIconName }) {
     logout: <><path d="M10 6H6.5v12H10" /><path d="M13 8.5 16.5 12 13 15.5" /><path d="M16.5 12H9.5" /></>,
     mail: <><path d="M5 7h14v10H5z" /><path d="m5.5 8 6.5 5 6.5-5" /></>,
     megaphone: <><path d="m4 13 3 1 9 4V6l-9 4-3 1v2Z" /><path d="m7 14 1 5h3l-1-4" /></>,
+    plus: <><path d="M12 5.5v13" /><path d="M5.5 12h13" /></>,
     school: <><path d="m4 9 8-4 8 4-8 4z" /><path d="M7 11.2v3.2c1.6 1.8 8.4 1.8 10 0v-3.2" /><path d="M20 9v5" /></>,
     settings: <>
       <circle cx="12" cy="12" r="3" />
@@ -88,18 +93,23 @@ function localProfileSettingsKey(userId: string) {
   return `newbie-on:mypage-profile:${userId}`;
 }
 
+function defaultLocalProfileSettings(user: UserProfile): LocalProfileSettings {
+  return { nickname: user.nickname || user.name, image: user.profileImageUrl ?? "" };
+}
+
 function loadLocalProfileSettings(user: UserProfile): LocalProfileSettings {
-  if (typeof window === "undefined") return { nickname: user.nickname || user.name, image: "" };
+  const defaultProfile = defaultLocalProfileSettings(user);
+  if (typeof window === "undefined") return defaultProfile;
 
   try {
     const raw = window.localStorage.getItem(localProfileSettingsKey(user.id));
     const parsed = raw ? JSON.parse(raw) as Partial<LocalProfileSettings> : {};
     return {
-      nickname: parsed.nickname?.trim() || user.nickname || user.name,
-      image: typeof parsed.image === "string" ? parsed.image : ""
+      nickname: parsed.nickname?.trim() || defaultProfile.nickname,
+      image: typeof parsed.image === "string" ? parsed.image : defaultProfile.image
     };
   } catch {
-    return { nickname: user.nickname || user.name, image: "" };
+    return defaultProfile;
   }
 }
 
@@ -145,11 +155,20 @@ function MyPageContent({ user }: { user: UserProfile }) {
   const [localProfile, setLocalProfile] = useState<LocalProfileSettings>(() => loadLocalProfileSettings(user));
   const [draftLocalProfile, setDraftLocalProfile] = useState<LocalProfileSettings>(() => loadLocalProfileSettings(user));
   const [profileEditError, setProfileEditError] = useState("");
+  const [isProfileSaving, setIsProfileSaving] = useState(false);
+  const storedStudentNumber = user.studentNumber || extractStudentNumber(user.id);
   const [profileForm, setProfileForm] = useState({
     name: user.name,
+    email: user.email,
+    studentNumber: storedStudentNumber,
     department: user.department,
     secondaryDepartment: user.secondaryDepartment ?? ""
   });
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [departmentQuery, setDepartmentQuery] = useState(user.department);
+  const [secondaryDepartmentQuery, setSecondaryDepartmentQuery] = useState(user.secondaryDepartment ?? "");
+  const [isSecondaryDepartmentPickerOpen, setIsSecondaryDepartmentPickerOpen] = useState(Boolean(user.secondaryDepartment?.trim()));
+  const [isDepartmentLoading, setIsDepartmentLoading] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ password: "", passwordConfirm: "" });
   const [settingsError, setSettingsError] = useState("");
   const [settingsMessage, setSettingsMessage] = useState("");
@@ -162,7 +181,6 @@ function MyPageContent({ user }: { user: UserProfile }) {
   const [localNotificationSettings, setLocalNotificationSettings] = useState<LocalNotificationSettings>(() => (
     loadLocalNotificationSettings(user.id)
   ));
-  const storedStudentNumber = user.studentNumber || extractStudentNumber(user.id);
   const studentNumber = storedStudentNumber || "학번 미등록";
   const displayGrade = storedStudentNumber ? getGradeFromStudentNumber(storedStudentNumber) : user.grade;
   const profileInitial = (localProfile.nickname || user.name).slice(0, 1);
@@ -186,6 +204,42 @@ function MyPageContent({ user }: { user: UserProfile }) {
       ignore = true;
     };
   }, [user]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadDepartments() {
+      setIsDepartmentLoading(true);
+
+      try {
+        const response = await fetch("/api/sungshin-departments");
+
+        if (!response.ok) {
+          throw new Error("request failed");
+        }
+
+        const data = await response.json() as DepartmentResponse;
+
+        if (isMounted) {
+          setDepartments(data.departments);
+        }
+      } catch {
+        if (isMounted) {
+          setDepartments([]);
+        }
+      } finally {
+        if (isMounted) {
+          setIsDepartmentLoading(false);
+        }
+      }
+    }
+
+    loadDepartments();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const openProfileEdit = () => {
     setDraftLocalProfile(localProfile);
@@ -215,7 +269,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
     reader.readAsDataURL(file);
   };
 
-  const saveLocalProfile = (event: FormEvent<HTMLFormElement>) => {
+  const saveLocalProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nickname = draftLocalProfile.nickname.trim();
     if (nickname.length < 2 || nickname.length > 12) {
@@ -223,12 +277,62 @@ function MyPageContent({ user }: { user: UserProfile }) {
       return;
     }
 
-    const nextProfile = { ...draftLocalProfile, nickname };
+    setIsProfileSaving(true);
+    setProfileEditError("");
+    const savedUser = await saveRemoteProfileImage(draftLocalProfile.image);
+    if (savedUser === null) {
+      setIsProfileSaving(false);
+      return;
+    }
+
+    const imageUrl = savedUser.profileImageUrl ?? "";
+    const nextProfile = { ...draftLocalProfile, nickname, image: imageUrl };
     window.localStorage.setItem(localProfileSettingsKey(user.id), JSON.stringify(nextProfile));
+    if (savedUser.id !== user.id) {
+      window.localStorage.setItem(localProfileSettingsKey(savedUser.id), JSON.stringify(nextProfile));
+    }
+    updateStoredProfile({ nickname, profileImageUrl: imageUrl }, { syncRemote: false });
     window.dispatchEvent(new CustomEvent("newbie-on:mypage-profile-updated", { detail: { userId: user.id } }));
     setLocalProfile(nextProfile);
     setDraftLocalProfile(nextProfile);
+    setIsProfileSaving(false);
     setIsProfileEditOpen(false);
+  };
+
+  const saveRemoteProfileImage = async (image: string) => {
+    try {
+      if (image && !image.startsWith("data:")) {
+        const updated = await updateRemoteProfile(user, { profileImageUrl: image });
+        return updated ?? { ...user, profileImageUrl: image };
+      }
+
+      const response = await fetch("/api/profile-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user, imageDataUrl: image })
+      });
+      const body = await response.json().catch(() => ({})) as { user?: UserProfile; reason?: string };
+
+      if (!response.ok) {
+        setProfileEditError(toKoreanProfileImageError(body.reason));
+        return null;
+      }
+
+      return body.user ?? { ...user, profileImageUrl: "" };
+    } catch {
+      setProfileEditError("프로필 이미지를 Supabase에 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      return null;
+    }
+  };
+
+  const toKoreanProfileImageError = (reason?: string) => {
+    if (reason === "image_too_large") return "프로필 이미지는 2MB 이하로 선택해 주세요.";
+    if (reason === "invalid_image") return "jpg, png, webp 이미지 파일만 저장할 수 있습니다.";
+    if (reason === "missing_user") return "로그인 사용자 정보를 확인하지 못했습니다.";
+    if (reason === "missing_supabase_admin_env") return "서버의 Supabase 서비스 키 설정이 없어 이미지를 저장할 수 없습니다.";
+    if (reason === "missing_profile_image_column") return "Supabase users 테이블에 profile_image_url 컬럼이 없어 이미지를 저장할 수 없습니다. 프로필 이미지 마이그레이션을 적용해 주세요.";
+    if (reason === "profile_image_storage_failed") return "Supabase Storage 버킷에 이미지를 업로드하지 못했습니다. Storage 설정을 확인해 주세요.";
+    return "프로필 이미지를 Supabase에 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
   };
 
   const handleLogout = () => {
@@ -240,9 +344,14 @@ function MyPageContent({ user }: { user: UserProfile }) {
   const openProfileSettings = () => {
     setProfileForm({
       name: user.name,
+      email: user.email,
+      studentNumber: user.studentNumber || extractStudentNumber(user.id),
       department: user.department,
       secondaryDepartment: user.secondaryDepartment ?? ""
     });
+    setDepartmentQuery(user.department);
+    setSecondaryDepartmentQuery(user.secondaryDepartment ?? "");
+    setIsSecondaryDepartmentPickerOpen(Boolean(user.secondaryDepartment?.trim()));
     setSettingsError("");
     setSettingsMessage("");
     setIsAccountSettingsOpen(false);
@@ -260,26 +369,78 @@ function MyPageContent({ user }: { user: UserProfile }) {
   const saveProfileSettings = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = profileForm.name.trim();
+    const email = profileForm.email.trim();
+    const nextStudentNumber = profileForm.studentNumber.trim();
     const department = profileForm.department.trim();
     const secondaryDepartment = profileForm.secondaryDepartment.trim();
+    const grade = getGradeFromStudentNumber(nextStudentNumber);
 
-    if (name.length < 2 || !department) {
-      setSettingsError("이름과 소속을 확인해 주세요.");
+    if (name.length < 2) {
+      setSettingsError("이름은 2자 이상 입력해 주세요.");
+      return;
+    }
+
+    if (!isValidProfileEmail(email)) {
+      setSettingsError("이메일 형식이 올바르지 않습니다.");
+      return;
+    }
+
+    if (!/^\d{8}$/.test(nextStudentNumber)) {
+      setSettingsError("학번은 8자리 숫자로 입력해 주세요.");
+      return;
+    }
+
+    if (isDepartmentLoading || !departments.length) {
+      setSettingsError("성신여대 학과 목록을 불러온 뒤 다시 시도해주세요.");
+      return;
+    }
+
+    if (!departments.includes(department)) {
+      setSettingsError("검색 결과에서 학과를 선택해주세요.");
+      return;
+    }
+
+    if (secondaryDepartment && !departments.includes(secondaryDepartment)) {
+      setSettingsError("검색 결과에서 부/복수전공을 선택해주세요.");
       return;
     }
 
     setIsSettingsSaving(true);
     setSettingsError("");
-    const localUser = updateStoredProfile({ name, department, secondaryDepartment });
-    await updateRemoteProfile(localUser ?? user, { name, department, secondaryDepartment });
-    setIsSettingsSaving(false);
-    window.location.reload();
+    try {
+      if (email !== user.email) {
+        const supabase = createSupabaseBrowserClient();
+        const { error } = supabase
+          ? await supabase.auth.updateUser({ email })
+          : { error: null };
+
+        if (error) {
+          setSettingsError("이메일을 변경하지 못했습니다. 입력한 이메일을 확인해주세요.");
+          setIsSettingsSaving(false);
+          return;
+        }
+      }
+
+      const remoteUser = await updateRemoteProfile(user, { name, email, department, secondaryDepartment, studentNumber: nextStudentNumber, grade });
+
+      if (!remoteUser) {
+        setSettingsError("개인정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+        setIsSettingsSaving(false);
+        return;
+      }
+
+      setIsSettingsSaving(false);
+      window.location.reload();
+    } catch {
+      setSettingsError("개인정보를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      setIsSettingsSaving(false);
+    }
   };
 
   const savePasswordSettings = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (passwordForm.password.length < 8) {
-      setSettingsError("비밀번호는 8자 이상 입력해 주세요.");
+      setSettingsError("비밀번호는 8자 이상이어야 합니다.");
       return;
     }
     if (passwordForm.password !== passwordForm.passwordConfirm) {
@@ -293,7 +454,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
     if (supabase) {
       const { error } = await supabase.auth.updateUser({ password: passwordForm.password });
       if (error) {
-        setSettingsError(error.message || "비밀번호를 변경하지 못했습니다.");
+        setSettingsError(toKoreanPasswordError(error.message));
         setIsSettingsSaving(false);
         return;
       }
@@ -301,6 +462,20 @@ function MyPageContent({ user }: { user: UserProfile }) {
     setPasswordForm({ password: "", passwordConfirm: "" });
     setSettingsMessage("비밀번호가 변경되었습니다.");
     setIsSettingsSaving(false);
+  };
+
+  const toKoreanPasswordError = (message?: string) => {
+    const normalized = message?.toLowerCase() ?? "";
+
+    if (normalized.includes("password") && (normalized.includes("6") || normalized.includes("8") || normalized.includes("short") || normalized.includes("weak"))) {
+      return "비밀번호는 8자 이상이어야 합니다.";
+    }
+
+    if (normalized.includes("session") || normalized.includes("jwt") || normalized.includes("auth")) {
+      return "로그인 세션이 만료되었습니다. 다시 로그인한 뒤 비밀번호를 변경해주세요.";
+    }
+
+    return "비밀번호를 변경하지 못했습니다. 입력한 비밀번호를 확인해주세요.";
   };
 
   const openNotificationSettings = () => {
@@ -459,9 +634,6 @@ function MyPageContent({ user }: { user: UserProfile }) {
             <div key={row.label}>
               <dt><span><MyPageIcon name={row.icon} /></span>{row.label}</dt>
               <dd>{row.value}</dd>
-              <Link href="/mypage/edit" aria-label={`${row.label} 수정`}>
-                <MyPageIcon name="chevron" />
-              </Link>
             </div>
           ))}
         </dl>
@@ -491,7 +663,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
               <label>프로필 닉네임<input value={draftLocalProfile.nickname} maxLength={12} onChange={(event) => setDraftLocalProfile((current) => ({ ...current, nickname: event.target.value }))} /></label>
               <p className="profile-edit-help">프로필 닉네임은 개인정보의 이름과 별도로 사용됩니다.</p>
               {profileEditError ? <p className="account-form-error">{profileEditError}</p> : null}
-              <div className="account-form-actions"><button type="button" onClick={() => setIsProfileEditOpen(false)}>취소</button><button type="submit">저장</button></div>
+              <div className="account-form-actions"><button type="button" onClick={() => setIsProfileEditOpen(false)} disabled={isProfileSaving}>취소</button><button type="submit" disabled={isProfileSaving}>{isProfileSaving ? "저장 중" : "저장"}</button></div>
             </form>
           </section>
         </MyPageModalLayer>
@@ -552,8 +724,51 @@ function MyPageContent({ user }: { user: UserProfile }) {
             </div>
             <form onSubmit={saveProfileSettings}>
               <label>이름<input value={profileForm.name} maxLength={20} onChange={(event) => setProfileForm((current) => ({ ...current, name: event.target.value }))} /></label>
-              <label>소속<input value={profileForm.department} maxLength={40} onChange={(event) => setProfileForm((current) => ({ ...current, department: event.target.value }))} /></label>
-              <label>부/복수전공<input value={profileForm.secondaryDepartment} maxLength={40} placeholder="미등록" onChange={(event) => setProfileForm((current) => ({ ...current, secondaryDepartment: event.target.value }))} /></label>
+              <label>이메일<input type="email" value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} /></label>
+              <label>학번<input inputMode="numeric" value={profileForm.studentNumber} maxLength={8} onChange={(event) => setProfileForm((current) => ({ ...current, studentNumber: event.target.value.replace(/\D/g, "").slice(0, 8) }))} /></label>
+              <DepartmentCombobox
+                id="mypage-primary-department"
+                label="학과"
+                placeholder="학과를 선택해주세요"
+                selectedDepartment={profileForm.department}
+                query={departmentQuery}
+                departments={departments}
+                isLoading={isDepartmentLoading}
+                required
+                onSelect={(value) => setProfileForm((current) => ({ ...current, department: value }))}
+                onQueryChange={setDepartmentQuery}
+              />
+              <div className="secondary-department-field">
+                <div className="secondary-department-row">
+                  <span>부/복수전공</span>
+                  <button
+                    type="button"
+                    aria-label="부/복수전공 학과 선택 추가"
+                    onClick={() => setIsSecondaryDepartmentPickerOpen(true)}
+                  >
+                    <MyPageIcon name="plus" />
+                  </button>
+                </div>
+                {isSecondaryDepartmentPickerOpen ? (
+                  <DepartmentCombobox
+                    id="mypage-secondary-department"
+                    label="부/복수전공"
+                    placeholder="선택사항"
+                    selectedDepartment={profileForm.secondaryDepartment}
+                    query={secondaryDepartmentQuery}
+                    departments={departments}
+                    isLoading={isDepartmentLoading}
+                    hideLabel
+                    onSelect={(value) => setProfileForm((current) => ({ ...current, secondaryDepartment: value }))}
+                    onQueryChange={setSecondaryDepartmentQuery}
+                    onClear={() => {
+                      setProfileForm((current) => ({ ...current, secondaryDepartment: "" }));
+                      setSecondaryDepartmentQuery("");
+                      setIsSecondaryDepartmentPickerOpen(false);
+                    }}
+                  />
+                ) : null}
+              </div>
               {settingsError ? <p className="account-form-error">{settingsError}</p> : null}
               <div className="account-form-actions"><button type="button" onClick={() => setIsProfileSettingsOpen(false)}>취소</button><button type="submit" disabled={isSettingsSaving}>{isSettingsSaving ? "저장 중" : "저장"}</button></div>
             </form>
@@ -916,7 +1131,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
 
         .mypage-details div {
           display: grid;
-          grid-template-columns: 240px minmax(0, 1fr) 30px;
+          grid-template-columns: 240px minmax(0, 1fr);
           align-items: center;
           gap: 16px;
           min-height: 62px;
@@ -955,35 +1170,19 @@ function MyPageContent({ user }: { user: UserProfile }) {
           font-weight: 800;
         }
 
-        .mypage-details button,
-        .mypage-details a {
-          display: grid;
-          width: 30px;
-          height: 30px;
-          place-items: center;
-          border: 0;
-          background: transparent;
-          color: #7f7296;
-        }
-
-        .mypage-details button :global(.mypage-icon),
-        .mypage-details a :global(.mypage-icon) {
-          width: 18px;
-          height: 18px;
-        }
-
         .account-settings-modal {
           display: grid;
-          width: min(760px, calc(100vw - 48px));
-          max-height: calc(100vh - 48px);
+          width: min(640px, calc(100vw - 36px));
+          max-height: calc(100vh - 36px);
           overflow: auto;
           align-content: start;
-          gap: 16px;
+          gap: 14px;
           border: 1px solid rgba(222, 214, 237, 0.95);
-          border-radius: 24px;
+          border-radius: 18px;
           background: #fff;
           box-shadow: 0 28px 80px rgba(35, 24, 45, 0.22);
-          padding: 32px 36px 36px;
+          padding: 24px 28px 28px;
+          animation: modalDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
 
         .account-settings-header {
@@ -1191,14 +1390,15 @@ function MyPageContent({ user }: { user: UserProfile }) {
         }
 
         .account-form-modal {
-          width: min(560px, calc(100vw - 48px));
-          max-height: calc(100vh - 48px);
+          width: min(480px, calc(100vw - 36px));
+          max-height: calc(100vh - 36px);
           overflow: auto;
           border: 1px solid #e2d7ef;
-          border-radius: 22px;
+          border-radius: 18px;
           background: #fff;
           box-shadow: 0 28px 80px rgba(35, 24, 45, 0.22);
-          padding: 30px;
+          padding: 24px;
+          animation: modalDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
 
         .personal-info-modal {
@@ -1272,6 +1472,143 @@ function MyPageContent({ user }: { user: UserProfile }) {
         .account-form-modal input:focus {
           border-color: #895bd9;
           box-shadow: 0 0 0 3px rgba(112, 64, 213, 0.1);
+        }
+
+        .secondary-department-field {
+          display: grid;
+          justify-items: start;
+          gap: 8px;
+        }
+
+        .secondary-department-row {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          color: #393247;
+          font-size: 14px;
+          font-weight: 850;
+        }
+
+        .secondary-department-row button {
+          display: grid;
+          width: 28px;
+          height: 28px;
+          place-items: center;
+          border: 1px solid #b899ef;
+          border-radius: 8px;
+          background: #fff;
+          color: var(--primary);
+        }
+
+        .secondary-department-row button :global(.mypage-icon) {
+          width: 17px;
+          height: 17px;
+          stroke-width: 2.4;
+        }
+
+        .secondary-department-field :global(.profile-department-combobox) {
+          width: 100%;
+          justify-self: stretch;
+        }
+
+        :global(.profile-department-combobox) {
+          display: grid;
+          gap: 8px;
+          color: #393247;
+          font-size: 14px;
+          font-weight: 850;
+        }
+
+        :global(.profile-department-label) {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        :global(.profile-department-label label) {
+          display: block;
+          font: inherit;
+        }
+
+        :global(.profile-department-label button) {
+          border: 0;
+          background: transparent;
+          color: #7754d4;
+          padding: 0;
+          font-size: 12px;
+          font-weight: 900;
+        }
+
+        :global(.profile-department-search) {
+          position: relative;
+        }
+
+        :global(.profile-department-search input) {
+          width: 100%;
+          height: 48px;
+          border: 1px solid #ded5e9;
+          border-radius: 10px;
+          background: #fff;
+          color: #171326;
+          padding: 0 14px;
+          font: inherit;
+          font-weight: 700;
+          outline: none;
+        }
+
+        :global(.profile-department-search input:focus) {
+          border-color: #895bd9;
+          box-shadow: 0 0 0 3px rgba(112, 64, 213, 0.1);
+        }
+
+        :global(.profile-department-dropdown) {
+          position: absolute;
+          z-index: 20;
+          top: calc(100% + 6px);
+          right: 0;
+          left: 0;
+          max-height: 240px;
+          overflow: auto;
+          border: 1px solid #ded5e9;
+          border-radius: 12px;
+          background: #fff;
+          box-shadow: 0 16px 34px rgba(35, 24, 45, 0.16);
+          padding: 8px;
+        }
+
+        :global(.profile-department-summary) {
+          padding: 8px 10px;
+          color: #7a7188;
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        :global(.profile-department-option) {
+          display: block;
+          width: 100%;
+          min-height: 38px;
+          border: 0;
+          border-radius: 8px;
+          background: transparent;
+          color: #21192b;
+          padding: 8px 10px;
+          text-align: left;
+          font-size: 13px;
+          font-weight: 850;
+        }
+
+        :global(.profile-department-option:hover),
+        :global(.profile-department-option.active) {
+          background: #f5efff;
+          color: var(--primary);
+        }
+
+        :global(.profile-department-empty) {
+          padding: 14px 10px;
+          color: #7a7188;
+          font-size: 13px;
+          font-weight: 800;
         }
 
         .account-form-error,
@@ -1389,15 +1726,16 @@ function MyPageContent({ user }: { user: UserProfile }) {
 
         .notification-settings-modal {
           display: grid;
-          width: min(1080px, calc(100vw - 40px));
-          max-height: min(860px, calc(100vh - 40px));
+          width: min(840px, calc(100vw - 36px));
+          max-height: min(760px, calc(100vh - 36px));
           overflow: auto;
-          gap: 24px;
+          gap: 18px;
           border: 1px solid rgba(222, 214, 237, 0.95);
           border-radius: 18px;
           background: #fff;
           box-shadow: 0 28px 80px rgba(35, 24, 45, 0.22);
-          padding: 48px;
+          padding: 32px;
+          animation: modalDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
 
         .notification-settings-header {
@@ -1931,7 +2269,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
           }
 
           .mypage-details div {
-            grid-template-columns: 1fr auto;
+            grid-template-columns: 1fr;
             gap: 5px;
             padding: 12px 8px;
           }
@@ -1943,12 +2281,6 @@ function MyPageContent({ user }: { user: UserProfile }) {
           .mypage-details dd {
             grid-column: 1;
             padding-left: 56px;
-          }
-
-          .mypage-details button,
-          .mypage-details a {
-            grid-column: 2;
-            grid-row: 1 / span 2;
           }
 
           .account-settings-modal {
@@ -2160,6 +2492,140 @@ function MyPageContent({ user }: { user: UserProfile }) {
       `}</style>
     </main>
   );
+}
+
+function DepartmentCombobox({
+  id,
+  label,
+  placeholder,
+  required = false,
+  hideLabel = false,
+  selectedDepartment,
+  query,
+  departments,
+  isLoading,
+  onSelect,
+  onQueryChange,
+  onClear
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  required?: boolean;
+  hideLabel?: boolean;
+  selectedDepartment: string;
+  query: string;
+  departments: string[];
+  isLoading: boolean;
+  onSelect: (value: string) => void;
+  onQueryChange: (value: string) => void;
+  onClear?: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement | null>(null);
+  const matchingDepartments = useMemo(() => {
+    const normalizedQuery = normalizeDepartmentQuery(query);
+
+    if (!normalizedQuery) {
+      return departments;
+    }
+
+    return departments.filter((item) => normalizeDepartmentQuery(item).includes(normalizedQuery));
+  }, [departments, query]);
+  const visibleDepartments = useMemo(() => matchingDepartments.slice(0, 30), [matchingDepartments]);
+  const summary = useMemo(() => {
+    if (isLoading) {
+      return "성신여대 학과 목록을 불러오는 중입니다.";
+    }
+
+    if (!normalizeDepartmentQuery(query)) {
+      return `등록 학과 ${departments.length.toLocaleString("ko-KR")}개`;
+    }
+
+    return `검색 결과 ${matchingDepartments.length.toLocaleString("ko-KR")}개`;
+  }, [departments.length, isLoading, matchingDepartments.length, query]);
+
+  useEffect(() => {
+    function closeDropdown(event: globalThis.PointerEvent) {
+      const target = event.target as Node;
+
+      if (searchRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeDropdown);
+    return () => document.removeEventListener("pointerdown", closeDropdown);
+  }, []);
+
+  return (
+    <div className="profile-department-combobox">
+      <div className="profile-department-label">
+        <label className={hideLabel ? "sr-only" : undefined} htmlFor={id}>{label}</label>
+        {!required && onClear ? <button type="button" onClick={onClear}>선택 안 함</button> : null}
+      </div>
+      <div className="profile-department-search" ref={searchRef}>
+        <input
+          id={id}
+          value={query}
+          placeholder={placeholder}
+          autoComplete="off"
+          required={required}
+          onFocus={() => setIsOpen(true)}
+          onChange={(event) => {
+            onQueryChange(event.target.value);
+            onSelect("");
+            setIsOpen(true);
+          }}
+        />
+        {isOpen ? (
+          <div className="profile-department-dropdown">
+            <div className="profile-department-summary">{summary}</div>
+            {!required && query ? (
+              <button
+                className="profile-department-option"
+                type="button"
+                onClick={() => {
+                  onSelect("");
+                  onQueryChange("");
+                  setIsOpen(false);
+                }}
+              >
+                선택 안 함
+              </button>
+            ) : null}
+            {visibleDepartments.map((item) => (
+              <button
+                className={item === selectedDepartment ? "profile-department-option active" : "profile-department-option"}
+                key={item}
+                type="button"
+                onClick={() => {
+                  onSelect(item);
+                  onQueryChange(item);
+                  setIsOpen(false);
+                }}
+              >
+                {item}
+              </button>
+            ))}
+            {!isLoading && !visibleDepartments.length ? (
+              <div className="profile-department-empty">일치하는 학과가 없습니다.</div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function normalizeDepartmentQuery(value: string) {
+  return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function isValidProfileEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function DepartmentNotificationToggle({

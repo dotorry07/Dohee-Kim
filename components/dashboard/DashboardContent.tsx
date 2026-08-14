@@ -41,16 +41,17 @@ function dashboardProfileSettingsKey(userId: string) {
 }
 
 function loadDashboardProfileSettings(user: DashboardUser): DashboardProfileSettings {
-  if (typeof window === "undefined") return { nickname: user.nickname || user.name || "새내기", image: "" };
+  if (typeof window === "undefined") return { nickname: user.nickname || user.name || "새내기", image: user.profileImageUrl ?? "" };
+  const defaultImage = user.profileImageUrl ?? "";
   try {
     const raw = window.localStorage.getItem(dashboardProfileSettingsKey(user.id));
     const parsed = raw ? JSON.parse(raw) as Partial<DashboardProfileSettings> : {};
     return {
-      nickname: parsed.nickname?.trim() || user.nickname || user.name || "새내기",
-      image: typeof parsed.image === "string" ? parsed.image : ""
+      nickname: user.nickname || parsed.nickname?.trim() || user.name || "새내기",
+      image: defaultImage || (typeof parsed.image === "string" ? parsed.image : "")
     };
   } catch {
-    return { nickname: user.nickname || user.name || "새내기", image: "" };
+    return { nickname: user.nickname || user.name || "새내기", image: defaultImage };
   }
 }
 
@@ -320,7 +321,7 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId, i
     return sections;
   }, { active: [], completed: [] });
   const firstScheduleLocation = todaySchedules.find((item) => item.location)?.location ?? null;
-  const storedStudentNumber = extractStudentNumber(user.id);
+  const storedStudentNumber = user.studentNumber || extractStudentNumber(user.id);
   const displayStudentNumber = storedStudentNumber || "학번 미등록";
   const displayGrade = storedStudentNumber ? getGradeFromStudentNumber(storedStudentNumber) : user.grade;
   const mealDay = [null, "MON", "TUE", "WED", "THU", "FRI", null][now.getDay()] as MealWeekday | null;
@@ -341,11 +342,11 @@ export function DashboardContent({ user, data, checklistItems, databaseUserId, i
 
     <section className={styles.twoGrid}>
       <article className={styles.card}><Heading icon="calendar" title="오늘의 일정" meta={isLoading ? "로딩 중" : `${todaySchedules.length}개`}/>
-        {isLoading ? <DashboardLoadingState /> : todaySchedules.length ? <>
+        {isLoading ? <DashboardLoadingState /> : scheduleSections.active.length ? <>
           <div className={styles.scheduleSections}>
             <section className={styles.scheduleSection}>
               <div className={styles.scheduleSectionHeading}><h3>진행 예정/진행 중인 일정</h3><span>{scheduleSections.active.length}개</span></div>
-              {scheduleSections.active.length ? <ol className={styles.scheduleList}>{scheduleSections.active.map((item) => <ScheduleItem item={item} key={item.id} state={item.state}/>)}</ol> : <div className={styles.scheduleSectionEmpty}>남은 일정이 없습니다.</div>}
+              <ol className={styles.scheduleList}>{scheduleSections.active.map((item) => <ScheduleItem item={item} key={item.id} state={item.state}/>)}</ol>
             </section>
             <section className={styles.scheduleSection}>
               <div className={styles.scheduleSectionHeading}><h3>진행 완료된 일정</h3><span>{scheduleSections.completed.length}개</span></div>

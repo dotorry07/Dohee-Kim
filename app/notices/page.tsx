@@ -1838,21 +1838,25 @@ export default function NoticesPage() {
           inset: 0;
           z-index: 100;
           display: grid;
+          align-items: center;
+          justify-items: center;
           place-items: center;
           background: rgba(30, 20, 40, 0.52);
-          padding: 24px;
+          padding: 18px;
+          animation: modalBackdropFade 180ms ease both;
         }
 
         .portal-guide-dialog {
           display: grid;
-          width: min(1180px, 94vw);
-          max-height: 92vh;
+          width: min(980px, 92vw);
+          max-height: 84vh;
           grid-template-rows: auto minmax(0, 1fr) auto;
           overflow: hidden;
           border: 1px solid #ddd3e7;
           border-radius: 16px;
           background: #fbf9ff;
           box-shadow: 0 26px 70px rgba(34, 20, 48, 0.28);
+          animation: modalDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
 
         .portal-guide-header {

@@ -23,6 +23,7 @@ const selectedTimetablesBySemesterKey = "newbie-on:selected-timetables-by-semest
 const legacyMonthlyTimetableKey = "newbie-on:monthly-timetable";
 const legacyImportantTimetablesKey = "newbie-on:important-timetables";
 const swipeNoticeFadeMs = 160;
+const swipeNoticeSeenKey = (userId: string) => `newbie-on:swipe-notice-seen:${userId}`;
 const currentSemester = "2026-2";
 const semesterOrder = {
   "1": 1,
@@ -92,6 +93,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
   const router = useRouter();
   const [timetableList, setTimetableList] = useState<Timetable[]>([]);
   const [deletingTimetableId, setDeletingTimetableId] = useState<string | null>(null);
+  const [isDeleteConfirmClosing, setIsDeleteConfirmClosing] = useState(false);
   const [selectedTimetableIdsBySemester, setSelectedTimetableIdsBySemester] = useState<Record<string, string>>({});
   const [pendingMonthlyTimetableId, setPendingMonthlyTimetableId] = useState<string | null>(null);
   const [pendingDownloadTimetableId, setPendingDownloadTimetableId] = useState<string | null>(null);
@@ -113,6 +115,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
   const pageRef = useRef<HTMLElement | null>(null);
   const stackRef = useRef<HTMLElement | null>(null);
   const swipeNoticeTimerRef = useRef<number | null>(null);
+  const deleteConfirmCloseTimerRef = useRef<number | null>(null);
   const shouldKeepInitialBottomScrollRef = useRef(true);
   const dragState = useRef({ active: false, startX: 0, lastX: 0, lastTime: 0, velocity: 0 });
   const deletingTimetable = timetableList.find((item) => item.id === deletingTimetableId);
@@ -209,7 +212,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
     const savedSelectedTimetablesBySemester = window.localStorage.getItem(selectedTimetablesBySemesterKey);
     const legacyMonthlyTimetableId = window.localStorage.getItem(legacyMonthlyTimetableKey);
     const legacyImportantIds = window.localStorage.getItem(legacyImportantTimetablesKey);
-    setIsSwipeNoticeOpen(true);
+    setIsSwipeNoticeOpen(window.localStorage.getItem(swipeNoticeSeenKey(user.id)) !== "true");
 
     if (initialSemester) {
       setSelectedSemester(initialSemester);
@@ -305,6 +308,9 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
       if (swipeNoticeTimerRef.current !== null) {
         window.clearTimeout(swipeNoticeTimerRef.current);
       }
+      if (deleteConfirmCloseTimerRef.current !== null) {
+        window.clearTimeout(deleteConfirmCloseTimerRef.current);
+      }
     };
   }, []);
 
@@ -314,6 +320,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
     }
 
     shouldKeepInitialBottomScrollRef.current = false;
+    window.localStorage.setItem(swipeNoticeSeenKey(user.id), "true");
     setIsSwipeNoticeClosing(true);
     swipeNoticeTimerRef.current = window.setTimeout(() => {
       setIsSwipeNoticeOpen(false);
@@ -422,6 +429,19 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
 
     void applyMonthlyTimetable(pendingMonthlyTimetableId);
     setPendingMonthlyTimetableId(null);
+  }
+
+  function closeDeleteTimetableConfirm() {
+    if (isDeleteConfirmClosing) {
+      return;
+    }
+
+    setIsDeleteConfirmClosing(true);
+    deleteConfirmCloseTimerRef.current = window.setTimeout(() => {
+      setDeletingTimetableId(null);
+      setIsDeleteConfirmClosing(false);
+      deleteConfirmCloseTimerRef.current = null;
+    }, 160);
   }
 
   function openCreateModal() {
@@ -816,8 +836,8 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
       {isMounted ? createPortal(addMenu, document.body) : null}
 
       {deletingTimetable ? (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setDeletingTimetableId(null);
+        <div className={isDeleteConfirmClosing ? "modal-backdrop closing" : "modal-backdrop"} role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) closeDeleteTimetableConfirm();
         }}>
           <section className="confirm-modal yes-no-confirm delete-confirm" role="dialog" aria-modal="true" aria-labelledby="delete-timetable-title">
             <div className="yes-no-confirm-mark delete-confirm-mark" aria-hidden="true">
@@ -829,7 +849,7 @@ function TimetableWorkspace({ user }: { user: UserProfile }) {
             </div>
             <div className="modal-actions">
               <button className="button" type="button" onClick={() => void deleteTimetable(deletingTimetable.id)}>삭제</button>
-              <button className="ghost-button" type="button" onClick={() => setDeletingTimetableId(null)}>취소</button>
+              <button className="ghost-button" type="button" onClick={closeDeleteTimetableConfirm}>취소</button>
             </div>
           </section>
         </div>

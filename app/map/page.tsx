@@ -284,6 +284,7 @@ function MapContent() {
         <button className={activeTab === "shortcuts" ? "map-view-tab active" : "map-view-tab"} type="button" onClick={() => setActiveTab("shortcuts")}>지름길</button>
       </div>
 
+      <div className="map-view-content" key={activeTab}>
       {activeTab === "map" ? (
         <>
           <section className="panel map-search-panel">
@@ -436,6 +437,7 @@ function MapContent() {
           </div>
         </section>
       )}
+      </div>
     </main>
   );
 }

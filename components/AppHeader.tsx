@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getStoredUser, signOut } from "@/lib/auth/client";
+import { getCurrentUser, onAuthStateChange, signOut } from "@/lib/auth/client";
+import type { UserProfile } from "@/lib/types";
 
 const links = [
   ["새내기 필독", "/must-read"],
@@ -16,12 +17,15 @@ const links = [
 
 export function AppHeader() {
   const pathname = usePathname();
-  const [userName, setUserName] = useState<string>("");
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
+  const profileMenuRef = useRef<HTMLSpanElement | null>(null);
   const linkRefs = useRef(new Map<string, HTMLAnchorElement>());
   const [indicator, setIndicator] = useState({ left: 0, width: 0, visible: false });
   const activeLink = links.find(([, href]) => pathname === href || pathname.startsWith(`${href}/`));
+  const profileInitial = (user?.nickname || user?.name || "새").slice(0, 1);
 
   const updateIndicator = useCallback(() => {
     const nav = navRef.current;
@@ -43,8 +47,47 @@ export function AppHeader() {
   }, [activeLink]);
 
   useEffect(() => {
-    setUserName(getStoredUser()?.name ?? "");
+    let active = true;
+    void getCurrentUser()
+      .then((currentUser) => {
+        if (active) setUser(currentUser);
+      })
+      .catch(() => {
+        if (active) setUser(null);
+      });
+
+    const unsubscribe = onAuthStateChange((currentUser) => {
+      setUser(currentUser);
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    const handleProfileUpdated = () => {
+      void getCurrentUser().then(setUser).catch(() => setUser(null));
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("newbie-on:mypage-profile-updated", handleProfileUpdated);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("newbie-on:mypage-profile-updated", handleProfileUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsProfileMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     updateIndicator();
@@ -57,11 +100,12 @@ export function AppHeader() {
     };
   }, [updateIndicator]);
 
-  const handleLogout = () => {
-    signOut();
-    setUserName("");
+  const handleLogout = async () => {
+    await signOut();
+    setUser(null);
+    setIsProfileMenuOpen(false);
     setIsLogoutConfirmOpen(false);
-    window.location.href = "/";
+    window.location.href = "/auth/login";
   };
 
   return (
@@ -101,14 +145,34 @@ export function AppHeader() {
                 </Link>
               );
             })}
-            {userName ? (
-              <span className="nav-auth-actions">
-                <button className="auth-button logout-auth-button" type="button" onClick={() => setIsLogoutConfirmOpen(true)}>
-                  로그아웃
+            {user ? (
+              <span className="nav-auth-actions" ref={profileMenuRef}>
+                <button
+                  className="nav-profile-button"
+                  type="button"
+                  aria-label="프로필 메뉴 열기"
+                  aria-haspopup="menu"
+                  aria-expanded={isProfileMenuOpen}
+                  onClick={() => setIsProfileMenuOpen((open) => !open)}
+                >
+                  <span
+                    className={user.profileImageUrl ? "nav-profile-avatar has-image" : "nav-profile-avatar"}
+                    style={user.profileImageUrl ? { backgroundImage: `url(${user.profileImageUrl})` } : undefined}
+                    aria-hidden="true"
+                  >
+                    {user.profileImageUrl ? null : profileInitial}
+                  </span>
                 </button>
-                <Link className={pathname.startsWith("/mypage") ? "auth-button active" : "auth-button"} href="/mypage">
-                  마이페이지
-                </Link>
+                {isProfileMenuOpen ? (
+                  <span className="nav-profile-menu" role="menu">
+                    <Link className={pathname.startsWith("/mypage") ? "nav-profile-menu-item active" : "nav-profile-menu-item"} href="/mypage" role="menuitem">
+                      <HeaderMenuIcon name="user" />마이페이지
+                    </Link>
+                    <button className="nav-profile-menu-item logout" type="button" role="menuitem" onClick={() => setIsLogoutConfirmOpen(true)}>
+                      <span className="nav-profile-menu-icon-box"><HeaderMenuIcon name="logout" /></span>로그아웃
+                    </button>
+                  </span>
+                ) : null}
               </span>
             ) : (
               <span className="nav-auth-actions">
@@ -136,5 +200,24 @@ export function AppHeader() {
         </div>
       ) : null}
     </>
+  );
+}
+
+function HeaderMenuIcon({ name }: { name: "logout" | "user" }) {
+  return (
+    <svg className="nav-profile-menu-icon" viewBox="0 0 24 24" aria-hidden="true">
+      {name === "user" ? (
+        <>
+          <circle cx="12" cy="8" r="3.2" />
+          <path d="M5.5 19c1.2-3.5 3.4-5.2 6.5-5.2s5.3 1.7 6.5 5.2" />
+        </>
+      ) : (
+        <>
+          <path d="M10 6H6.5v12H10" />
+          <path d="M13 8.5 16.5 12 13 15.5" />
+          <path d="M16.5 12H9.5" />
+        </>
+      )}
+    </svg>
   );
 }

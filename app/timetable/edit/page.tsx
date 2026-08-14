@@ -19,6 +19,9 @@ const plannerHours = Array.from({ length: 12 }, (_, index) => 9 + index);
 const plannerStartMinutes = plannerHours[0] * 60;
 const plannerEndMinutes = (plannerHours[plannerHours.length - 1] + 1) * 60;
 const plannerMinuteStep = 30;
+const plannerHeaderRowHeight = 44;
+const plannerHourRowHeight = 74;
+const electiveCoursesPerPage = 15;
 const periodTimes: Record<number, { start: string; end: string }> = {
   1: { start: "09:00", end: "09:50" },
   2: { start: "10:00", end: "10:50" },
@@ -75,6 +78,12 @@ interface SungshinCourseResponse {
   noExactMatch?: boolean;
 }
 
+type ElectiveCourseRow =
+  | { kind: "selected-sungshin"; course: SungshinCourse }
+  | { kind: "visible-sungshin"; course: SungshinCourse }
+  | { kind: "selected-existing"; classItem: ClassSchedule }
+  | { kind: "recommended"; course: Course };
+
 interface PersonalDragSelection {
   dayOfWeek: DayOfWeek;
   anchorMinutes: number;
@@ -113,7 +122,9 @@ interface TimetableEditDraft {
 
 type PlannerStep = "classes" | "personal" | "recommendations";
 type MajorTrack = "primary" | "minor" | "double";
-type ElectivePreference = "no-consecutive" | "no-first-period" | "needs-free-day" | "remote-only";
+type ElectivePreference = "no-consecutive" | "no-first-period";
+type LectureMode = "in-person" | "remote";
+type ElectiveDropdown = "free-days" | "lecture-mode";
 
 const yearOptions = [2026, 2025, 2024, 2023];
 const gradeOptions = [1, 2, 3, 4].map((item) => ({ value: String(item), label: `${item}학년` }));
@@ -133,13 +144,15 @@ const semesterOptions = [
   { value: "summer", label: "여름 계절학기" },
   { value: "1", label: "1학기" }
 ] as const;
-const electiveAreaOptions = ["인식과가치", "문학과예술", "사회의이해", "자연의설명", "공학과기술", "도전과실천"] as const;
+const electiveAreaOptions = ["인식과가치", "문학과예술", "사회의이해", "자연의설명", "공학과기술", "도전과실천", "기타"] as const;
 type ElectiveArea = (typeof electiveAreaOptions)[number];
 const electivePreferenceOptions: { value: ElectivePreference; label: string }[] = [
-  { value: "no-consecutive", label: "연강시러" },
-  { value: "no-first-period", label: "1교시 시러" },
-  { value: "needs-free-day", label: "공강필요" },
-  { value: "remote-only", label: "원격조아" }
+  { value: "no-consecutive", label: "연강 포함하기" },
+  { value: "no-first-period", label: "1교시 포함하기" }
+];
+const lectureModeOptions: { value: LectureMode; label: string }[] = [
+  { value: "in-person", label: "일반 강의" },
+  { value: "remote", label: "원격 강의" }
 ];
 const supportedSemesterOrder = ["1", "summer", "2", "winter"] as const;
 const currentSemester = "2026-2";
@@ -271,34 +284,178 @@ function getCourseRoomLabel(course: SungshinCourse) {
   return course.roomText.trim() || (isRemoteClass(course) ? "원격강의" : "강의실 미정");
 }
 
+function getSungshinCreditLabel(course: SungshinCourse) {
+  const creditValue = course.credits?.split("/")[0]?.trim() || "";
+  return creditValue ? `${creditValue}학점` : "학점 미정";
+}
+
+function getSungshinCourseClassification(course: SungshinCourse) {
+  return course.completionType || course.courseTypeName || (course.isGem ? "GEM" : "분류 미정");
+}
+
+function getSungshinCourseInfoItems(course: SungshinCourse) {
+  return [
+    course.professorName || "교수 미정",
+    course.scheduleText || "시간 미정",
+    getCourseRoomLabel(course),
+    course.departmentName || "학과 미정",
+    getSungshinCreditLabel(course),
+    getSungshinCourseClassification(course)
+  ];
+}
+
+function getRecommendedCourseInfoItems(course: Course) {
+  return [
+    course.professorName || "교수 미정",
+    getPeriodScheduleLabel(course),
+    [course.buildingName, course.roomName].filter(Boolean).join(" ") || "위치 미정",
+    course.department || "학과 미정",
+    "학점 미정",
+    course.requiredType === "required" ? "필수교양" : "교양"
+  ];
+}
+
+function getClassScheduleInfoItems(item: ClassSchedule) {
+  return [
+    item.professorName || "교수 미정",
+    getPeriodScheduleLabel(item),
+    [item.buildingName, item.roomName].filter(Boolean).join(" ") || "위치 미정",
+    getClassScheduleDepartment(item),
+    getClassCreditLabel(item) || "학점 미정",
+    getClassScheduleClassification(item)
+  ];
+}
+
+function normalizeCourseSearchQuery(query: string) {
+  return query.trim().toLowerCase();
+}
+
+function sungshinCourseMatchesSearch(course: SungshinCourse, normalizedQuery: string) {
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  return [
+    course.courseName,
+    course.classNumber,
+    course.courseCode,
+    course.professorName,
+    course.departmentName,
+    course.campusName,
+    getElectiveAreaName(course),
+    ...getSungshinCourseInfoItems(course)
+  ].join(" ").toLowerCase().includes(normalizedQuery);
+}
+
+function recommendedCourseMatchesSearch(course: Course, normalizedQuery: string) {
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  return [
+    course.courseName,
+    course.professorName,
+    course.department,
+    course.buildingName,
+    course.roomName,
+    ...getRecommendedCourseInfoItems(course)
+  ].join(" ").toLowerCase().includes(normalizedQuery);
+}
+
+function classScheduleMatchesSearch(item: ClassSchedule, normalizedQuery: string) {
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  return [
+    item.courseName,
+    item.courseId,
+    item.professorName,
+    item.buildingName,
+    item.roomName,
+    item.lessonTypeName,
+    item.memo,
+    ...getClassScheduleInfoItems(item)
+  ].join(" ").toLowerCase().includes(normalizedQuery);
+}
+
+function getClassScheduleDepartment(item: ClassSchedule) {
+  const departmentName = getClassMemoDepartment(item);
+
+  if (departmentName && !["필수 이수", "교양", "GEM"].some((label) => departmentName.includes(label))) {
+    return departmentName;
+  }
+
+  return "학과 미정";
+}
+
+function getClassScheduleClassification(item: ClassSchedule) {
+  const memoParts = (item.memo ?? "").split("·").map((part) => part.trim()).filter(Boolean);
+  const classification = memoParts.find((part) => !part.endsWith("학점") && part !== getClassScheduleDepartment(item));
+
+  if (classification?.includes("필수 이수")) {
+    return "필수교양";
+  }
+
+  if (classification) {
+    return classification;
+  }
+
+  if (item.memo?.includes("교양")) {
+    return "교양";
+  }
+
+  return "분류 미정";
+}
+
+function getPeriodScheduleLabel(item: { dayOfWeek: DayOfWeek; startTime: string; endTime: string }) {
+  const startPeriod = getPeriodNumber(item.startTime, "start");
+  const endPeriod = getPeriodNumber(item.endTime, "end");
+
+  if (!startPeriod || !endPeriod) {
+    return `${dayLabels[item.dayOfWeek]} ${item.startTime}-${item.endTime}`;
+  }
+
+  return `${dayLabels[item.dayOfWeek]}/${startPeriod === endPeriod ? startPeriod : `${startPeriod}-${endPeriod}`}`;
+}
+
+function getPeriodNumber(time: string, boundary: "start" | "end") {
+  const match = Object.entries(periodTimes).find(([, period]) => period[boundary] === time);
+  return match ? Number(match[0]) : null;
+}
+
 function normalizeElectiveAreaName(value?: string) {
   return (value ?? "").replace(/\s+/g, "");
 }
 
 function getElectiveAreaName(course: SungshinCourse) {
   const areaName = normalizeElectiveAreaName(course.characterSubjectAreaName) || normalizeElectiveAreaName(course.subjectAreaName);
-  return electiveAreaOptions.find((option) => normalizeElectiveAreaName(option) === areaName) ?? "";
+  return electiveAreaOptions.find((option) => option !== "기타" && normalizeElectiveAreaName(option) === areaName) ?? "기타";
 }
 
 function matchesElectivePreferences(
   course: SungshinCourse,
   preferences: ElectivePreference[],
+  selectedFreeDayCounts: number[],
+  selectedLectureModes: LectureMode[],
   classes: ClassSchedule[],
   personalSchedules: PersonalSchedule[]
 ) {
-  if (!preferences.length) {
-    return true;
-  }
-
   const parsedClasses = parseSungshinCourse(course, 0);
   const isRemote = !parsedClasses.length || parsedClasses.every(isRemoteClass);
 
-  if (preferences.includes("remote-only")) {
-    return isRemote;
+  if (selectedLectureModes.length !== lectureModeOptions.length) {
+    if (isRemote && !selectedLectureModes.includes("remote")) {
+      return false;
+    }
+
+    if (!isRemote && !selectedLectureModes.includes("in-person")) {
+      return false;
+    }
   }
 
   if (isRemote) {
-    return true;
+    return !selectedFreeDayCounts.length || selectedFreeDayCounts.includes(getFreeDayCountAfterAdding([], classes, personalSchedules));
   }
 
   if (preferences.includes("no-first-period") && parsedClasses.some((item) => item.startTime === periodTimes[1].start)) {
@@ -309,7 +466,7 @@ function matchesElectivePreferences(
     return false;
   }
 
-  if (preferences.includes("needs-free-day") && !keepsAtLeastOneFreeDay(parsedClasses, classes, personalSchedules)) {
+  if (selectedFreeDayCounts.length && !selectedFreeDayCounts.includes(getFreeDayCountAfterAdding(parsedClasses, classes, personalSchedules))) {
     return false;
   }
 
@@ -327,7 +484,7 @@ function hasAdjacentClass(classItem: ClassSchedule, classes: ClassSchedule[]) {
   ));
 }
 
-function keepsAtLeastOneFreeDay(newClasses: ClassSchedule[], classes: ClassSchedule[], personalSchedules: PersonalSchedule[]) {
+function getFreeDayCountAfterAdding(newClasses: ClassSchedule[], classes: ClassSchedule[], personalSchedules: PersonalSchedule[]) {
   const busyDays = new Set<string>();
 
   [...classes, ...newClasses].forEach((item) => {
@@ -340,7 +497,7 @@ function keepsAtLeastOneFreeDay(newClasses: ClassSchedule[], classes: ClassSched
     busyDays.add(item.dayOfWeek);
   });
 
-  return weekdays.some((day) => !busyDays.has(day));
+  return weekdays.filter((day) => !busyDays.has(day)).length;
 }
 
 function getClassScheduleLabel(item: ClassSchedule) {
@@ -387,6 +544,91 @@ function matchesSelectedMajorGrade(course: SungshinCourse, selectedGrade: string
   }
 
   return areaGrade === selectedGrade;
+}
+
+function getCourseAudienceMismatch(course: SungshinCourse, selectedDepartments: string[], selectedGrade: string) {
+  const remark = course.remarkText?.trim();
+
+  if (!remark) {
+    return null;
+  }
+
+  const normalizedRemark = normalizeAudienceText(remark);
+
+  if (/(누구나|누구든지)수강가능|anyonecan|any student can/i.test(normalizedRemark)) {
+    return null;
+  }
+
+  const gradeMismatch = getGradeMismatchReason(normalizedRemark, selectedGrade);
+
+  if (gradeMismatch) {
+    return gradeMismatch;
+  }
+
+  if (isInternationalOnlyRemark(normalizedRemark)) {
+    return "외국인·국제학생 전용 강좌입니다.";
+  }
+
+  const departmentMismatch = getDepartmentMismatchReason(remark, selectedDepartments);
+
+  if (departmentMismatch) {
+    return departmentMismatch;
+  }
+
+  return null;
+}
+
+function normalizeAudienceText(value: string) {
+  return value.replace(/\s+/g, "").toLowerCase();
+}
+
+function getGradeMismatchReason(normalizedRemark: string, selectedGrade: string) {
+  const gradeLabels: Record<string, string[]> = {
+    "1": ["1학년", "first-year", "firstyear"],
+    "2": ["2학년", "second-year", "secondyear"],
+    "3": ["3학년", "third-year", "thirdyear"],
+    "4": ["4학년", "fourth-year", "fourthyear"]
+  };
+  const exclusiveGradeLabels = Object.entries(gradeLabels)
+    .filter(([, labels]) => labels.some((label) => normalizedRemark.includes(label)))
+    .map(([grade]) => grade);
+
+  if (!exclusiveGradeLabels.length || !/(전용|only|exclusively|대상)/i.test(normalizedRemark)) {
+    return null;
+  }
+
+  if (exclusiveGradeLabels.includes(selectedGrade)) {
+    return null;
+  }
+
+  return `${exclusiveGradeLabels.map((grade) => `${grade}학년`).join(", ")} 대상 강좌입니다.`;
+}
+
+function isInternationalOnlyRemark(normalizedRemark: string) {
+  return (
+    /(외국인|국제학생|internationalstudent|internationalstudents)/i.test(normalizedRemark)
+    && /(전용|신청불가|수강불가|cannotregister|noteligible|only)/i.test(normalizedRemark)
+  );
+}
+
+function getDepartmentMismatchReason(remark: string, selectedDepartments: string[]) {
+  const hasExclusiveRestriction = /(전용|대상|신청불가|수강불가|타\s*학과|other departments|not eligible|cannot register|only for)/i.test(remark);
+
+  if (!hasExclusiveRestriction) {
+    return null;
+  }
+
+  const mentionedDepartments: string[] = sungshinDepartments.filter((departmentName) => remark.includes(departmentName));
+
+  if (!mentionedDepartments.length) {
+    return null;
+  }
+
+  if (selectedDepartments.some((departmentName) => mentionedDepartments.includes(departmentName))) {
+    return null;
+  }
+
+  return `${mentionedDepartments.join(", ")} 대상 강좌입니다.`;
 }
 
 function getRequiredClassId(courseName: string) {
@@ -653,7 +895,12 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   const [isCourseLoading, setIsCourseLoading] = useState(false);
   const [electiveCourses, setElectiveCourses] = useState<SungshinCourse[]>([]);
   const [selectedElectiveAreas, setSelectedElectiveAreas] = useState<string[]>([...electiveAreaOptions]);
-  const [selectedElectivePreferences, setSelectedElectivePreferences] = useState<ElectivePreference[]>([]);
+  const [selectedElectivePreferences, setSelectedElectivePreferences] = useState<ElectivePreference[]>(["no-consecutive", "no-first-period"]);
+  const [selectedFreeDayCounts, setSelectedFreeDayCounts] = useState<number[]>([]);
+  const [selectedLectureModes, setSelectedLectureModes] = useState<LectureMode[]>(["in-person", "remote"]);
+  const [openElectiveDropdown, setOpenElectiveDropdown] = useState<ElectiveDropdown | null>(null);
+  const [electiveSearchQuery, setElectiveSearchQuery] = useState("");
+  const [electiveCoursePage, setElectiveCoursePage] = useState(1);
   const [isElectiveCourseLoading, setIsElectiveCourseLoading] = useState(false);
   const [requiredCourseOptions, setRequiredCourseOptions] = useState<RequiredCourseTimeOption[]>([]);
   const [isRequiredCourseLoading, setIsRequiredCourseLoading] = useState(false);
@@ -667,6 +914,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
   const [activeStep, setActiveStep] = useState<PlannerStep>("classes");
   const [isMounted, setIsMounted] = useState(false);
   const isSavingTimetableRef = useRef(false);
+  const electivePreferenceRowRef = useRef<HTMLDivElement | null>(null);
   const isDatabaseLoading = isInitialPageLoading || isRequiredCourseLoading || isCourseLoading || isElectiveCourseLoading || isRemoteTimetableLoading;
   const requiredCourses = useMemo(() => getRequiredCoursesForDepartment(department, semester), [department, semester]);
   const activeStepIndex = plannerSteps.findIndex((step) => step.id === activeStep);
@@ -692,44 +940,67 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     () => new Set(requiredCourseOptionsByName.map(({ courseName }) => courseName)),
     [requiredCourseOptionsByName]
   );
+  const freeDayOptions = useMemo(
+    () => Array.from(
+      { length: getFreeDayCountAfterAdding([], classes, personalSchedules) },
+      (_, index) => index + 1
+    ),
+    [classes, personalSchedules]
+  );
+  const freeDayFilterLabel = selectedFreeDayCounts.length
+    ? selectedFreeDayCounts.slice().sort((left, right) => left - right).map((count) => `${count}일`).join(",")
+    : "공강 일수";
+  const lectureModeFilterLabel = selectedLectureModes.length === lectureModeOptions.length
+    ? "일반,원격"
+    : selectedLectureModes.length
+      ? lectureModeOptions
+        .filter((option) => selectedLectureModes.includes(option.value))
+        .map((option) => option.value === "in-person" ? "일반" : "원격")
+        .join(",")
+      : "수업 방식";
   const visibleElectiveCourses = useMemo(
     () => electiveCourses
-      .filter((course) => !isOwnDepartmentGemCourse(course))
+      .filter((course) => !isSelectedMajorNonGemCourse(course))
       .filter((course) => !isRequiredElectiveCourse(course))
       .filter((course) => !isSungshinCourseSelected(course))
+      .filter((course) => !getCourseAudienceMismatch(course, [department], String(grade)))
       .filter((course) => {
         return selectedElectiveAreas.length === electiveAreaOptions.length || selectedElectiveAreas.includes(getElectiveAreaName(course));
       })
       .filter((course) => {
-        return matchesElectivePreferences(course, selectedElectivePreferences, classes, personalSchedules);
+        return matchesElectivePreferences(course, selectedElectivePreferences, selectedFreeDayCounts, selectedLectureModes, classes, personalSchedules);
       })
+      .filter((course) => sungshinCourseMatchesSearch(course, normalizeCourseSearchQuery(electiveSearchQuery)))
       .filter((course) => !sungshinCourseConflictsWithSchedule(course)),
-    [classes, department, electiveCourses, personalSchedules, requiredCourses, selectedElectiveAreas, selectedElectivePreferences]
+    [classes, department, electiveCourses, electiveSearchQuery, grade, personalSchedules, requiredCourses, selectedElectiveAreas, selectedElectivePreferences, selectedFreeDayCounts, selectedLectureModes, selectedMajorDepartments]
   );
   const selectedSungshinElectiveCourses = useMemo(
     () => electiveCourses
-      .filter((course) => !isOwnDepartmentGemCourse(course))
+      .filter((course) => !isSelectedMajorNonGemCourse(course))
       .filter((course) => !isRequiredElectiveCourse(course))
       .filter(isSungshinCourseSelected)
+      .filter((course) => sungshinCourseMatchesSearch(course, normalizeCourseSearchQuery(electiveSearchQuery)))
       .sort((left, right) => (
         Number(Boolean(right.isGem)) - Number(Boolean(left.isGem))
         || left.courseName.localeCompare(right.courseName, "ko")
         || left.classNumber.localeCompare(right.classNumber, "ko")
       )),
-    [classes, electiveCourses, department, requiredCourses]
+    [classes, electiveCourses, electiveSearchQuery, department, requiredCourses, selectedMajorDepartments]
   );
   const selectedExistingElectiveClasses = useMemo(
     () => classes.filter((item) => (
       isClassShownAsSelectedElective(item)
       && !selectedSungshinElectiveCourses.some((course) => classMatchesSungshinCourse(item, course))
+      && classScheduleMatchesSearch(item, normalizeCourseSearchQuery(electiveSearchQuery))
     )),
-    [classes, requiredCourses, selectedSungshinElectiveCourses]
+    [classes, electiveSearchQuery, requiredCourses, selectedSungshinElectiveCourses]
   );
   const recommendedElectiveCourses = useMemo(
     () => {
       const selectableCourses = courses
         .filter((course) => course.requiredType === "elective")
         .filter((course) => isRecommendedCourseSelected(course) || !courseConflictsWithSchedule(course))
+        .filter((course) => recommendedCourseMatchesSearch(course, normalizeCourseSearchQuery(electiveSearchQuery)))
         .sort((left, right) => (
           Number(isRecommendedCourseSelected(right)) - Number(isRecommendedCourseSelected(left))
           || left.courseName.localeCompare(right.courseName, "ko")
@@ -742,7 +1013,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         ...unselectedCourses.slice(0, Math.max(0, 6 - selectedCourses.length))
       ];
     },
-    [classes, personalSchedules]
+    [classes, electiveSearchQuery, personalSchedules]
   );
   const selectedElectiveClasses = useMemo(
     () => {
@@ -771,10 +1042,62 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     [classes, electiveCourses, recommendedElectiveCourses]
   );
   const selectedElectiveDisplayCount = selectedSungshinElectiveCourses.length + selectedExistingElectiveClasses.length;
+  const electiveCourseRows = useMemo<ElectiveCourseRow[]>(() => {
+    if (selectedElectiveDisplayCount || visibleElectiveCourses.length) {
+      return [
+        ...selectedSungshinElectiveCourses.map((course): ElectiveCourseRow => ({ kind: "selected-sungshin", course })),
+        ...selectedExistingElectiveClasses.map((classItem): ElectiveCourseRow => ({ kind: "selected-existing", classItem })),
+        ...visibleElectiveCourses.map((course): ElectiveCourseRow => ({ kind: "visible-sungshin", course }))
+      ];
+    }
+
+    if (electiveCourses.length) {
+      return [];
+    }
+
+    return recommendedElectiveCourses.map((course): ElectiveCourseRow => ({ kind: "recommended", course }));
+  }, [electiveCourses.length, recommendedElectiveCourses, selectedElectiveDisplayCount, selectedExistingElectiveClasses, selectedSungshinElectiveCourses, visibleElectiveCourses]);
+  const electiveCourseTotalPages = Math.max(1, Math.ceil(electiveCourseRows.length / electiveCoursesPerPage));
+  const safeElectiveCoursePage = Math.min(electiveCoursePage, electiveCourseTotalPages);
+  const electiveCoursePageStart = (safeElectiveCoursePage - 1) * electiveCoursesPerPage;
+  const paginatedElectiveCourseRows = electiveCourseRows.slice(electiveCoursePageStart, electiveCoursePageStart + electiveCoursesPerPage);
+  const electivePaginationItems = getTimetablePaginationItems(safeElectiveCoursePage, electiveCourseTotalPages);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  useEffect(() => {
+    setElectiveCoursePage(1);
+  }, [activeStep, electiveSearchQuery, selectedElectiveAreas, selectedElectivePreferences, selectedFreeDayCounts, selectedLectureModes]);
+
+  useEffect(() => {
+    setSelectedFreeDayCounts((current) => current.filter((count) => freeDayOptions.includes(count)));
+  }, [freeDayOptions]);
+
+  useEffect(() => {
+    function closeElectiveDropdown(event: MouseEvent) {
+      const target = event.target;
+
+      if (target instanceof Node && electivePreferenceRowRef.current?.contains(target)) {
+        return;
+      }
+
+      setOpenElectiveDropdown(null);
+    }
+
+    document.addEventListener("mousedown", closeElectiveDropdown);
+
+    return () => {
+      document.removeEventListener("mousedown", closeElectiveDropdown);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (electiveCoursePage > electiveCourseTotalPages) {
+      setElectiveCoursePage(electiveCourseTotalPages);
+    }
+  }, [electiveCoursePage, electiveCourseTotalPages]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -1329,7 +1652,15 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
 
   function getRequiredOptionLabel(option: RequiredCourseTimeOption) {
     const sectionCountLabel = sectionMergedRequiredCourses.includes(option.courseName) && option.count > 1 ? `${option.count}개 분반` : "";
-    return [option.professorName, option.scheduleText, option.campusName, option.roomLabel, sectionCountLabel].filter(Boolean).join(" · ");
+    return [
+      option.professorName || "교수 미정",
+      option.scheduleText || "시간 미정",
+      option.roomLabel || option.campusName || "위치 미정",
+      option.course.departmentName,
+      getSungshinCreditLabel(option.course),
+      option.course.completionType,
+      sectionCountLabel
+    ].filter(Boolean).join(" · ");
   }
 
   function getSelectedRequiredTimeLabel(courseName: string) {
@@ -1443,7 +1774,9 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
         .forEach((course) => uniqueCourses.set(course.id, course));
 
       const nextCourses = [...uniqueCourses.values()].sort((left, right) => (
-        left.departmentName.localeCompare(right.departmentName, "ko")
+        Number(Boolean(getCourseAudienceMismatch(left, selectedMajorDepartments, selectedMajorGrade)))
+        - Number(Boolean(getCourseAudienceMismatch(right, selectedMajorDepartments, selectedMajorGrade)))
+        || left.departmentName.localeCompare(right.departmentName, "ko")
         || left.courseName.localeCompare(right.courseName, "ko")
         || left.classNumber.localeCompare(right.classNumber, "ko")
       ));
@@ -1545,8 +1878,8 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     ));
   }
 
-  function isOwnDepartmentGemCourse(course: SungshinCourse) {
-    return Boolean(course.isGem) && course.departmentName === department;
+  function isSelectedMajorNonGemCourse(course: SungshinCourse) {
+    return !course.isGem && selectedMajorDepartments.includes(course.departmentName);
   }
 
   function isRequiredElectiveCourse(course: SungshinCourse) {
@@ -1611,6 +1944,30 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     });
   }
 
+  function toggleFreeDayCount(count: number, checked: boolean) {
+    setSelectedFreeDayCounts((current) => {
+      if (checked) {
+        return current.includes(count) ? current : [...current, count].sort((left, right) => left - right);
+      }
+
+      return current.filter((item) => item !== count);
+    });
+  }
+
+  function toggleLectureMode(mode: LectureMode, checked: boolean) {
+    setSelectedLectureModes((current) => {
+      if (checked) {
+        return current.includes(mode) ? current : [...current, mode];
+      }
+
+      return current.filter((item) => item !== mode);
+    });
+  }
+
+  function toggleElectiveDropdown(dropdown: ElectiveDropdown) {
+    setOpenElectiveDropdown((current) => current === dropdown ? null : dropdown);
+  }
+
   function requestSemesterChange(nextSemester: string) {
     const normalizedNextSemester = normalizeSupportedSemester(nextSemester);
 
@@ -1633,7 +1990,9 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
     setSungshinCourses([]);
     setElectiveCourses([]);
     setSelectedElectiveAreas([...electiveAreaOptions]);
-    setSelectedElectivePreferences([]);
+    setSelectedElectivePreferences(["no-consecutive", "no-first-period"]);
+    setSelectedFreeDayCounts([]);
+    setSelectedLectureModes(["in-person", "remote"]);
     setError("");
     setPendingSemester(null);
   }
@@ -1801,20 +2160,25 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                     </div>
                     {sungshinCourses.map((course) => {
                       const isSelected = isSungshinCourseSelected(course);
+                      const audienceMismatch = getCourseAudienceMismatch(course, selectedMajorDepartments, selectedMajorGrade);
 
                       return (
-                        <label className="checkbox-card" key={course.id}>
+                        <label className={`checkbox-card${audienceMismatch ? " audience-mismatch" : ""}`} key={course.id}>
                           <input
                             type="checkbox"
                             checked={isSelected}
+                            disabled={Boolean(audienceMismatch)}
                             onChange={(event) => toggleSungshinCourse(course, event.target.checked)}
                           />
                           <span>
                             <strong>
-                              [{course.courseName}] - {course.professorName || "교수 미정"}
+                              {course.courseName}
                               {course.classNumber && course.classNumber !== "001" ? ` (${course.classNumber})` : ""}
                             </strong>
-                            <small>{[course.isGem ? "GEM" : "", course.departmentName, course.scheduleText || "시간 미정", getCourseRoomLabel(course)].filter(Boolean).join(" · ")}</small>
+                            <small>{getSungshinCourseInfoItems(course).join(" · ")}</small>
+                            {audienceMismatch ? (
+                              <em className="course-audience-warning">분반 기준에 맞지 않습니다 : {audienceMismatch}</em>
+                            ) : null}
                           </span>
                         </label>
                       );
@@ -1834,7 +2198,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
               {classes.length ? classes.map((item) => (
                 <div className="list-item" key={item.id}>
                   <strong>{item.courseName}</strong>
-                  <span className="muted">{[item.professorName, getClassScheduleLabel(item), getClassCreditLabel(item), item.memo].filter(Boolean).join(" · ")}</span>
+                  <span className="muted">{getClassScheduleInfoItems(item).join(" · ")}</span>
                 </div>
               )) : (
                 <div className="list-item">
@@ -1848,9 +2212,12 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
       ) : null}
 
       {activeStep === "personal" ? (
-        <section className="panel">
+        <section className="panel timetable-recommend-panel timetable-personal-panel">
           <div className="section-title">
-            <h2>개인 일정</h2>
+            <div className="timetable-recommend-title">
+              <span aria-hidden="true" />
+              <h2>개인 일정</h2>
+            </div>
             <span className="badge">드래그로 추가</span>
           </div>
           <p className="section-note">원하는 시간대를 드래그한 뒤 놓으면 일정 이름을 정할 수 있습니다.</p>
@@ -1892,83 +2259,147 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                   <span aria-hidden="true" />
                   <h2>추천 교양 목록</h2>
                 </div>
-                <span className="badge">{selectedElectiveDisplayCount + (visibleElectiveCourses.length || recommendedElectiveCourses.length)}개 표시</span>
+                <span className="badge">{electiveCourseRows.length}개 표시</span>
               </div>
-              <div className="timetable-recommend-filter-row timetable-recommend-area-row" aria-label="교양 및 GEM 영역 필터">
-                {electiveAreaOptions.map((area) => (
-                  <label className="timetable-recommend-chip" key={area}>
-                    <input
-                      type="checkbox"
-                      checked={selectedElectiveAreas.includes(area)}
-                      onChange={(event) => toggleElectiveArea(area, event.target.checked)}
-                    />
-                    <ElectiveAreaIcon area={area} />
-                    <span>
-                      <strong>{area}</strong>
-                    </span>
-                  </label>
-                ))}
-              </div>
-              <div className="timetable-recommend-filter-row timetable-recommend-preference-row" aria-label="교양 추천 선호 조건">
-                {electivePreferenceOptions.map((option) => (
-                  <label className="timetable-recommend-chip timetable-recommend-preference-chip" key={option.value}>
-                    <input
-                      type="checkbox"
-                      checked={selectedElectivePreferences.includes(option.value)}
-                      onChange={(event) => toggleElectivePreference(option.value, event.target.checked)}
-                    />
-                    <span>
-                      <strong>{option.label}</strong>
-                    </span>
-                  </label>
-                ))}
+              <form className="timetable-recommend-search-box" onSubmit={(event) => event.preventDefault()}>
+                <input
+                  aria-label="추천 교양 검색"
+                  placeholder="과목명, 교수명, 영역, 캠퍼스를 검색하세요"
+                  value={electiveSearchQuery}
+                  onChange={(event) => setElectiveSearchQuery(event.target.value)}
+                />
+                <button type="submit">
+                  <span className="search-icon" aria-hidden="true" />
+                  검색
+                </button>
+              </form>
+              <div className="timetable-recommend-filter-panel">
+                <div className="timetable-recommend-filter-row timetable-recommend-area-row" aria-label="교양 및 GEM 영역 필터">
+                  {electiveAreaOptions.map((area) => (
+                    <label className="timetable-recommend-chip" key={area}>
+                      <input
+                        type="checkbox"
+                        checked={selectedElectiveAreas.includes(area)}
+                        onChange={(event) => toggleElectiveArea(area, event.target.checked)}
+                      />
+                      <ElectiveAreaIcon area={area} />
+                      <span>
+                        <strong>{area}</strong>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div className="timetable-recommend-filter-row timetable-recommend-preference-row" ref={electivePreferenceRowRef} aria-label="교양 추천 선호 조건">
+                  {electivePreferenceOptions.map((option) => (
+                    <label className="timetable-recommend-checkbox-filter" key={option.value}>
+                      <input
+                        type="checkbox"
+                        checked={selectedElectivePreferences.includes(option.value)}
+                        onChange={(event) => toggleElectivePreference(option.value, event.target.checked)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                  <details className="timetable-recommend-filter-dropdown" open={openElectiveDropdown === "free-days"}>
+                    <summary onClick={(event) => {
+                      event.preventDefault();
+                      toggleElectiveDropdown("free-days");
+                    }}>
+                      <span>{freeDayFilterLabel}</span>
+                    </summary>
+                    <div className="timetable-recommend-dropdown-menu">
+                      {freeDayOptions.length ? freeDayOptions.map((count) => (
+                        <label key={count}>
+                          <input
+                            type="checkbox"
+                            checked={selectedFreeDayCounts.includes(count)}
+                            onChange={(event) => toggleFreeDayCount(count, event.target.checked)}
+                          />
+                          <span>{count}일</span>
+                        </label>
+                      )) : (
+                        <span className="timetable-recommend-dropdown-empty">선택 가능한 공강 없음</span>
+                      )}
+                    </div>
+                  </details>
+                  <details className="timetable-recommend-filter-dropdown" open={openElectiveDropdown === "lecture-mode"}>
+                    <summary onClick={(event) => {
+                      event.preventDefault();
+                      toggleElectiveDropdown("lecture-mode");
+                    }}>
+                      <span>{lectureModeFilterLabel}</span>
+                    </summary>
+                    <div className="timetable-recommend-dropdown-menu">
+                      {lectureModeOptions.map((option) => (
+                        <label key={option.value}>
+                          <input
+                            type="checkbox"
+                            checked={selectedLectureModes.includes(option.value)}
+                            onChange={(event) => toggleLectureMode(option.value, event.target.checked)}
+                          />
+                          <span>{option.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </details>
+                </div>
               </div>
               <div className="timetable-recommend-course-list">
                 {isElectiveCourseLoading ? (
                   <div className="timetable-recommend-course-row">
                     <strong>교양 강좌를 불러오는 중입니다.</strong>
                   </div>
-                ) : selectedElectiveDisplayCount || visibleElectiveCourses.length ? (
+                ) : paginatedElectiveCourseRows.length ? (
                   <>
-                    {selectedSungshinElectiveCourses.map((course) => (
-                      <label className="timetable-recommend-course-row selected-recommend-course-row" key={`selected-${course.id}`}>
-                        <input
-                          type="checkbox"
-                          checked
-                          onChange={(event) => toggleSungshinCourse(course, event.target.checked)}
-                        />
-                        <span>
-                          <strong>{course.courseName}{course.classNumber && course.classNumber !== "001" ? ` (${course.classNumber})` : ""}</strong>
-                          <em>{course.isGem ? "GEM" : "교양"}</em>
-                          <small>
-                            {[course.completionType, course.subjectAreaName, course.departmentName, course.professorName, course.scheduleText || "시간 미정", getCourseRoomLabel(course)].filter(Boolean).join(" · ")}
-                          </small>
-                        </span>
-                      </label>
-                    ))}
-                    {selectedExistingElectiveClasses.map((classItem) => (
-                      <label className="timetable-recommend-course-row selected-recommend-course-row" key={`selected-existing-${classItem.id}`}>
-                        <input
-                          type="checkbox"
-                          checked
-                          onChange={(event) => {
-                            if (!event.target.checked) {
-                              removeExistingElectiveClass(classItem.id);
-                            }
-                          }}
-                        />
-                        <span>
-                          <strong>{classItem.courseName}</strong>
-                          <em>{classItem.memo?.includes("GEM") ? "GEM" : "교양"}</em>
-                          <small>{[classItem.professorName, getClassScheduleLabel(classItem), classItem.memo].filter(Boolean).join(" · ")}</small>
-                        </span>
-                      </label>
-                    ))}
-                    {visibleElectiveCourses.map((course) => {
-                      const isSelected = isSungshinCourseSelected(course);
+                    {paginatedElectiveCourseRows.map((row) => {
+                      if (row.kind === "selected-existing") {
+                        const classItem = row.classItem;
+
+                        return (
+                          <label className="timetable-recommend-course-row selected-recommend-course-row" key={`selected-existing-${classItem.id}`}>
+                            <input
+                              type="checkbox"
+                              checked
+                              onChange={(event) => {
+                                if (!event.target.checked) {
+                                  removeExistingElectiveClass(classItem.id);
+                                }
+                              }}
+                            />
+                            <span>
+                              <strong>{classItem.courseName}</strong>
+                              <em>{classItem.memo?.includes("GEM") ? "GEM" : "교양"}</em>
+                              <small>{getClassScheduleInfoItems(classItem).join(" · ")}</small>
+                            </span>
+                          </label>
+                        );
+                      }
+
+                      if (row.kind === "recommended") {
+                        const course = row.course;
+                        const isSelected = isRecommendedCourseSelected(course);
+
+                        return (
+                          <label className="timetable-recommend-course-row" key={course.id}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(event) => toggleRecommendedCourse(course, event.target.checked)}
+                            />
+                            <span>
+                              <strong>{course.courseName}</strong>
+                              <em>교양</em>
+                              <small>{getRecommendedCourseInfoItems(course).join(" · ")}</small>
+                            </span>
+                          </label>
+                        );
+                      }
+
+                      const course = row.course;
+                      const isSelected = row.kind === "selected-sungshin" || isSungshinCourseSelected(course);
 
                       return (
-                        <label className="timetable-recommend-course-row" key={course.id}>
+                        <label className={row.kind === "selected-sungshin" ? "timetable-recommend-course-row selected-recommend-course-row" : "timetable-recommend-course-row"} key={row.kind === "selected-sungshin" ? `selected-${course.id}` : course.id}>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -1976,9 +2407,9 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                           />
                           <span>
                             <strong>{course.courseName}{course.classNumber && course.classNumber !== "001" ? ` (${course.classNumber})` : ""}</strong>
-                            <em>교양</em>
+                            <em>{course.isGem ? "GEM" : "교양"}</em>
                             <small>
-                              {[course.isGem ? "GEM" : "", course.completionType, course.subjectAreaName, course.departmentName, course.professorName, course.scheduleText || "시간 미정", getCourseRoomLabel(course)].filter(Boolean).join(" · ")}
+                              {getSungshinCourseInfoItems(course).join(" · ")}
                             </small>
                           </span>
                         </label>
@@ -1987,38 +2418,53 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                   </>
                 ) : electiveCourses.length ? (
                   <div className="timetable-recommend-course-row">
-                    <strong>조건에 맞는 교양 강좌가 없습니다.</strong>
-                    <span className="muted">교양 종류 선택을 늘리거나 앞 단계의 시간표를 조정해보세요.</span>
+                    <strong>{electiveSearchQuery.trim() ? "검색 결과가 없습니다." : "조건에 맞는 교양 강좌가 없습니다."}</strong>
+                    <span className="muted">{electiveSearchQuery.trim() ? "검색어를 바꾸거나 교양 종류 선택을 늘려보세요." : "교양 종류 선택을 늘리거나 앞 단계의 시간표를 조정해보세요."}</span>
                   </div>
                 ) : (
-                  <>
-                    {recommendedElectiveCourses.map((course) => {
-                      const isSelected = isRecommendedCourseSelected(course);
-
-                      return (
-                        <label className="timetable-recommend-course-row" key={course.id}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(event) => toggleRecommendedCourse(course, event.target.checked)}
-                          />
-                          <span>
-                            <strong>{course.courseName}</strong>
-                            <em>교양</em>
-                            <small>{course.professorName} · {dayLabels[course.dayOfWeek]} {course.startTime}-{course.endTime}</small>
-                          </span>
-                        </label>
-                      );
-                    })}
-                    {!recommendedElectiveCourses.length ? (
-                      <div className="timetable-recommend-course-row">
-                        <strong>조건에 맞는 교양 강좌가 없습니다.</strong>
-                        <span className="muted">앞 단계의 시간표나 개인 일정을 조정해보세요.</span>
-                      </div>
-                    ) : null}
-                  </>
+                  <div className="timetable-recommend-course-row">
+                    <strong>{electiveSearchQuery.trim() ? "검색 결과가 없습니다." : "조건에 맞는 교양 강좌가 없습니다."}</strong>
+                    <span className="muted">{electiveSearchQuery.trim() ? "다른 과목명이나 교수명으로 검색해보세요." : "앞 단계의 시간표나 개인 일정을 조정해보세요."}</span>
+                  </div>
                 )}
               </div>
+              {electiveCourseRows.length > electiveCoursesPerPage ? (
+                <nav className="board-pagination timetable-recommend-pagination" aria-label="추천 교양 페이지">
+                  <button
+                    className="board-page-button timetable-recommend-page-arrow"
+                    type="button"
+                    aria-label="추천 교양 이전 페이지"
+                    disabled={safeElectiveCoursePage === 1}
+                    onClick={() => setElectiveCoursePage((page) => Math.max(1, page - 1))}
+                  >
+                    ‹
+                  </button>
+                  {electivePaginationItems.map((item) => (
+                    typeof item === "number" ? (
+                      <button
+                        className={safeElectiveCoursePage === item ? "board-page-button active" : "board-page-button"}
+                        type="button"
+                        key={item}
+                        aria-current={safeElectiveCoursePage === item ? "page" : undefined}
+                        onClick={() => setElectiveCoursePage(item)}
+                      >
+                        {item}
+                      </button>
+                    ) : (
+                      <span className="board-pagination-ellipsis" aria-hidden="true" key={item}>···</span>
+                    )
+                  ))}
+                  <button
+                    className="board-page-button timetable-recommend-page-arrow"
+                    type="button"
+                    aria-label="추천 교양 다음 페이지"
+                    disabled={safeElectiveCoursePage === electiveCourseTotalPages}
+                    onClick={() => setElectiveCoursePage((page) => Math.min(electiveCourseTotalPages, page + 1))}
+                  >
+                    ›
+                  </button>
+                </nav>
+              ) : null}
             </article>
 
           </section>
@@ -2032,7 +2478,7 @@ function TimetableEditWorkspace({ user }: { user: UserProfile }) {
                 {selectedElectiveClasses.map((item) => (
                   <div className="list-item" key={item.id}>
                     <strong>{item.courseName}</strong>
-                    <span className="muted">{[item.professorName, getClassScheduleLabel(item), item.memo].filter(Boolean).join(" · ")}</span>
+                    <span className="muted">{getClassScheduleInfoItems(item).join(" · ")}</span>
                   </div>
                 ))}
               </div>
@@ -2120,12 +2566,8 @@ function ElectiveAreaIcon({ area }: { area: ElectiveArea }) {
         ) : null}
         {area === "공학과기술" ? (
           <>
-            <path d="M8.3 4.2v1.5M8.3 12.5V14M4.2 8.3h1.5M10.9 5.7 12 4.6M10.9 10.9 12 12M5.7 5.7 4.6 4.6M5.7 10.9 4.6 12" />
-            <path d="M8.3 6.1a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Z" />
-            <path d="M16.6 10v1.3M16.6 18.6V20M12.6 14.6h1.3M19.3 14.6h1.3M13.8 11.8l.9.9M18.5 16.5l.9.9M13.8 17.4l.9-.9M18.5 12.7l.9-.9" />
-            <path d="M16.6 12.4a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 0 0 0-4.4Z" />
-            <path d="M18.5 4.5v1.1M18.5 10.7v1.1M15.4 7.6h1.1M20.5 7.6h1.1M16.3 5.4l.8.8M19.9 9l.8.8M16.3 9.8l.8-.8M19.9 6.2l.8-.8" />
-            <path d="M18.5 6.2a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8Z" />
+            <path d="M14.7 6.2a5.2 5.2 0 0 1 5.9-1.1l-3.2 3.2 2.3 2.3 3.2-3.2a5.2 5.2 0 0 1-6.8 6.8L7.5 22.8a2.3 2.3 0 0 1-3.3-3.3l8.6-8.6a5.2 5.2 0 0 1 1.9-4.7Z" />
+            <path d="M5.7 20.3h.1" />
           </>
         ) : null}
         {area === "도전과실천" ? (
@@ -2134,13 +2576,14 @@ function ElectiveAreaIcon({ area }: { area: ElectiveArea }) {
             <path d="M10.1 18h3.8" />
             <path d="M10.7 21h2.6" />
             <path d="M9.9 9.6c.5-.9 1.2-1.5 2.2-1.8" />
-            <path d="M12 2.6V1.2" />
-            <path d="M4.9 5.2 3.8 4.1" />
-            <path d="m19.1 5.2 1.1-1.1" />
-            <path d="M2.4 12h-1.4" />
-            <path d="M23 12h-1.4" />
-            <path d="m4.9 18.8-1.1 1.1" />
-            <path d="m19.1 18.8 1.1 1.1" />
+          </>
+        ) : null}
+        {area === "기타" ? (
+          <>
+            <path d="M4.8 12h.1" />
+            <path d="M12 12h.1" />
+            <path d="M19.2 12h.1" />
+            <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />
           </>
         ) : null}
       </svg>
@@ -2187,7 +2630,7 @@ function PersonalSchedulePlanner({
 
     const rect = grid.getBoundingClientRect();
     const timeColumn = 72;
-    const headerRow = 44;
+    const headerRow = plannerHeaderRowHeight;
     const x = event.clientX - rect.left - timeColumn;
     const y = event.clientY - rect.top - headerRow;
     const dayIndex = Math.floor(x / ((rect.width - timeColumn) / weekdays.length));
@@ -2196,7 +2639,7 @@ function PersonalSchedulePlanner({
       return null;
     }
 
-    const rawMinutes = plannerStartMinutes + (y / (rect.height - headerRow)) * (plannerEndMinutes - plannerStartMinutes);
+    const rawMinutes = plannerStartMinutes + (y / (plannerHours.length * plannerHourRowHeight)) * (plannerEndMinutes - plannerStartMinutes);
     const roundedMinutes = Math.min(
       plannerEndMinutes,
       Math.max(plannerStartMinutes, Math.round(rawMinutes / plannerMinuteStep) * plannerMinuteStep)
@@ -2447,4 +2890,29 @@ function getPlannerSelectionStyle(selection: PersonalDragSelection) {
     "--start-slot": (start - plannerStartMinutes) / 60,
     "--duration-slots": Math.max((end - start) / 60, 0.5)
   } as CSSProperties;
+}
+
+function getTimetablePaginationItems(currentPage: number, totalPages: number) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const pages: Array<number | string> = [1];
+  const rangeStart = Math.max(2, currentPage - 1);
+  const rangeEnd = Math.min(totalPages - 1, currentPage + 1);
+
+  if (rangeStart > 2) {
+    pages.push("ellipsis-start");
+  }
+
+  for (let page = rangeStart; page <= rangeEnd; page += 1) {
+    pages.push(page);
+  }
+
+  if (rangeEnd < totalPages - 1) {
+    pages.push("ellipsis-end");
+  }
+
+  pages.push(totalPages);
+  return pages;
 }

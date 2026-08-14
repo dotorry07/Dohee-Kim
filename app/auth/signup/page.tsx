@@ -120,7 +120,7 @@ export default function SignupPage() {
       }, 500);
     } catch (reason) {
       setSuccess("");
-      setError(reason instanceof Error ? reason.message : "회원가입을 완료하지 못했습니다.");
+      setError(reason instanceof Error ? reason.message : "회원가입 처리 중 알 수 없는 오류가 발생했습니다. 입력값과 네트워크 상태를 확인해주세요.");
     }
   }
 
@@ -150,8 +150,8 @@ export default function SignupPage() {
               <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="example@sungshin.ac.kr" />
             </div>
             <div className="signup-field">
-              <label htmlFor="name"><FieldIcon icon={fieldIcons.name} />이름 또는 닉네임</label>
-              <input id="name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="이름 또는 닉네임을 입력해주세요" />
+              <label htmlFor="name"><FieldIcon icon={fieldIcons.name} />이름</label>
+              <input id="name" value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" placeholder="이름을 입력해주세요" />
             </div>
             <div className="signup-field">
               <label htmlFor="password"><FieldIcon icon={fieldIcons.password} />비밀번호</label>

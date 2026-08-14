@@ -11,6 +11,7 @@ export interface UserProfile {
   department: string;
   secondaryDepartment?: string;
   studentNumber?: string;
+  profileImageUrl?: string;
   grade: 1 | 2 | 3 | 4;
   role: Role;
   createdAt: string;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { AuthGuard } from "@/components/AuthGuard";
 import { BoardAuthorMenu } from "@/components/board-author-menu";
 import { BannerTagIcon } from "@/components/BannerTagIcon";
 import { BOARD_RANKS, BoardRankIcon, BoardUserRank } from "@/components/board-user-rank";
@@ -39,6 +40,11 @@ type BoardDraft = {
   content: string;
   image: BoardImage | null;
   savedAt: string;
+};
+
+type BoardProfileSettings = {
+  nickname: string;
+  image: string;
 };
 
 const POST_COOLDOWN_MS = 10_000;
@@ -100,7 +106,30 @@ function getBoardDrafts(): BoardDraft[] {
   }
 }
 
+function boardProfileSettingsKey(userId: string) {
+  return `newbie-on:mypage-profile:${userId}`;
+}
+
+function loadBoardProfileSettings(user: NonNullable<ReturnType<typeof getStoredUser>>): BoardProfileSettings {
+  const defaultImage = user.profileImageUrl ?? "";
+  try {
+    const raw = window.localStorage.getItem(boardProfileSettingsKey(user.id));
+    const parsed = raw ? JSON.parse(raw) as Partial<BoardProfileSettings> : {};
+
+    return {
+      nickname: parsed.nickname?.trim() || user.nickname || user.name,
+      image: typeof parsed.image === "string" ? parsed.image : defaultImage
+    };
+  } catch {
+    return { nickname: user.nickname || user.name, image: defaultImage };
+  }
+}
+
 export default function BoardPage() {
+  return <AuthGuard>{() => <BoardWorkspace />}</AuthGuard>;
+}
+
+function BoardWorkspace() {
   const router = useRouter();
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [category, setCategory] = useState<BoardPost["category"] | "all">("all");
@@ -119,16 +148,33 @@ export default function BoardPage() {
   const [draftToLoad, setDraftToLoad] = useState<BoardDraft | null>(null);
   const [draftToDelete, setDraftToDelete] = useState<BoardDraft | null>(null);
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
+  const [boardProfile, setBoardProfile] = useState<BoardProfileSettings | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    const currentUser = getStoredUser();
     setIsMounted(true);
     setPosts(getBoardPosts());
     void loadPersistentBoardPosts().then(setPosts);
-    setUser(getStoredUser());
+    setUser(currentUser);
+    setBoardProfile(currentUser ? loadBoardProfileSettings(currentUser) : null);
     setDrafts(getBoardDrafts());
 
-    return subscribeToBoardPosts(setPosts);
+    const unsubscribe = subscribeToBoardPosts(setPosts);
+    const handleProfileUpdated = () => {
+      const nextUser = getStoredUser();
+      setUser(nextUser);
+      setBoardProfile(nextUser ? loadBoardProfileSettings(nextUser) : null);
+    };
+
+    window.addEventListener("newbie-on:mypage-profile-updated", handleProfileUpdated);
+    window.addEventListener("storage", handleProfileUpdated);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("newbie-on:mypage-profile-updated", handleProfileUpdated);
+      window.removeEventListener("storage", handleProfileUpdated);
+    };
   }, []);
 
   const filteredPosts = useMemo(() => {
@@ -404,7 +450,7 @@ export default function BoardPage() {
               >
                 <div className="meta">
                   <span className="badge">{categoryLabels[post.category]}</span>
-                  <BoardAuthorMenu userId={post.userId} authorName={post.authorName} currentUserId={user?.id} posts={posts} />
+                  <BoardAuthorMenu userId={post.userId} authorName={post.authorName} currentUserId={user?.id} profileImage={post.userId === user?.id ? boardProfile?.image : undefined} posts={posts} />
                   <span>조회 {post.viewCount}</span>
                   <span className="board-stat" aria-label={`댓글 ${post.comments.length}개`}><CommentIcon />{post.comments.length}</span>
                   <span className="recommend-meta board-stat" aria-label={`추천 ${post.recommendCount}개`}><RecommendIcon />{post.recommendCount}</span>
@@ -436,13 +482,17 @@ export default function BoardPage() {
             {user ? (
               <>
                 <div className="board-profile-card">
-                  <Link className="board-profile-avatar" href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`} aria-label={`${user.nickname} 게시판 활동 보기`}>
-                    <BoardUserRank posts={posts} userId={user.id} />
+                  <Link
+                    className={boardProfile?.image ? "board-profile-avatar has-image" : "board-profile-avatar"}
+                    href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`}
+                    aria-label={`${boardProfile?.nickname || user.nickname} 게시판 활동 보기`}
+                  >
+                    {boardProfile?.image ? <img src={boardProfile.image} alt="" /> : <BoardUserRank posts={posts} userId={user.id} />}
                   </Link>
                   <div className="board-profile-copy">
                     <div className="board-profile-name-row">
                       <Link href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`}>
-                        <strong>{user.nickname}</strong>
+                        <strong>{boardProfile?.nickname || user.nickname}</strong>
                       </Link>
                     </div>
                     <Link className="board-profile-activity-button" href={`/board/users/${encodeURIComponent(user.id)}?tab=posts`}>
@@ -469,6 +519,7 @@ export default function BoardPage() {
                   <span className="board-popular-content">
                     <strong>{post.title}</strong>
                     <span className="board-popular-stats">
+                      <span>{post.authorName}</span>
                       <span>조회 {post.viewCount}</span>
                       <span className="board-stat" aria-label={`댓글 ${post.comments.length}개`}><CommentIcon />{post.comments.length}</span>
                       <span className="board-popular-recommend board-stat" aria-label={`추천 ${post.recommendCount}개`}><RecommendIcon />{post.recommendCount}</span>

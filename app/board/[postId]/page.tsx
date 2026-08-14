@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { AuthGuard } from "@/components/AuthGuard";
 import { BoardAuthorMenu } from "@/components/board-author-menu";
 import { getStoredUser } from "@/lib/auth/client";
 import { getBoardPosts, loadPersistentBoardPosts, saveBoardPosts, subscribeToBoardPosts } from "@/lib/board-storage";
@@ -26,6 +27,30 @@ type BoardPostWithImage = BoardPost & {
   };
 };
 
+type BoardProfileSettings = {
+  nickname: string;
+  image: string;
+};
+
+function boardProfileSettingsKey(userId: string) {
+  return `newbie-on:mypage-profile:${userId}`;
+}
+
+function loadBoardProfileSettings(user: NonNullable<ReturnType<typeof getStoredUser>>): BoardProfileSettings {
+  const defaultImage = user.profileImageUrl ?? "";
+  try {
+    const raw = window.localStorage.getItem(boardProfileSettingsKey(user.id));
+    const parsed = raw ? JSON.parse(raw) as Partial<BoardProfileSettings> : {};
+
+    return {
+      nickname: parsed.nickname?.trim() || user.nickname || user.name,
+      image: typeof parsed.image === "string" ? parsed.image : defaultImage
+    };
+  } catch {
+    return { nickname: user.nickname || user.name, image: defaultImage };
+  }
+}
+
 function BoardDetailIcon({ name }: { name: "back" | "more" | "recommend" | "recommended" | "comment" | "arrowLeft" | "arrowRight" }) {
   const paths: Record<typeof name, string> = {
     back: "M15 6 9 12l6 6",
@@ -45,11 +70,16 @@ function BoardDetailIcon({ name }: { name: "back" | "more" | "recommend" | "reco
 }
 
 export default function BoardPostPage() {
+  return <AuthGuard>{() => <BoardPostWorkspace />}</AuthGuard>;
+}
+
+function BoardPostWorkspace() {
   const params = useParams<{ postId: string }>();
   const router = useRouter();
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [comment, setComment] = useState("");
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
+  const [boardProfile, setBoardProfile] = useState<BoardProfileSettings | null>(null);
   const [focusedCommentId, setFocusedCommentId] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState("");
@@ -61,11 +91,27 @@ export default function BoardPostPage() {
   const viewCountRequested = useRef(false);
 
   useEffect(() => {
+    const currentUser = getStoredUser();
     setPosts(getBoardPosts());
     void loadPersistentBoardPosts().then(setPosts);
-    setUser(getStoredUser());
+    setUser(currentUser);
+    setBoardProfile(currentUser ? loadBoardProfileSettings(currentUser) : null);
     setFocusedCommentId(new URLSearchParams(window.location.search).get("commentId") ?? "");
-    return subscribeToBoardPosts(setPosts);
+    const unsubscribe = subscribeToBoardPosts(setPosts);
+    const handleProfileUpdated = () => {
+      const nextUser = getStoredUser();
+      setUser(nextUser);
+      setBoardProfile(nextUser ? loadBoardProfileSettings(nextUser) : null);
+    };
+
+    window.addEventListener("newbie-on:mypage-profile-updated", handleProfileUpdated);
+    window.addEventListener("storage", handleProfileUpdated);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("newbie-on:mypage-profile-updated", handleProfileUpdated);
+      window.removeEventListener("storage", handleProfileUpdated);
+    };
   }, []);
 
   const selectedPost = posts.find((post) => post.id === params.postId);
@@ -397,7 +443,7 @@ export default function BoardPostPage() {
                 <span className="badge">{categoryLabels[selectedPost.category]}</span>
                 <h1 className="board-post-title">{selectedPost.title}</h1>
                 <div className="meta board-post-meta">
-                  <BoardAuthorMenu userId={selectedPost.userId} authorName={selectedPost.authorName} currentUserId={user?.id} posts={posts} />
+                  <BoardAuthorMenu userId={selectedPost.userId} authorName={selectedPost.authorName} currentUserId={user?.id} profileImage={selectedPost.userId === user?.id ? boardProfile?.image : undefined} posts={posts} />
                   <span>{new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(selectedPost.createdAt))}</span>
                   <span>조회 {selectedPost.viewCount}</span>
                   <span className="recommend-meta">추천 {selectedPost.recommendCount}</span>
@@ -452,7 +498,7 @@ export default function BoardPostPage() {
           {selectedPost.comments.map((item) => (
             <div className={focusedCommentId === item.id ? "list-item board-comment-item focused" : "list-item board-comment-item"} id={`comment-${item.id}`} key={item.id}>
               <div className="board-comment-main">
-                <strong><BoardAuthorMenu userId={item.userId} authorName={item.authorName} currentUserId={user?.id} posts={posts} /></strong>
+                <strong><BoardAuthorMenu userId={item.userId} authorName={item.authorName} currentUserId={user?.id} profileImage={item.userId === user?.id ? boardProfile?.image : undefined} posts={posts} /></strong>
                 {editingCommentId === item.id ? (
                   <textarea className="board-comment-edit-input" maxLength={1000} value={editingCommentContent} onChange={(event) => setEditingCommentContent(event.target.value)} />
                 ) : <span>{item.content}</span>}
@@ -501,7 +547,9 @@ export default function BoardPostPage() {
           ) : null}
         </div>
         <form className="form board-comment-form" onSubmit={addComment}>
-          <span className="board-comment-avatar" aria-hidden="true">{(user?.nickname || user?.name || "새").slice(0, 1)}</span>
+          <span className={boardProfile?.image ? "board-comment-avatar has-image" : "board-comment-avatar"} aria-hidden="true">
+            {boardProfile?.image ? <img src={boardProfile.image} alt="" /> : (boardProfile?.nickname || user?.nickname || user?.name || "새").slice(0, 1)}
+          </span>
           <div className="field board-comment-input-field">
             <label className="sr-only" htmlFor="comment">댓글</label>
             <input id="comment" maxLength={1000} placeholder="댓글을 입력해주세요." value={comment} onChange={(event) => setComment(event.target.value)} />

@@ -38,7 +38,7 @@ export function validateSignup(input: AuthFormInput) {
   }
 
   if (!input.name?.trim()) {
-    return "닉네임 또는 이름은 필수입니다.";
+    return "이름은 필수입니다.";
   }
 
   if (!input.department?.trim()) {

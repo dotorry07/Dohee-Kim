@@ -3,6 +3,11 @@
 @media(max-width:767px){.container{padding:18px 14px}.hero,.twoGrid,.mainGrid{grid-template-columns:1fr}.hero{padding:22px}.hero h1{font-size:26px}.summary{margin-top:4px}.card{padding:20px}.classBox{grid-template-columns:1fr}.period{min-height:auto;padding:14px;flex-direction:row;gap:12px}.period span{margin:0}.nextClass{grid-template-columns:1fr}.checkList,.quickGrid{grid-template-columns:1fr}.noticeItem{grid-template-columns:1fr}.summaryStats{flex-direction:column}.cardHeading h2{font-size:17px}}
 @media(prefers-reduced-motion:reduce){.noticeItem,.post,.progressTrack span,.quickLink{transition:none}.noticeItem:hover,.post:hover,.quickLink:hover{transform:none}}
 
+.noticeItem{grid-template-columns:max-content minmax(0,1fr);min-width:0}
+.noticeItem>div{min-width:0}
+.noticeItem h3,.noticeItem p{display:block;min-width:0}
+.badge{display:block;min-width:max-content;line-height:1.2;white-space:nowrap}
+
 /* Dashboard schedule and contextual actions */
 .headingMeta{padding:5px 9px;border-radius:999px;background:#efeaff;color:#6345db;font-size:12px;font-weight:800}
 .scheduleSections{display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-top:18px}

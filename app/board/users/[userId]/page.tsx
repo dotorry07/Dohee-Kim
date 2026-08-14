@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { AuthGuard } from "@/components/AuthGuard";
 import { getBoardPosts, loadPersistentBoardPosts, subscribeToBoardPosts } from "@/lib/board-storage";
-import { BOARD_RANKS, BoardRankIcon, BoardUserRank } from "@/components/board-user-rank";
+import { BOARD_RANKS, BoardRankIcon } from "@/components/board-user-rank";
 import { getStoredUser } from "@/lib/auth/client";
-import type { BoardPost, Comment } from "@/lib/types";
+import type { BoardPost, Comment, UserProfile } from "@/lib/types";
 
 type UserComment = { post: BoardPost; comment: Comment };
 type UserActivityTab = "posts" | "comments" | "recommended";
 type ActivityIconName = "post" | "comment" | "like" | "arrow" | "back";
+type BoardProfileSettings = { nickname: string; image: string };
 
 const categoryLabels: Record<BoardPost["category"], string> = {
   freshman: "자유게시판",
@@ -31,20 +33,88 @@ function ActivityIcon({ icon }: { icon: ActivityIconName }) {
   );
 }
 
+function boardProfileSettingsKey(userId: string) {
+  return `newbie-on:mypage-profile:${userId}`;
+}
+
+function loadUserBoardProfile(userId: string, currentUser: ReturnType<typeof getStoredUser>): BoardProfileSettings {
+  const defaultProfile = {
+    nickname: currentUser?.id === userId ? currentUser.nickname || currentUser.name : "",
+    image: currentUser?.id === userId ? currentUser.profileImageUrl ?? "" : ""
+  };
+
+  try {
+    const raw = window.localStorage.getItem(boardProfileSettingsKey(userId));
+    const parsed = raw ? JSON.parse(raw) as Partial<BoardProfileSettings> : {};
+    return {
+      nickname: parsed.nickname?.trim() || defaultProfile.nickname,
+      image: typeof parsed.image === "string" ? parsed.image : defaultProfile.image
+    };
+  } catch {
+    return defaultProfile;
+  }
+}
+
+async function loadRemoteBoardProfile(userId: string) {
+  try {
+    const response = await fetch(`/api/profile?id=${encodeURIComponent(userId)}`, { cache: "no-store" });
+    if (!response.ok) return null;
+    const body = await response.json() as { user?: UserProfile | null };
+    return body.user ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function BoardUserActivityPage() {
+  return <AuthGuard>{() => <BoardUserActivityWorkspace />}</AuthGuard>;
+}
+
+function BoardUserActivityWorkspace() {
   const params = useParams<{ userId: string }>();
   const searchParams = useSearchParams();
   const [posts, setPosts] = useState<BoardPost[]>([]);
   const [activeTab, setActiveTab] = useState<UserActivityTab>("posts");
   const [user, setUser] = useState<ReturnType<typeof getStoredUser>>(null);
+  const [boardProfile, setBoardProfile] = useState<BoardProfileSettings>({ nickname: "", image: "" });
   const isOwnPage = user?.id === params.userId;
 
   useEffect(() => {
     setPosts(getBoardPosts());
     void loadPersistentBoardPosts().then(setPosts);
-    setUser(getStoredUser());
+    const storedUser = getStoredUser();
+    setUser(storedUser);
+    setBoardProfile(loadUserBoardProfile(params.userId, storedUser));
+    void loadRemoteBoardProfile(params.userId).then((profile) => {
+      if (!profile) return;
+      setBoardProfile((current) => ({
+        nickname: profile.nickname || current.nickname,
+        image: profile.profileImageUrl || current.image
+      }));
+    });
     return subscribeToBoardPosts(setPosts);
-  }, []);
+  }, [params.userId]);
+
+  useEffect(() => {
+    const handleProfileUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId?: string }>).detail;
+      if (detail?.userId && detail.userId !== params.userId) return;
+
+      const storedUser = getStoredUser();
+      setUser(storedUser);
+      setBoardProfile(loadUserBoardProfile(params.userId, storedUser));
+      void loadRemoteBoardProfile(params.userId).then((profile) => {
+        if (!profile) return;
+        setBoardProfile((current) => ({
+          nickname: profile.nickname || current.nickname,
+          image: profile.profileImageUrl || current.image
+        }));
+      });
+    };
+
+    window.addEventListener("newbie-on:mypage-profile-updated", handleProfileUpdated);
+    return () => window.removeEventListener("newbie-on:mypage-profile-updated", handleProfileUpdated);
+  }, [params.userId]);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -65,7 +135,10 @@ export default function BoardUserActivityPage() {
     .filter((post) => post.recommendedUserIds.includes(params.userId))
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)), [params.userId, posts]);
 
-  const authorName = authoredPosts[0]?.authorName ?? authoredComments[0]?.comment.authorName ?? "사용자";
+  const authorName = isOwnPage
+    ? user.nickname || boardProfile.nickname || user.name
+    : boardProfile.nickname || (authoredPosts[0]?.authorName ?? authoredComments[0]?.comment.authorName ?? params.userId);
+  const authorInitial = authorName.slice(0, 1);
   const activityExp = authoredPosts.length * 3 + authoredComments.length;
   const currentRankIndex = Math.max(0, BOARD_RANKS.findIndex((rank, index) => {
     const nextRank = BOARD_RANKS[index + 1];
@@ -86,7 +159,15 @@ export default function BoardUserActivityPage() {
         <div className="app-banner-inner">
           <div className="board-user-hero-copy app-banner-copy">
             <Link className="ghost-button board-user-back-link" href="/board"><ActivityIcon icon="back" />게시판으로</Link>
-            <h1 className="board-user-title">{authorName}<BoardUserRank posts={posts} userId={params.userId} />님의 활동</h1>
+            <h1 className="board-user-title">
+              <span
+                className={boardProfile.image ? "board-user-title-avatar has-image" : "board-user-title-avatar"}
+                aria-hidden="true"
+              >
+                {boardProfile.image ? <img src={boardProfile.image} alt="" /> : authorInitial}
+              </span>
+              <span>{authorName}님의 활동</span>
+            </h1>
             <p>{isOwnPage ? "내가 작성한 게시글과 댓글, 추천한 글을 확인할 수 있습니다." : "이 사용자가 작성한 게시글과 댓글을 확인할 수 있습니다."}</p>
             <div className="app-banner-tags" aria-hidden="true">
               <span>작성한 글 {authoredPosts.length}</span>
@@ -143,7 +224,7 @@ export default function BoardUserActivityPage() {
         {isOwnPage ? <button className={visibleTab === "recommended" ? "activity-tab active" : "activity-tab"} type="button" onClick={() => setActiveTab("recommended")}><ActivityIcon icon="like" />추천한 글 {recommendedPosts.length}</button> : null}
       </div>
       <section className="panel board-user-activity">
-        <div className="list board-user-activity-list">
+        <div className="list board-user-activity-list" key={visibleTab}>
           {visibleTab === "posts" ? authoredPosts.map((post) => (
             <Link className="list-item board-list-link board-user-row" href={`/board/${post.id}`} key={post.id}>
               <span className="board-user-row-icon"><ActivityIcon icon="post" /></span>

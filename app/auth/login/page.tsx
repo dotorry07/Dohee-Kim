@@ -48,6 +48,15 @@ function BenefitIcon({ type }: { type: string }) {
   );
 }
 
+function LoginSubmitIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+      <path d="m10 17 5-5-5-5M15 12H3" />
+    </svg>
+  );
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("freshman@sungshin.ac.kr");
   const [password, setPassword] = useState("password123");
@@ -110,14 +119,13 @@ export default function LoginPage() {
             <div className="login-field">
               <div className="login-label-row">
                 <label htmlFor="password">비밀번호</label>
-                <Link href="/auth/signup">비밀번호 찾기</Link>
               </div>
               <input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
             </div>
             {error ? <div className="error">{error}</div> : null}
             <button className="login-submit" type="submit">
+              <LoginSubmitIcon />
               로그인
-              <span aria-hidden="true">→</span>
             </button>
           </form>
 

@@ -6811,7 +6811,10 @@ button {
 }
 
 .modal-backdrop > section,
-.modal-backdrop > div,
+.modal-backdrop > div:not(.confirm-modal) {
+  animation: modalCenteredDialogEnter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 .board-rank-guide,
 .board-close-confirm,
 .conflict-alert-modal {
@@ -6825,11 +6828,18 @@ button {
   animation: modalBackdropExit 160ms ease both;
 }
 
-.modal-backdrop.closing > section,
-.modal-backdrop.closing > div,
-.board-rank-guide-backdrop.closing .board-rank-guide,
-.board-close-confirm-backdrop.closing .board-close-confirm,
 .portal-guide-backdrop.closing .portal-guide-dialog {
+  animation: modalCenteredDialogExit 160ms ease both;
+}
+
+.modal-backdrop.closing > section,
+.modal-backdrop.closing > div:not(.confirm-modal) {
+  animation: modalCenteredDialogExit 160ms ease both;
+}
+
+.modal-backdrop.closing > .confirm-modal,
+.board-rank-guide-backdrop.closing .board-rank-guide,
+.board-close-confirm-backdrop.closing .board-close-confirm {
   animation: modalDialogExit 160ms ease both;
 }
 
@@ -6852,6 +6862,27 @@ button {
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Grid-centered dialogs must not use the fixed-position -50% translation. */
+@keyframes modalCenteredDialogEnter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalCenteredDialogExit {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
   }
 }
 

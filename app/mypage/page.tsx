@@ -1182,7 +1182,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
           background: #fff;
           box-shadow: 0 28px 80px rgba(35, 24, 45, 0.22);
           padding: 24px 28px 28px;
-          animation: modalDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+          animation: modalCenteredDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
 
         .account-settings-header {
@@ -1398,7 +1398,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
           background: #fff;
           box-shadow: 0 28px 80px rgba(35, 24, 45, 0.22);
           padding: 24px;
-          animation: modalDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+          animation: modalCenteredDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
 
         .personal-info-modal {
@@ -1735,7 +1735,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
           background: #fff;
           box-shadow: 0 28px 80px rgba(35, 24, 45, 0.22);
           padding: 32px;
-          animation: modalDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+          animation: modalCenteredDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
 
         .notification-settings-header {
@@ -2149,7 +2149,7 @@ function MyPageContent({ user }: { user: UserProfile }) {
         }
 
         :global(.mypage-modal-backdrop) {
-          top: 65px;
+          top: 0;
           right: 0;
           bottom: 0;
           left: 0;

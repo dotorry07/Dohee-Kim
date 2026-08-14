@@ -1856,7 +1856,7 @@ export default function NoticesPage() {
           border-radius: 16px;
           background: #fbf9ff;
           box-shadow: 0 26px 70px rgba(34, 20, 48, 0.28);
-          animation: modalDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+          animation: modalCenteredDialogEnter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
 
         .portal-guide-header {

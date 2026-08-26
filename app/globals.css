@@ -1464,8 +1464,14 @@ button {
   font-weight: 900;
 }
 
-.login-submit:hover {
+.login-submit:hover:not(:disabled) {
   background: linear-gradient(135deg, #7f35e7, #6630d5);
+}
+
+.login-submit:disabled,
+.login-field input:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .login-submit svg {

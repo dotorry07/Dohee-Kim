@@ -1,6 +1,13 @@
 "use client";
 
-import { demoUser } from "@/lib/data";
+import {
+  getMockCurrentUser,
+  loginWithMockApi,
+  logoutFromMockApi,
+  signupWithMockApi
+} from "@/lib/api/auth";
+import { getAuthProvider } from "@/lib/auth/config";
+import { demoUser } from "@/lib/auth/demo-user";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { extractStudentNumber, getGradeFromStudentNumber, getGradeFromUserId } from "@/lib/student";
 import type { UserProfile } from "@/lib/types";
@@ -51,10 +58,16 @@ export function getStoredUser(): UserProfile | null {
 
 export async function signIn(email: string, password: string) {
   const normalizedEmail = email.trim();
-  const supabase = createSupabaseBrowserClient();
 
+  if (getAuthProvider() === "mock") {
+    const user = await loginWithMockApi(normalizedEmail, password);
+    setStoredUser(user);
+    return user;
+  }
+
+  const supabase = createSupabaseBrowserClient();
   if (!supabase) {
-    throw new Error("인증 설정이 없어 로그인할 수 없습니다.");
+    throw new Error("Supabase 인증 환경변수를 확인해주세요.");
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
@@ -119,13 +132,24 @@ export async function signUp(input: {
     createdAt: new Date().toISOString()
   };
 
-  const supabase = createSupabaseBrowserClient();
-  if (!supabase) {
-    throw new Error("Supabase 인증 설정이 없어 회원가입을 완료할 수 없습니다.");
-  }
-
   if (!input.password) {
     throw new Error("비밀번호를 입력해주세요.");
+  }
+
+  if (getAuthProvider() === "mock") {
+    const createdUser = await signupWithMockApi({
+      email: normalizedEmail,
+      password: input.password,
+      user
+    });
+    clearStoredUser();
+    await logoutFromMockApi();
+    return createdUser;
+  }
+
+  const supabase = createSupabaseBrowserClient();
+  if (!supabase) {
+    throw new Error("Supabase 인증 환경변수를 확인해주세요.");
   }
 
   const response = await fetch("/api/auth/signup", {
@@ -149,19 +173,40 @@ export async function signUp(input: {
 }
 
 export async function signOut() {
-  const supabase = createSupabaseBrowserClient();
-  if (supabase) await supabase.auth.signOut();
-  if (typeof window !== "undefined") {
-    try {
-      window.localStorage.removeItem(USER_KEY);
-    } catch {
-      // localStorage may be unavailable in restricted browser contexts.
+  try {
+    if (getAuthProvider() === "mock") {
+      await logoutFromMockApi();
+    } else {
+      const supabase = createSupabaseBrowserClient();
+      if (supabase) await supabase.auth.signOut();
+    }
+  } catch {
+    // Local authentication state is cleared even when the remote logout request fails.
+  } finally {
+    if (typeof window !== "undefined") {
+      clearStoredUser();
     }
   }
 }
 
 export async function getCurrentUser() {
   const storedUser = getStoredUser();
+
+  if (getAuthProvider() === "mock") {
+    const sessionUser = await getMockCurrentUser();
+    if (!sessionUser) {
+      clearStoredUser();
+      return null;
+    }
+
+    if (storedUser?.id === sessionUser.id) {
+      return storedUser;
+    }
+
+    setStoredUser(sessionUser);
+    return sessionUser;
+  }
+
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return storedUser;
 
@@ -181,6 +226,14 @@ export async function getCurrentUser() {
 }
 
 export function onAuthStateChange(callback: (user: UserProfile | null) => void) {
+  if (getAuthProvider() === "mock") {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === USER_KEY) callback(getStoredUser());
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }
+
   const supabase = createSupabaseBrowserClient();
   if (!supabase) return () => undefined;
 

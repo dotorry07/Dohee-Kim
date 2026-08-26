@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthProvider } from "@/lib/auth/config";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import type { ClassSchedule, PersonalSchedule, Timetable, UserProfile } from "@/lib/types";
 
@@ -58,6 +59,25 @@ export async function POST(request: Request) {
 
     if (!body.user) {
       return NextResponse.json({ error: "Missing user." }, { status: 400 });
+    }
+
+    if (getAuthProvider() === "mock") {
+      if (body.action === "list") {
+        return NextResponse.json({ timetables: [], provider: "mock" });
+      }
+
+      if (body.action === "save") {
+        if (!body.timetable) {
+          return NextResponse.json({ error: "Missing timetable." }, { status: 400 });
+        }
+        return NextResponse.json({ timetable: body.timetable, provider: "mock" });
+      }
+
+      if (body.action === "delete" || body.action === "select-monthly") {
+        return NextResponse.json({ ok: true, provider: "mock" });
+      }
+
+      return NextResponse.json({ error: "Unknown action." }, { status: 400 });
     }
 
     const supabase = createSupabaseAdminClient();

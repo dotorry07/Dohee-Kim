@@ -61,6 +61,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("freshman@sungshin.ac.kr");
   const [password, setPassword] = useState("password123");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,11 +71,14 @@ export default function LoginPage() {
       return;
     }
 
+    setError("");
+    setIsSubmitting(true);
     try {
       await signIn(email, password);
       window.location.href = "/dashboard";
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "이메일 또는 비밀번호가 올바르지 않습니다.");
+      setIsSubmitting(false);
     }
   }
 
@@ -114,18 +118,18 @@ export default function LoginPage() {
           <form className="login-form" onSubmit={handleSubmit}>
             <div className="login-field">
               <label htmlFor="email">이메일 주소</label>
-              <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+              <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" disabled={isSubmitting} />
             </div>
             <div className="login-field">
               <div className="login-label-row">
                 <label htmlFor="password">비밀번호</label>
               </div>
-              <input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+              <input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" disabled={isSubmitting} />
             </div>
             {error ? <div className="error">{error}</div> : null}
-            <button className="login-submit" type="submit">
+            <button className="login-submit" type="submit" disabled={isSubmitting}>
               <LoginSubmitIcon />
-              로그인
+              {isSubmitting ? "로그인 중..." : "로그인"}
             </button>
           </form>
 

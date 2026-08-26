@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthProvider } from "@/lib/auth/config";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { ensureDatabaseUser } from "@/lib/server/users";
 import type { UserProfile } from "@/lib/types";
@@ -9,6 +10,10 @@ export async function POST(request: Request) {
 
   if (!user?.email) {
     return NextResponse.json({ error: "Missing user." }, { status: 400 });
+  }
+
+  if (getAuthProvider() === "mock") {
+    return NextResponse.json({ preferences: {}, provider: "mock" });
   }
 
   try {
@@ -36,6 +41,10 @@ export async function PUT(request: Request) {
 
   if (!user?.email || !preferences) {
     return NextResponse.json({ error: "Missing preferences." }, { status: 400 });
+  }
+
+  if (getAuthProvider() === "mock") {
+    return new NextResponse(null, { status: 204 });
   }
 
   try {

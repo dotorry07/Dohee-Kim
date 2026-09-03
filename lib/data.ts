@@ -1,20 +1,10 @@
-import type { BoardPost, CampusPlace, CampusShortcut, Course, Notice, PersonalSchedule, UserProfile } from "@/lib/types";
+import type { BoardPost, CampusPlace, CampusShortcut, Course, Notice, PersonalSchedule } from "@/lib/types";
+import { demoUser } from "@/lib/auth/demo-user";
+
+export { demoUser } from "@/lib/auth/demo-user";
 
 export const departments = ["컴퓨터공학과", "AI융합학부", "경영학과", "미디어커뮤니케이션학과", "간호학과"];
 export const grades = [1, 2, 3, 4] as const;
-
-export const demoUser: UserProfile = {
-  id: "user-1",
-  authUserId: "auth-demo",
-  email: "freshman@sungshin.ac.kr",
-  name: "김새내",
-  nickname: "새내기",
-  department: "컴퓨터공학과",
-  secondaryDepartment: "",
-  grade: 1,
-  role: "user",
-  createdAt: "2026-03-01T09:00:00.000Z"
-};
 
 export const courses: Course[] = [
   {

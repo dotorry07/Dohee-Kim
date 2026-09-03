@@ -1,5 +1,6 @@
 "use client";
 
+import { getAuthProvider } from "@/lib/auth/config";
 import type { Notice, UserProfile } from "@/lib/types";
 
 export type DepartmentNotificationTarget = "primary" | "secondary";
@@ -40,6 +41,10 @@ export function getDepartmentNotificationPreferences(userId: string): Department
 
 export async function loadDepartmentNotificationPreferences(user: UserProfile) {
   const local = getDepartmentNotificationPreferences(user.id);
+
+  if (getAuthProvider() === "mock") {
+    return local;
+  }
 
   try {
     const response = await fetch("/api/timetable-preferences", {
@@ -164,6 +169,8 @@ async function saveRemoteDepartmentNotificationPreferences(
   user: UserProfile,
   preferences: DepartmentNotificationPreferences
 ) {
+  if (getAuthProvider() === "mock") return;
+
   try {
     await fetch("/api/timetable-preferences", {
       method: "PUT",

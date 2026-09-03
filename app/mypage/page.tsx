@@ -335,8 +335,8 @@ function MyPageContent({ user }: { user: UserProfile }) {
     return "프로필 이미지를 Supabase에 저장하지 못했습니다. 잠시 후 다시 시도해주세요.";
   };
 
-  const handleLogout = () => {
-    signOut();
+  const handleLogout = async () => {
+    await signOut();
     setIsLogoutConfirmOpen(false);
     window.location.href = "/";
   };

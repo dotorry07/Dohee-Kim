@@ -1,4 +1,10 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { getAuthProvider } from "@/lib/auth/config";
+import {
+  MOCK_ACCOUNTS_COOKIE,
+  mockAccountsCookieOptions,
+  registerMockUser
+} from "@/lib/auth/mock-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { ensureDatabaseUser, loadDatabaseUserByEmail } from "@/lib/server/users";
 import type { UserProfile } from "@/lib/types";
@@ -9,7 +15,7 @@ type SignupRequest = {
   user?: UserProfile;
 };
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({})) as SignupRequest;
   const email = body.email?.trim();
   const password = body.password;
@@ -21,6 +27,25 @@ export async function POST(request: Request) {
 
   if (email.toLowerCase() !== user.email.trim().toLowerCase()) {
     return NextResponse.json({ error: "Email mismatch.", reason: "email_mismatch" }, { status: 400 });
+  }
+
+  if (getAuthProvider() === "mock") {
+    const result = registerMockUser(
+      { email, password, user },
+      request.cookies.get(MOCK_ACCOUNTS_COOKIE)?.value
+    );
+
+    if ("reason" in result) {
+      const status = result.reason === "duplicate_email" ? 409 : 400;
+      return NextResponse.json({ error: "Mock signup failed.", reason: result.reason }, { status });
+    }
+
+    const response = NextResponse.json(
+      { user: result.user, provider: "mock" },
+      { status: 201 }
+    );
+    response.cookies.set(MOCK_ACCOUNTS_COOKIE, result.accountsCookie, mockAccountsCookieOptions);
+    return response;
   }
 
   try {
